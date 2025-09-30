@@ -5,6 +5,41 @@ body {
     font-family: 'Inter', sans-serif;
 }
 
+/* Tab Navigation Styles */
+.tab-btn {
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.tab-btn.active {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.3);
+}
+
+.tab-btn:hover:not(.active) {
+    background-color: #374151;
+    color: white;
+}
+
+.tab-content {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.tab-content.hidden {
+    display: none;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* Card Styles */
 .card-container {
     perspective: 1000px;
@@ -207,4 +242,78 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #6b7280;
+}
+
+/* Market-specific styles */
+.sell-card-btn {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.card-face:hover .sell-card-btn {
+    opacity: 1;
+}
+
+.portfolio-card {
+    transition: all 0.2s ease;
+}
+
+.portfolio-card:hover {
+    transform: translateX(5px);
+    background-color: #374151;
+}
+
+/* Achievement notification animation */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.achievement-slide-in {
+    animation: slideInRight 0.5s ease-out;
+}
+
+/* Market trend indicators */
+.trend-rising {
+    color: #10b981;
+}
+
+.trend-falling {
+    color: #ef4444;
+}
+
+.trend-stable {
+    color: #6b7280;
+}
+
+/* Hot card glow effect */
+.hot-card {
+    box-shadow: 0 0 10px rgba(251, 146, 60, 0.5);
+    border: 1px solid #f59e0b;
+}
+
+/* Player stats bar responsive */
+@media (max-width: 768px) {
+    #player-stats-bar {
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    #player-stats-bar > div {
+        justify-content: center;
+    }
+}
+
+/* Market modal responsiveness */
+@media (max-width: 640px) {
+    #sell-card-modal .bg-gray-800 {
+        width: 95%;
+        margin: 0 auto;
+    }
 }

@@ -5,8 +5,18 @@ class GameEngine {
             unopenedPacks: {},
             collection: {},
             selectedSet: Object.keys(window.TCG_SETS)[0],
+            // Economic state
+            wallet: 50.00, // Starting money
+            totalEarnings: 0,
+            totalSpent: 0,
+            netWorth: 50.00,
+            achievements: [],
+            currentTitle: "Rookie Trader",
+            unlockedBanners: [],
+            unlockedPortraits: []
         };
         this.storageManager = new StorageManager();
+        this.marketEngine = new MarketEngine();
         this.initializeState();
     }
 
@@ -23,20 +33,51 @@ class GameEngine {
         // Load saved state if available
         const savedState = this.storageManager.loadState();
         if (savedState) {
-            this.state = savedState;
+            this.state = { ...this.state, ...savedState };
             
             // Ensure new sets are initialized even in loaded state
             Object.keys(allSets).forEach(setId => {
                 if (!this.state.unopenedPacks[setId]) this.state.unopenedPacks[setId] = 0;
                 if (!this.state.collection[setId]) this.state.collection[setId] = {};
             });
+            
+            // Initialize economy fields for existing saves
+            if (typeof this.state.wallet === 'undefined') {
+                this.state.wallet = 50.00;
+                this.state.totalEarnings = 0;
+                this.state.totalSpent = 0;
+                this.state.netWorth = 50.00;
+                this.state.achievements = [];
+                this.state.currentTitle = "Rookie Trader";
+                this.state.unlockedBanners = [];
+                this.state.unlockedPortraits = [];
+            }
         }
+        
+        // Update net worth on initialization
+        this.updateNetWorth();
     }
 
     buyPacks(amount) {
+        const packCost = this.marketEngine.getPackPrice(this.state.selectedSet, amount);
+        
+        if (this.state.wallet < packCost) {
+            return { success: false, message: "Insufficient funds", cost: packCost };
+        }
+        
+        this.state.wallet = Math.round((this.state.wallet - packCost) * 100) / 100;
+        this.state.totalSpent = Math.round((this.state.totalSpent + packCost) * 100) / 100;
         this.state.unopenedPacks[this.state.selectedSet] += amount;
+        
+        this.updateNetWorth();
         this.saveState();
-        return this.state.unopenedPacks[this.state.selectedSet];
+        
+        return { 
+            success: true, 
+            message: `Purchased ${amount} pack(s) for $${packCost.toFixed(2)}`,
+            cost: packCost,
+            remainingMoney: this.state.wallet
+        };
     }
 
     generatePackContents(setId) {
@@ -78,6 +119,13 @@ class GameEngine {
         const cards = this.generatePackContents(setId);
         this.state.unopenedPacks[setId]--;
         this.addCardsToCollection(setId, cards);
+        
+        // Record market data for opened cards
+        cards.forEach(card => {
+            this.marketEngine.recordCardOpened(setId, card.name, card.isFoil);
+        });
+        
+        this.updateNetWorth();
         this.saveState();
         
         return cards;
@@ -142,8 +190,166 @@ class GameEngine {
         this.saveState();
     }
 
+    // Economic methods
+
+    updateNetWorth() {
+        let portfolioValue = 0;
+        
+        // Calculate value of all cards in collection
+        Object.keys(this.state.collection).forEach(setId => {
+            Object.keys(this.state.collection[setId]).forEach(cardName => {
+                const cardData = this.state.collection[setId][cardName];
+                const regularPrice = this.marketEngine.getCardPrice(setId, cardName, false);
+                const foilPrice = this.marketEngine.getCardPrice(setId, cardName, true);
+                
+                portfolioValue += (cardData.count - cardData.foilCount) * regularPrice;
+                portfolioValue += cardData.foilCount * foilPrice;
+            });
+        });
+        
+        this.state.netWorth = Math.round((this.state.wallet + portfolioValue) * 100) / 100;
+        return this.state.netWorth;
+    }
+
+    sellCard(setId, cardName, quantity, isFoil = false) {
+        const collectionSet = this.state.collection[setId];
+        if (!collectionSet || !collectionSet[cardName]) {
+            return { success: false, message: "Card not found in collection" };
+        }
+        
+        const cardData = collectionSet[cardName];
+        const availableQuantity = isFoil ? cardData.foilCount : (cardData.count - cardData.foilCount);
+        
+        if (quantity > availableQuantity) {
+            return { success: false, message: `Not enough cards. You have ${availableQuantity} available.` };
+        }
+        
+        const salePrice = this.marketEngine.getCardPrice(setId, cardName, isFoil);
+        const totalValue = Math.round(salePrice * quantity * 100) / 100;
+        
+        // Apply trading fee (5% for instant sales)
+        const fee = Math.round(totalValue * 0.05 * 100) / 100;
+        const netValue = Math.round((totalValue - fee) * 100) / 100;
+        
+        // Update collection
+        if (isFoil) {
+            cardData.foilCount -= quantity;
+        } else {
+            // Remove regular cards, keeping foils
+            cardData.count -= quantity;
+        }
+        
+        // Clean up empty entries
+        if (cardData.count === 0 && cardData.foilCount === 0) {
+            delete collectionSet[cardName];
+        }
+        
+        // Update wallet and earnings
+        this.state.wallet = Math.round((this.state.wallet + netValue) * 100) / 100;
+        this.state.totalEarnings = Math.round((this.state.totalEarnings + netValue) * 100) / 100;
+        
+        this.updateNetWorth();
+        this.checkAchievements();
+        this.saveState();
+        
+        return {
+            success: true,
+            message: `Sold ${quantity}x ${cardName} for $${totalValue.toFixed(2)} (net: $${netValue.toFixed(2)})`,
+            grossValue: totalValue,
+            netValue: netValue,
+            fee: fee,
+            newWallet: this.state.wallet
+        };
+    }
+
+    getPortfolioSummary() {
+        const portfolio = [];
+        let totalValue = 0;
+        
+        Object.keys(this.state.collection).forEach(setId => {
+            Object.keys(this.state.collection[setId]).forEach(cardName => {
+                const cardData = this.state.collection[setId][cardName];
+                const regularPrice = this.marketEngine.getCardPrice(setId, cardName, false);
+                const foilPrice = this.marketEngine.getCardPrice(setId, cardName, true);
+                
+                const regularValue = (cardData.count - cardData.foilCount) * regularPrice;
+                const foilValue = cardData.foilCount * foilPrice;
+                const cardTotalValue = regularValue + foilValue;
+                
+                if (cardTotalValue > 0) {
+                    portfolio.push({
+                        setId,
+                        cardName,
+                        regularCount: cardData.count - cardData.foilCount,
+                        foilCount: cardData.foilCount,
+                        regularPrice,
+                        foilPrice,
+                        totalValue: Math.round(cardTotalValue * 100) / 100,
+                        rarity: this.getCardRarity(setId, cardName),
+                        trend: this.marketEngine.getCardTrend(setId, cardName)
+                    });
+                    totalValue += cardTotalValue;
+                }
+            });
+        });
+        
+        return {
+            cards: portfolio.sort((a, b) => b.totalValue - a.totalValue),
+            totalValue: Math.round(totalValue * 100) / 100,
+            cardCount: portfolio.length
+        };
+    }
+
+    checkAchievements() {
+        const achievements = [
+            { id: 'card_flipper', threshold: 100, title: 'Card Flipper', reward: 0 },
+            { id: 'market_novice', threshold: 250, title: 'Market Novice', reward: 25 },
+            { id: 'trader', threshold: 1000, title: 'Trader', reward: 0 },
+            { id: 'market_savvy', threshold: 2500, title: 'Market Savvy', reward: 0 },
+            { id: 'serious_trader', threshold: 5000, title: 'Serious Trader', reward: 0 },
+            { id: 'market_master', threshold: 15000, title: 'Market Master', reward: 0 },
+            { id: 'whale', threshold: 25000, title: 'Whale', reward: 0 },
+            { id: 'diamond_trader', threshold: 50000, title: 'Diamond Trader', reward: 0 }
+        ];
+        
+        achievements.forEach(achievement => {
+            if (this.state.totalEarnings >= achievement.threshold && 
+                !this.state.achievements.includes(achievement.id)) {
+                
+                this.state.achievements.push(achievement.id);
+                this.state.currentTitle = achievement.title;
+                
+                if (achievement.reward > 0) {
+                    this.state.wallet = Math.round((this.state.wallet + achievement.reward) * 100) / 100;
+                }
+                
+                // Trigger achievement notification
+                if (window.tcgApp && window.tcgApp.uiManager) {
+                    window.tcgApp.uiManager.showAchievementNotification(achievement);
+                }
+            }
+        });
+    }
+
+    getPlayerStats() {
+        return {
+            wallet: this.state.wallet,
+            netWorth: this.state.netWorth,
+            totalEarnings: this.state.totalEarnings,
+            totalSpent: this.state.totalSpent,
+            profit: Math.round((this.state.totalEarnings - this.state.totalSpent) * 100) / 100,
+            currentTitle: this.state.currentTitle,
+            achievements: this.state.achievements,
+            unlockedBanners: this.state.unlockedBanners,
+            unlockedPortraits: this.state.unlockedPortraits
+        };
+    }
+
     saveState() {
+        // Also save market state
+        const marketState = this.marketEngine.getState();
         this.storageManager.saveState(this.state);
+        this.storageManager.saveMarketState(marketState);
     }
 
     resetGame() {
@@ -151,6 +357,14 @@ class GameEngine {
             unopenedPacks: {},
             collection: {},
             selectedSet: Object.keys(window.getAllSets())[0],
+            wallet: 50.00,
+            totalEarnings: 0,
+            totalSpent: 0,
+            netWorth: 50.00,
+            achievements: [],
+            currentTitle: "Rookie Trader",
+            unlockedBanners: [],
+            unlockedPortraits: []
         };
         this.initializeState();
         this.storageManager.clearState();

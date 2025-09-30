@@ -6,8 +6,14 @@ class TCGPackSimulator {
     }
 
     initialize() {
-        // Initialize the game engine
+        // Initialize the game engine (which includes market engine)
         this.gameEngine = new GameEngine();
+        
+        // Load saved market state if available
+        const savedMarketState = this.gameEngine.storageManager.loadMarketState();
+        if (savedMarketState) {
+            this.gameEngine.marketEngine.setState(savedMarketState);
+        }
         
         // Initialize the UI manager
         this.uiManager = new UIManager(this.gameEngine);
@@ -15,11 +21,13 @@ class TCGPackSimulator {
         // Initial render
         this.uiManager.refreshUI();
         
-        console.log('TCG Pack Simulator initialized successfully!');
+        console.log('TCG Pack Simulator with Market System initialized successfully!');
     }
 
     reset() {
         this.gameEngine.resetGame();
+        this.gameEngine.marketEngine.destroy();
+        this.gameEngine.marketEngine = new MarketEngine();
         this.uiManager.refreshUI();
     }
 }

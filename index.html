@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TCG Pack Opening Simulator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="src/css/styles.css">
 </head>
@@ -29,68 +30,213 @@
     <div class="container mx-auto p-4 md:p-8">
         <header class="text-center mb-8">
             <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">TCG Pack Simulator</h1>
-            <p class="text-gray-400 mt-2">Open virtual packs and complete your collection!</p>
+            <p class="text-gray-400 mt-2">Open virtual packs and trade your way to fortune!</p>
+            
+            <!-- Player Stats Bar -->
+            <div id="player-stats-bar" class="bg-gray-800 rounded-lg p-4 mt-4 flex flex-wrap justify-center items-center gap-4 text-sm">
+                <div class="flex items-center gap-2">
+                    <span class="text-green-400">💰</span>
+                    <span>Cash: $<span id="player-wallet">50.00</span></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-blue-400">📊</span>
+                    <span>Net Worth: $<span id="player-networth">50.00</span></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-yellow-400">🏆</span>
+                    <span id="player-title">Rookie Trader</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-purple-400">📈</span>
+                    <span>P&L: $<span id="player-profit">0.00</span></span>
+                </div>
+            </div>
         </header>
 
         <main>
-            <!-- Set Selection and Pack Buying -->
-            <section id="pack-selection" class="bg-gray-800 rounded-2xl p-6 mb-8 shadow-lg">
-                <h2 class="text-2xl font-semibold mb-4 text-center">Choose a Set</h2>
-                
-                <!-- Weekly Set Notification -->
-                <div id="weekly-set-notification" class="bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg p-4 mb-4 text-center">
-                    <h3 class="text-lg font-bold text-white mb-2">🌟 Weekly Featured Set 🌟</h3>
-                    <p class="text-yellow-200 text-sm">Limited time! Better rates and exclusive themes!</p>
-                    <div class="text-xs text-yellow-300 mt-1">
-                        New set in: <span id="weekly-countdown">Loading...</span>
-                    </div>
+            <!-- Tab Navigation -->
+            <div class="mb-8">
+                <div class="flex justify-center">
+                    <nav class="bg-gray-800 rounded-lg p-1 flex gap-1">
+                        <button id="packs-tab" class="tab-btn active bg-blue-600 text-white px-6 py-3 rounded-md font-medium transition-colors">
+                            📦 Packs & Opening
+                        </button>
+                        <button id="collection-tab" class="tab-btn bg-transparent text-gray-300 hover:text-white px-6 py-3 rounded-md font-medium transition-colors">
+                            🗂️ My Collection
+                        </button>
+                        <button id="market-tab" class="tab-btn bg-transparent text-gray-300 hover:text-white px-6 py-3 rounded-md font-medium transition-colors">
+                            📈 Trading Market
+                        </button>
+                    </nav>
                 </div>
-                
-                <div class="flex flex-wrap justify-center items-center gap-4">
-                    <select id="set-selector" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
-                        <!-- Options will be populated by JS -->
-                    </select>
-                    <button id="buy-pack-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Buy 1 Pack</button>
-                    <button id="buy-box-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Buy Booster Box</button>
-                </div>
-                <div id="unopened-packs-container" class="mt-6 text-center">
-                    <h3 class="text-xl font-semibold mb-2">Your Packs</h3>
-                    <div id="unopened-packs-display" class="flex flex-wrap justify-center gap-4 p-4 bg-gray-900/50 rounded-lg min-h-[100px]">
-                        <!-- Unopened packs will be displayed here -->
-                    </div>
-                </div>
-            </section>
+            </div>
 
-            <!-- Opened Pack Display -->
-            <section id="opened-pack-container" class="bg-gray-800 rounded-2xl p-6 mb-8 shadow-lg min-h-[300px]">
-                 <h2 class="text-2xl font-semibold mb-4 text-center">Opened Pack</h2>
-                 <div id="opened-pack-display" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-4">
-                    <!-- Cards from the opened pack will be displayed here -->
-                 </div>
-            </section>
-
-            <!-- Collection Viewing Area -->
-            <section id="collection-container" class="bg-gray-800 rounded-2xl p-6 shadow-lg">
-                <div class="flex flex-col md:flex-row justify-between items-center mb-4">
-                    <h2 class="text-2xl font-semibold">My Collection</h2>
-                    <div class="flex items-center gap-4 mt-4 md:mt-0">
-                        <label for="collection-set-selector" class="text-sm">View Set:</label>
-                        <select id="collection-set-selector" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+            <!-- Packs & Opening Tab -->
+            <div id="packs-content" class="tab-content">
+                <!-- Set Selection and Pack Buying -->
+                <section id="pack-selection" class="bg-gray-800 rounded-2xl p-6 mb-8 shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-4 text-center">Choose a Set</h2>
+                    
+                    <!-- Weekly Set Notification -->
+                    <div id="weekly-set-notification" class="bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg p-4 mb-4 text-center">
+                        <h3 class="text-lg font-bold text-white mb-2">🌟 Weekly Featured Set 🌟</h3>
+                        <p class="text-yellow-200 text-sm">Limited time! Better rates and exclusive themes!</p>
+                        <div class="text-xs text-yellow-300 mt-1">
+                            New set in: <span id="weekly-countdown">Loading...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-wrap justify-center items-center gap-4">
+                        <select id="set-selector" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
                             <!-- Options will be populated by JS -->
                         </select>
-                         <div id="collection-progress" class="text-sm"></div>
+                        <button id="buy-pack-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Buy 1 Pack</button>
+                        <button id="buy-box-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Buy Booster Box</button>
                     </div>
-                </div>
-                <div id="collection-display" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-4 max-h-[600px] overflow-y-auto p-4 bg-gray-900/50 rounded-lg">
-                    <!-- User's collection will be displayed here -->
-                </div>
-            </section>
+                    <div id="unopened-packs-container" class="mt-6 text-center">
+                        <h3 class="text-xl font-semibold mb-2">Your Packs</h3>
+                        <div id="unopened-packs-display" class="flex flex-wrap justify-center gap-4 p-4 bg-gray-900/50 rounded-lg min-h-[100px]">
+                            <!-- Unopened packs will be displayed here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Opened Pack Display -->
+                <section id="opened-pack-container" class="bg-gray-800 rounded-2xl p-6 mb-8 shadow-lg min-h-[300px]">
+                     <h2 class="text-2xl font-semibold mb-4 text-center">Opened Pack</h2>
+                     <div id="opened-pack-display" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-4">
+                        <!-- Cards from the opened pack will be displayed here -->
+                     </div>
+                </section>
+            </div>
+
+            <!-- Collection Tab -->
+            <div id="collection-content" class="tab-content hidden">
+                <section id="collection-container" class="bg-gray-800 rounded-2xl p-6 shadow-lg">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-4">
+                        <h2 class="text-2xl font-semibold">My Collection</h2>
+                        <div class="flex items-center gap-4 mt-4 md:mt-0">
+                            <label for="collection-set-selector" class="text-sm">View Set:</label>
+                            <select id="collection-set-selector" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+                                <!-- Options will be populated by JS -->
+                            </select>
+                             <div id="collection-progress" class="text-sm"></div>
+                        </div>
+                    </div>
+                    <div id="collection-display" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-4 max-h-[600px] overflow-y-auto p-4 bg-gray-900/50 rounded-lg">
+                        <!-- User's collection will be displayed here -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- Trading Market Tab -->
+            <div id="market-content" class="tab-content hidden">
+                <section id="market-container" class="bg-gray-800 rounded-2xl p-6 shadow-lg">
+                    <div class="flex flex-col lg:flex-row gap-6">
+                        <!-- Portfolio View -->
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-xl font-semibold">My Portfolio</h3>
+                                <div class="text-sm text-gray-400">
+                                    Total Value: $<span id="portfolio-value">0.00</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Portfolio Controls -->
+                            <div class="mb-4 flex flex-wrap gap-2">
+                                <input type="text" id="portfolio-search" placeholder="Search cards..." 
+                                       class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 flex-1 min-w-[200px]">
+                                <select id="portfolio-sort" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2">
+                                    <option value="value-desc">Value (High to Low)</option>
+                                    <option value="value-asc">Value (Low to High)</option>
+                                    <option value="name-asc">Name (A-Z)</option>
+                                    <option value="name-desc">Name (Z-A)</option>
+                                    <option value="rarity-desc">Rarity (Rare First)</option>
+                                    <option value="change-desc">Biggest Gainers</option>
+                                    <option value="change-asc">Biggest Losers</option>
+                                </select>
+                                <select id="portfolio-filter" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2">
+                                    <option value="all">All Cards</option>
+                                    <option value="common">Commons Only</option>
+                                    <option value="uncommon">Uncommons Only</option>
+                                    <option value="rare">Rares Only</option>
+                                    <option value="mythic">Mythics Only</option>
+                                    <option value="foil">Foils Only</option>
+                                    <option value="rising">Rising Prices</option>
+                                    <option value="falling">Falling Prices</option>
+                                </select>
+                            </div>
+                            
+                            <div id="portfolio-display" class="max-h-[510px] overflow-y-auto bg-gray-900/50 rounded-lg p-4">
+                                <!-- Portfolio cards will be displayed here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Market Info -->
+                        <div class="flex-1">
+                            <h3 class="text-xl font-semibold mb-4">Market Trends</h3>
+                            <div id="market-summary" class="bg-gray-900/50 rounded-lg p-4 mb-4">
+                                <!-- Market summary will be displayed here -->
+                            </div>
+                            <div id="hot-cards" class="bg-gray-900/50 rounded-lg p-4">
+                                <h4 class="font-semibold mb-2">🔥 Hot Cards</h4>
+                                <div id="hot-cards-list">
+                                    <!-- Hot cards will be displayed here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
         </main>
+    </div>
+
+    <!-- Sell Card Modal -->
+    <div id="sell-card-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg p-6 w-96 max-w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">Sell Card</h3>
+            <div id="sell-card-info" class="mb-4">
+                <!-- Card info will be populated here -->
+            </div>
+            <div class="mb-4">
+                <label for="sell-quantity" class="block text-sm font-medium mb-2">Quantity to Sell</label>
+                <input type="number" id="sell-quantity" min="1" value="1" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg w-full p-2.5">
+            </div>
+            <div class="mb-4">
+                <label class="flex items-center">
+                    <input type="checkbox" id="sell-foil-only" class="mr-2">
+                    <span class="text-sm">Sell foil version only</span>
+                </label>
+            </div>
+            <div id="sale-preview" class="mb-4 p-3 bg-gray-700 rounded text-sm">
+                <!-- Sale preview will be shown here -->
+            </div>
+            <div class="flex gap-2">
+                <button id="confirm-sell-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded flex-1">
+                    Sell
+                </button>
+                <button id="cancel-sell-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded flex-1">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Achievement Notification -->
+    <div id="achievement-notification" class="fixed top-4 right-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg p-4 shadow-lg hidden z-50 animate-bounce">
+        <div class="flex items-center">
+            <span class="text-2xl mr-3">🏆</span>
+            <div>
+                <div class="font-bold">Achievement Unlocked!</div>
+                <div id="achievement-text" class="text-sm"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Load JavaScript modules -->
     <script src="src/js/data.js"></script>
     <script src="src/js/storage.js"></script>
+    <script src="src/js/market.js"></script>
     <script src="src/js/game.js"></script>
     <script src="src/js/ui.js"></script>
     <script src="src/js/app.js"></script>

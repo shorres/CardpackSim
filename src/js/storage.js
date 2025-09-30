@@ -2,6 +2,7 @@
 class StorageManager {
     constructor() {
         this.storageKey = 'tcgSimState';
+        this.marketStorageKey = 'tcgSimMarketState';
     }
 
     saveState(state) {
@@ -43,9 +44,31 @@ class StorageManager {
     clearState() {
         try {
             localStorage.removeItem(this.storageKey);
+            localStorage.removeItem(this.marketStorageKey);
         } catch (error) {
             console.error('Failed to clear state from localStorage:', error);
         }
+    }
+
+    saveMarketState(marketState) {
+        try {
+            localStorage.setItem(this.marketStorageKey, JSON.stringify(marketState));
+        } catch (error) {
+            console.error('Failed to save market state to localStorage:', error);
+        }
+    }
+
+    loadMarketState() {
+        try {
+            const savedState = localStorage.getItem(this.marketStorageKey);
+            if (savedState) {
+                return JSON.parse(savedState);
+            }
+        } catch (error) {
+            console.error("Could not load market state from localStorage:", error);
+        }
+        
+        return null;
     }
 }
 

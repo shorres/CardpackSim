@@ -9,6 +9,14 @@ class UIManager {
     }
 
     initializeElements() {
+        // Tab elements
+        this.packsTab = document.getElementById('packs-tab');
+        this.collectionTab = document.getElementById('collection-tab');
+        this.marketTab = document.getElementById('market-tab');
+        this.packsContent = document.getElementById('packs-content');
+        this.collectionContent = document.getElementById('collection-content');
+        this.marketContent = document.getElementById('market-content');
+        
         // DOM elements
         this.setSelector = document.getElementById('set-selector');
         this.collectionSetSelector = document.getElementById('collection-set-selector');
@@ -19,12 +27,40 @@ class UIManager {
         this.collectionDisplay = document.getElementById('collection-display');
         this.collectionProgress = document.getElementById('collection-progress');
         
+        // Player stats elements
+        this.playerWallet = document.getElementById('player-wallet');
+        this.playerNetworth = document.getElementById('player-networth');
+        this.playerTitle = document.getElementById('player-title');
+        this.playerProfit = document.getElementById('player-profit');
+        
+        // Market elements
+        this.portfolioDisplay = document.getElementById('portfolio-display');
+        this.portfolioValue = document.getElementById('portfolio-value');
+        this.marketSummary = document.getElementById('market-summary');
+        this.hotCardsList = document.getElementById('hot-cards-list');
+        
         // Modal elements
         this.packOpeningModal = document.getElementById('pack-opening-modal');
         this.packArtTearable = document.getElementById('pack-art-tearable');
         this.packArtSetName = document.getElementById('pack-art-set-name');
         this.packArtTearOff = document.getElementById('pack-art-tear-off');
         this.packArtSetNameTorn = document.getElementById('pack-art-set-name-torn');
+        
+        // Sell modal elements
+        this.sellCardModal = document.getElementById('sell-card-modal');
+        this.sellCardInfo = document.getElementById('sell-card-info');
+        this.sellQuantity = document.getElementById('sell-quantity');
+        this.sellFoilOnly = document.getElementById('sell-foil-only');
+        this.salePreview = document.getElementById('sale-preview');
+        this.confirmSellBtn = document.getElementById('confirm-sell-btn');
+        this.cancelSellBtn = document.getElementById('cancel-sell-btn');
+        
+        // Achievement notification
+        this.achievementNotification = document.getElementById('achievement-notification');
+        this.achievementText = document.getElementById('achievement-text');
+        
+        this.currentSellCard = null;
+        this.currentTab = 'packs'; // Default tab
 
         // Populate selectors
         this.populateSetSelectors();
@@ -53,9 +89,15 @@ class UIManager {
     }
 
     setupEventListeners() {
+        // Tab navigation
+        this.packsTab.addEventListener('click', () => this.switchTab('packs'));
+        this.collectionTab.addEventListener('click', () => this.switchTab('collection'));
+        this.marketTab.addEventListener('click', () => this.switchTab('market'));
+        
         this.setSelector.addEventListener('change', (e) => {
             this.gameEngine.setSelectedSet(e.target.value);
             this.updateBuyBoxButtonText();
+            this.updatePackPrices();
         });
         
         this.collectionSetSelector.addEventListener('change', () => {
@@ -63,22 +105,110 @@ class UIManager {
         });
         
         this.buyPackBtn.addEventListener('click', () => {
-            this.gameEngine.buyPacks(1);
-            this.renderUnopenedPacks();
+            const result = this.gameEngine.buyPacks(1);
+            this.handlePurchaseResult(result);
         });
         
         this.buyBoxBtn.addEventListener('click', () => {
             const allSets = window.getAllSets();
             const set = allSets[this.gameEngine.state.selectedSet];
-            this.gameEngine.buyPacks(set.boosterBoxSize);
-            this.renderUnopenedPacks();
+            const result = this.gameEngine.buyPacks(set.boosterBoxSize);
+            this.handlePurchaseResult(result);
+        });
+        
+        // Sell modal event listeners
+        this.cancelSellBtn.addEventListener('click', () => {
+            this.closeSellModal();
+        });
+        
+        this.confirmSellBtn.addEventListener('click', () => {
+            this.executeSale();
+        });
+        
+        this.sellQuantity.addEventListener('input', () => {
+            this.updateSalePreview();
+        });
+        
+        this.sellFoilOnly.addEventListener('change', () => {
+            this.updateSalePreview();
+        });
+        
+        // Click outside modal to close
+        this.sellCardModal.addEventListener('click', (e) => {
+            if (e.target === this.sellCardModal) {
+                this.closeSellModal();
+            }
         });
 
         // Start the countdown timer for weekly sets
         this.startWeeklyCountdown();
         
-        // Initial button text update
+        // Start market update timer
+        this.startMarketUpdates();
+        
+        // Initial updates
         this.updateBuyBoxButtonText();
+        this.updatePackPrices();
+    }
+
+    handlePurchaseResult(result) {
+        if (result.success) {
+            this.renderUnopenedPacks();
+            this.updatePlayerStats();
+            this.showNotification(result.message, 'success');
+        } else {
+            this.showNotification(result.message, 'error');
+        }
+    }
+
+    showNotification(message, type = 'info') {
+        // Create temporary notification
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-white font-medium z-50 ${
+            type === 'success' ? 'bg-green-600' : 
+            type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+        }`;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+
+    switchTab(tabName) {
+        // Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+        
+        this.currentTab = tabName;
+        
+        if (tabName === 'packs') {
+            this.packsTab.classList.add('active');
+            this.packsContent.classList.remove('hidden');
+        } else if (tabName === 'collection') {
+            this.collectionTab.classList.add('active');
+            this.collectionContent.classList.remove('hidden');
+            this.renderCollection(); // Refresh collection when switching to tab
+        } else if (tabName === 'market') {
+            this.marketTab.classList.add('active');
+            this.marketContent.classList.remove('hidden');
+            this.renderPortfolio(); // Refresh portfolio when switching to tab
+            this.renderMarketSummary();
+            this.renderHotCards();
+        }
+    }
+
+    updatePackPrices() {
+        const selectedSetId = this.gameEngine.state.selectedSet;
+        const packPrice = this.gameEngine.marketEngine.getPackPrice(selectedSetId, 1);
+        const allSets = window.getAllSets();
+        const set = allSets[selectedSetId];
+        const boxPrice = this.gameEngine.marketEngine.getPackPrice(selectedSetId, set.boosterBoxSize);
+        
+        this.buyPackBtn.textContent = `Buy 1 Pack ($${packPrice.toFixed(2)})`;
+        this.buyBoxBtn.textContent = `Buy Booster Box ($${boxPrice.toFixed(2)})`;
     }
 
     updateBuyBoxButtonText() {
@@ -342,7 +472,7 @@ class UIManager {
             const count = cardData ? cardData.count : 0;
             const foilCount = cardData ? cardData.foilCount : 0;
             
-            const cardElement = this.createCollectionCardElement(cardInfo.name, cardInfo.rarity, foilCount > 0, count, foilCount);
+            const cardElement = this.createCollectionCardElement(cardInfo.name, cardInfo.rarity, foilCount > 0, count, foilCount, selectedSetId);
             this.collectionDisplay.appendChild(cardElement);
         });
         
@@ -356,26 +486,347 @@ class UIManager {
         `;
     }
 
-    createCollectionCardElement(name, rarity, isFoil, count, foilCount) {
+    createCollectionCardElement(name, rarity, isFoil, count, foilCount, setId = null) {
         const element = document.createElement('div');
         const foilClass = isFoil ? 'foil' : '';
         const ownedClass = count === 0 ? 'opacity-40' : '';
-        element.className = `card-face relative border-4 rounded-lg p-2 h-40 flex flex-col justify-between bg-gray-800 shadow-md rarity-${rarity} ${foilClass} ${ownedClass}`;
+        element.className = `card-face relative border-4 rounded-lg p-2 h-40 flex flex-col justify-between bg-gray-800 shadow-md rarity-${rarity} ${foilClass} ${ownedClass} cursor-pointer hover:transform hover:scale-105 transition-transform`;
         
         let countDisplay = `
             <div class="absolute top-1 right-1 bg-gray-900 text-white text-xs font-bold rounded-full px-2 py-1">
                 ${isFoil ? `<span class="text-yellow-400">★${foilCount}</span> / ` : ''} ${count}x
             </div>
         `;
+        
+        // Add sell button if player owns the card
+        if (count > 0) {
+            countDisplay += `
+                <div class="absolute bottom-1 right-1">
+                    <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-2 py-1 rounded sell-card-btn" 
+                            data-set-id="${setId || this.collectionSetSelector.value}" 
+                            data-card-name="${name}">
+                        💰 Sell
+                    </button>
+                </div>
+            `;
+        }
 
         element.innerHTML = this.createCardFaceHTML(name, rarity) + countDisplay;
+        
+        // Add event listener for sell button
+        const sellBtn = element.querySelector('.sell-card-btn');
+        if (sellBtn) {
+            sellBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openSellModal(sellBtn.dataset.setId, sellBtn.dataset.cardName);
+            });
+        }
+        
         return element;
+    }
+
+    // Market and Trading Methods
+
+    startMarketUpdates() {
+        // Update market data every 30 seconds
+        this.marketUpdateInterval = setInterval(() => {
+            this.updatePlayerStats();
+            this.renderPortfolio();
+            this.renderMarketSummary();
+            this.renderHotCards();
+        }, 30000);
+        
+        // Initial render
+        this.updatePlayerStats();
+        this.renderPortfolio();
+        this.renderMarketSummary();
+        this.renderHotCards();
+    }
+
+    onMarketUpdate() {
+        // Called by market engine when prices update
+        this.updatePlayerStats();
+        this.renderPortfolio();
+        this.renderMarketSummary();
+        this.renderHotCards();
+    }
+
+    updatePlayerStats() {
+        const stats = this.gameEngine.getPlayerStats();
+        
+        this.playerWallet.textContent = stats.wallet.toFixed(2);
+        this.playerNetworth.textContent = stats.netWorth.toFixed(2);
+        this.playerTitle.textContent = stats.currentTitle;
+        this.playerProfit.textContent = stats.profit.toFixed(2);
+        
+        // Update profit color
+        if (stats.profit > 0) {
+            this.playerProfit.className = 'text-green-400';
+        } else if (stats.profit < 0) {
+            this.playerProfit.className = 'text-red-400';
+        } else {
+            this.playerProfit.className = 'text-gray-400';
+        }
+    }
+
+    renderPortfolio() {
+        const portfolio = this.gameEngine.getPortfolioSummary();
+        
+        this.portfolioValue.textContent = portfolio.totalValue.toFixed(2);
+        this.portfolioDisplay.innerHTML = '';
+        
+        if (portfolio.cards.length === 0) {
+            this.portfolioDisplay.innerHTML = '<p class="text-gray-500 text-center">No cards in portfolio. Open some packs!</p>';
+            return;
+        }
+        
+        portfolio.cards.slice(0, 20).forEach(card => { // Show top 20 most valuable
+            const cardElement = document.createElement('div');
+            cardElement.className = 'flex justify-between items-center p-3 bg-gray-800 rounded-lg mb-2 hover:bg-gray-700 transition-colors';
+            
+            const trendIcon = card.trend.trend === 'rising' ? '📈' : 
+                             card.trend.trend === 'falling' ? '📉' : '➡️';
+            const trendColor = card.trend.trend === 'rising' ? 'text-green-400' : 
+                              card.trend.trend === 'falling' ? 'text-red-400' : 'text-gray-400';
+            
+            cardElement.innerHTML = `
+                <div class="flex-1">
+                    <div class="font-medium text-sm">${card.cardName}</div>
+                    <div class="text-xs text-gray-400">
+                        ${card.regularCount > 0 ? `${card.regularCount}x regular ` : ''}
+                        ${card.foilCount > 0 ? `${card.foilCount}x foil ` : ''}
+                        | ${card.rarity}
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="font-medium">$${card.totalValue.toFixed(2)}</div>
+                    <div class="text-xs ${trendColor}">
+                        ${trendIcon} ${card.trend.change > 0 ? '+' : ''}${card.trend.change.toFixed(1)}%
+                    </div>
+                </div>
+                <button class="ml-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-2 py-1 rounded sell-portfolio-btn"
+                        data-set-id="${card.setId}" 
+                        data-card-name="${card.cardName}">
+                    Sell
+                </button>
+            `;
+            
+            // Add sell button event listener
+            const sellBtn = cardElement.querySelector('.sell-portfolio-btn');
+            sellBtn.addEventListener('click', () => {
+                this.openSellModal(card.setId, card.cardName);
+            });
+            
+            this.portfolioDisplay.appendChild(cardElement);
+        });
+    }
+
+    renderMarketSummary() {
+        const summary = this.gameEngine.marketEngine.getMarketSummary();
+        
+        const sentimentText = summary.sentiment > 1.1 ? 'Bullish 🐂' : 
+                             summary.sentiment < 0.9 ? 'Bearish 🐻' : 'Neutral ⚖️';
+        const sentimentColor = summary.sentiment > 1.1 ? 'text-green-400' : 
+                              summary.sentiment < 0.9 ? 'text-red-400' : 'text-gray-400';
+        
+        this.marketSummary.innerHTML = `
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <div class="text-gray-400">Market Sentiment</div>
+                    <div class="${sentimentColor} font-medium">${sentimentText}</div>
+                </div>
+                <div>
+                    <div class="text-gray-400">Active Events</div>
+                    <div class="text-yellow-400 font-medium">${summary.activeEvents} ongoing</div>
+                </div>
+                <div>
+                    <div class="text-gray-400">Gainers/Losers</div>
+                    <div class="font-medium">
+                        <span class="text-green-400">${summary.gainers}</span> / 
+                        <span class="text-red-400">${summary.losers}</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-gray-400">Total Cards</div>
+                    <div class="font-medium">${summary.totalCards}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderHotCards() {
+        const hotCards = this.gameEngine.marketEngine.getHotCards(5);
+        
+        this.hotCardsList.innerHTML = '';
+        
+        if (hotCards.length === 0) {
+            this.hotCardsList.innerHTML = '<p class="text-gray-500 text-sm">No trending cards right now</p>';
+            return;
+        }
+        
+        hotCards.forEach(card => {
+            const cardElement = document.createElement('div');
+            cardElement.className = 'flex justify-between items-center p-2 bg-gray-800 rounded mb-2';
+            
+            const eventBadge = card.event ? `<span class="bg-orange-500 text-xs px-1 rounded">${card.event}</span>` : '';
+            
+            cardElement.innerHTML = `
+                <div class="flex-1">
+                    <div class="text-sm font-medium">${card.cardName}</div>
+                    <div class="text-xs text-gray-400">${eventBadge}</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm">$${card.price.toFixed(2)}</div>
+                    <div class="text-xs text-green-400">+${card.change.toFixed(1)}%</div>
+                </div>
+            `;
+            
+            this.hotCardsList.appendChild(cardElement);
+        });
+    }
+
+    // Sell Modal Methods
+
+    openSellModal(setId, cardName) {
+        const collectionSet = this.gameEngine.state.collection[setId];
+        const cardData = collectionSet[cardName];
+        
+        if (!cardData || cardData.count === 0) {
+            this.showNotification("You don't own this card", 'error');
+            return;
+        }
+        
+        this.currentSellCard = { setId, cardName };
+        
+        const rarity = this.gameEngine.getCardRarity(setId, cardName);
+        const regularPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, false);
+        const foilPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, true);
+        const trend = this.gameEngine.marketEngine.getCardTrend(setId, cardName);
+        
+        const regularCount = cardData.count - cardData.foilCount;
+        const foilCount = cardData.foilCount;
+        
+        this.sellCardInfo.innerHTML = `
+            <div class="mb-3">
+                <h4 class="font-bold text-lg">${cardName}</h4>
+                <p class="text-sm text-gray-400 capitalize">${rarity} | ${trend.trend} ${trend.change > 0 ? '+' : ''}${trend.change.toFixed(1)}%</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <div class="text-gray-400">Regular Copies</div>
+                    <div>${regularCount} @ $${regularPrice.toFixed(2)} each</div>
+                </div>
+                <div>
+                    <div class="text-gray-400">Foil Copies</div>
+                    <div>${foilCount} @ $${foilPrice.toFixed(2)} each</div>
+                </div>
+            </div>
+        `;
+        
+        this.sellQuantity.max = cardData.count;
+        this.sellQuantity.value = 1;
+        this.sellFoilOnly.checked = false;
+        
+        // Disable foil checkbox if no foils
+        this.sellFoilOnly.disabled = foilCount === 0;
+        
+        this.updateSalePreview();
+        this.sellCardModal.classList.remove('hidden');
+    }
+
+    closeSellModal() {
+        this.sellCardModal.classList.add('hidden');
+        this.currentSellCard = null;
+    }
+
+    updateSalePreview() {
+        if (!this.currentSellCard) return;
+        
+        const quantity = parseInt(this.sellQuantity.value);
+        const isFoil = this.sellFoilOnly.checked;
+        const { setId, cardName } = this.currentSellCard;
+        
+        const collectionSet = this.gameEngine.state.collection[setId];
+        const cardData = collectionSet[cardName];
+        const availableQuantity = isFoil ? cardData.foilCount : (cardData.count - cardData.foilCount);
+        
+        if (quantity > availableQuantity) {
+            this.salePreview.innerHTML = `
+                <div class="text-red-400">
+                    ❌ Not enough cards! You have ${availableQuantity} ${isFoil ? 'foil' : 'regular'} copies.
+                </div>
+            `;
+            this.confirmSellBtn.disabled = true;
+            return;
+        }
+        
+        const salePrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, isFoil);
+        const totalValue = salePrice * quantity;
+        const fee = totalValue * 0.05;
+        const netValue = totalValue - fee;
+        
+        this.salePreview.innerHTML = `
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span>Gross Value:</span>
+                    <span>$${totalValue.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between text-red-400">
+                    <span>Trading Fee (5%):</span>
+                    <span>-$${fee.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between font-bold border-t pt-2">
+                    <span>Net Proceeds:</span>
+                    <span class="text-green-400">$${netValue.toFixed(2)}</span>
+                </div>
+            </div>
+        `;
+        
+        this.confirmSellBtn.disabled = false;
+    }
+
+    executeSale() {
+        if (!this.currentSellCard) return;
+        
+        const quantity = parseInt(this.sellQuantity.value);
+        const isFoil = this.sellFoilOnly.checked;
+        const { setId, cardName } = this.currentSellCard;
+        
+        const result = this.gameEngine.sellCard(setId, cardName, quantity, isFoil);
+        
+        if (result.success) {
+            this.showNotification(result.message, 'success');
+            this.closeSellModal();
+            this.refreshUI();
+            this.renderPortfolio();
+            this.updatePlayerStats();
+        } else {
+            this.showNotification(result.message, 'error');
+        }
+    }
+
+    showAchievementNotification(achievement) {
+        this.achievementText.textContent = `${achievement.title}${achievement.reward > 0 ? ` (+$${achievement.reward})` : ''}`;
+        this.achievementNotification.classList.remove('hidden');
+        
+        setTimeout(() => {
+            this.achievementNotification.classList.add('hidden');
+        }, 5000);
     }
 
     // Public method to refresh all UI elements
     refreshUI() {
         this.renderUnopenedPacks();
-        this.renderCollection();
+        this.updatePlayerStats();
+        
+        // Only refresh tab-specific content if that tab is active
+        if (this.currentTab === 'collection') {
+            this.renderCollection();
+        } else if (this.currentTab === 'market') {
+            this.renderPortfolio();
+            this.renderMarketSummary();
+            this.renderHotCards();
+        }
     }
 
     // Cleanup method to prevent memory leaks
@@ -383,6 +834,10 @@ class UIManager {
         if (this.countdownInterval) {
             clearInterval(this.countdownInterval);
             this.countdownInterval = null;
+        }
+        if (this.marketUpdateInterval) {
+            clearInterval(this.marketUpdateInterval);
+            this.marketUpdateInterval = null;
         }
     }
 }
