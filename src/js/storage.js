@@ -3,6 +3,7 @@ class StorageManager {
     constructor() {
         this.storageKey = 'tcgSimState';
         this.marketStorageKey = 'tcgSimMarketState';
+        this.weeklySetsKey = 'tcgSimWeeklySets';
     }
 
     saveState(state) {
@@ -10,6 +11,50 @@ class StorageManager {
             localStorage.setItem(this.storageKey, JSON.stringify(state));
         } catch (error) {
             console.error('Failed to save state to localStorage:', error);
+        }
+    }
+
+    saveWeeklySet(setId, setData) {
+        try {
+            const existingSets = this.loadWeeklySets();
+            
+            // Add lifecycle information when storing
+            const enrichedSetData = {
+                ...setData,
+                storedDate: Date.now(),
+                lifecycle: 'featured', // Start as featured
+                featuredUntil: Date.now() + (7 * 24 * 60 * 60 * 1000), // 1 week
+                standardUntil: Date.now() + (30 * 24 * 60 * 60 * 1000), // 30 days
+                rotateDate: Date.now() + (30 * 24 * 60 * 60 * 1000) // Rotate to legacy after 30 days
+            };
+            
+            existingSets[setId] = enrichedSetData;
+            localStorage.setItem(this.weeklySetsKey, JSON.stringify(existingSets));
+            console.log(`Stored weekly set: ${setId}`);
+        } catch (error) {
+            console.error('Failed to save weekly set to localStorage:', error);
+        }
+    }
+
+    loadWeeklySets() {
+        try {
+            const savedSets = localStorage.getItem(this.weeklySetsKey);
+            return savedSets ? JSON.parse(savedSets) : {};
+        } catch (error) {
+            console.error('Failed to load weekly sets from localStorage:', error);
+            return {};
+        }
+    }
+
+    updateSetLifecycle(setId, newLifecycle) {
+        try {
+            const existingSets = this.loadWeeklySets();
+            if (existingSets[setId]) {
+                existingSets[setId].lifecycle = newLifecycle;
+                localStorage.setItem(this.weeklySetsKey, JSON.stringify(existingSets));
+            }
+        } catch (error) {
+            console.error('Failed to update set lifecycle:', error);
         }
     }
 
@@ -64,6 +109,7 @@ class StorageManager {
         try {
             localStorage.removeItem(this.storageKey);
             localStorage.removeItem(this.marketStorageKey);
+            localStorage.removeItem(this.weeklySetsKey);
         } catch (error) {
             console.error('Failed to clear state from localStorage:', error);
         }

@@ -192,7 +192,7 @@ class WeeklySetGenerator {
         const { startOfWeek, endOfWeek } = this.getWeeklySetDates();
 
         return {
-            name: `${theme.name} - Week ${targetWeek}`,
+            name: `${theme.name} (#${targetWeek})`,
             totalCards: Object.values(cardCounts).reduce((a, b) => a + b, 0),
             packSize: 12,
             boosterBoxSize: 26, // Slightly smaller for weekly sets
@@ -244,16 +244,69 @@ class WeeklySetGenerator {
 // Create global instance
 const weeklySetGenerator = new WeeklySetGenerator();
 
-// Function to get all available sets (including current weekly set)
+// Enhanced function to get all available sets (including all stored weekly sets)
 function getAllSets() {
     const allSets = { ...TCG_SETS };
     
-    // Add current weekly set
-    const weeklySet = weeklySetGenerator.getCurrentWeeklySet();
-    const weeklyId = weeklySetGenerator.getWeeklySetId();
-    allSets[weeklyId] = weeklySet;
+    // Get storage manager instance
+    const storageManager = window.storageManager || new StorageManager();
+    
+    // Add current weekly set and ensure it's stored
+    const currentWeeklySet = weeklySetGenerator.getCurrentWeeklySet();
+    const currentWeeklyId = weeklySetGenerator.getWeeklySetId();
+    
+    // Check if current weekly set is already stored
+    const storedWeeklySets = storageManager.loadWeeklySets();
+    if (!storedWeeklySets[currentWeeklyId]) {
+        storageManager.saveWeeklySet(currentWeeklyId, currentWeeklySet);
+    }
+    
+    // Add all stored weekly sets with updated lifecycle status
+    Object.keys(storedWeeklySets).forEach(setId => {
+        const setData = storedWeeklySets[setId];
+        const updatedSetData = updateSetLifecycle(setData, storageManager, setId);
+        allSets[setId] = updatedSetData;
+    });
     
     return allSets;
+}
+
+// Helper function to update set lifecycle status
+function updateSetLifecycle(setData, storageManager, setId) {
+    const now = Date.now();
+    let currentLifecycle = setData.lifecycle;
+    
+    // Check if lifecycle should change
+    if (now > setData.rotateDate && currentLifecycle !== 'legacy') {
+        currentLifecycle = 'legacy';
+        storageManager.updateSetLifecycle(setId, 'legacy');
+    } else if (now > setData.featuredUntil && currentLifecycle === 'featured') {
+        currentLifecycle = 'standard';
+        storageManager.updateSetLifecycle(setId, 'standard');
+    }
+    
+    // Return set data with updated lifecycle and pricing modifiers
+    return {
+        ...setData,
+        lifecycle: currentLifecycle,
+        // Adjust pricing based on lifecycle
+        packPriceMultiplier: getLifecyclePriceMultiplier(currentLifecycle),
+        // Adjust pack composition for legacy sets
+        ...(currentLifecycle === 'legacy' && {
+            mythicChance: setData.mythicChance * 0.8, // Reduced mythic chance
+            foilChance: setData.foilChance * 0.9, // Slightly reduced foil chance
+        })
+    };
+}
+
+// Helper function to get price multipliers for different lifecycle stages
+function getLifecyclePriceMultiplier(lifecycle) {
+    switch (lifecycle) {
+        case 'featured': return 1.0; // Full weekly price
+        case 'standard': return 0.8; // 20% discount from weekly price
+        case 'legacy': return 0.6; // 40% discount from weekly price
+        default: return 1.0;
+    }
 }
 
 // Export for use in other modules

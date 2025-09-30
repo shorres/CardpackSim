@@ -97,17 +97,39 @@ class UIManager {
         const allSets = window.getAllSets();
         Object.keys(allSets).forEach(setId => {
             const set = allSets[setId];
-            const option = new Option(set.name, setId);
-            const collectionOption = new Option(set.name, setId);
             
-            // Add special styling for weekly sets
+            // Create display name with lifecycle status
+            let displayName = set.name;
+            if (set && set.isWeekly && set.lifecycle) {
+                const statusBadge = set.lifecycle === 'featured' ? ' ⭐ FEATURED' :
+                                   set.lifecycle === 'standard' ? ' 📦 STANDARD' :
+                                   set.lifecycle === 'legacy' ? ' 🏛️ LEGACY' : '';
+                displayName = set.name + statusBadge;
+            }
+            
+            const option = new Option(displayName, setId);
+            const collectionOption = new Option(displayName, setId);
+            
+            // Add special styling for weekly sets based on lifecycle
             if (set && set.isWeekly) {
-                option.style.background = 'linear-gradient(90deg, #9333ea, #ec4899)';
-                option.style.color = 'white';
-                option.style.fontWeight = 'bold';
-                collectionOption.style.background = 'linear-gradient(90deg, #9333ea, #ec4899)';
-                collectionOption.style.color = 'white';
-                collectionOption.style.fontWeight = 'bold';
+                if (set.lifecycle === 'featured') {
+                    option.style.background = 'linear-gradient(90deg, #9333ea, #ec4899)';
+                    option.style.color = 'white';
+                    option.style.fontWeight = 'bold';
+                    collectionOption.style.background = 'linear-gradient(90deg, #9333ea, #ec4899)';
+                    collectionOption.style.color = 'white';
+                    collectionOption.style.fontWeight = 'bold';
+                } else if (set.lifecycle === 'standard') {
+                    option.style.background = 'linear-gradient(90deg, #059669, #0891b2)';
+                    option.style.color = 'white';
+                    collectionOption.style.background = 'linear-gradient(90deg, #059669, #0891b2)';
+                    collectionOption.style.color = 'white';
+                } else if (set.lifecycle === 'legacy') {
+                    option.style.background = 'linear-gradient(90deg, #92400e, #a16207)';
+                    option.style.color = 'white';
+                    collectionOption.style.background = 'linear-gradient(90deg, #92400e, #a16207)';
+                    collectionOption.style.color = 'white';
+                }
             }
             
             this.setSelector.add(option);
@@ -367,18 +389,39 @@ class UIManager {
                 const packElement = document.createElement('div');
                 
                 if (set.isWeekly) {
+                    // Get lifecycle status for styling
+                    let badgeText = '⏰ WEEKLY';
+                    let bgClass = 'from-purple-600 to-pink-600';
+                    let borderClass = 'border-yellow-400';
+                    
+                    if (set.lifecycle === 'featured') {
+                        badgeText = '⭐ FEATURED';
+                        bgClass = 'from-purple-600 to-pink-600';
+                        borderClass = 'border-yellow-400';
+                    } else if (set.lifecycle === 'standard') {
+                        badgeText = '📦 STANDARD';
+                        bgClass = 'from-emerald-600 to-cyan-600';
+                        borderClass = 'border-emerald-400';
+                    } else if (set.lifecycle === 'legacy') {
+                        badgeText = '🏛️ LEGACY';
+                        bgClass = 'from-amber-700 to-yellow-700';
+                        borderClass = 'border-amber-400';
+                    }
+                    
                     // Special styling for weekly sets
-                    packElement.className = 'pack p-4 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg text-center shadow-lg border-2 border-yellow-400 relative';
+                    packElement.className = `pack p-4 bg-gradient-to-br ${bgClass} rounded-lg text-center shadow-lg border-2 ${borderClass} relative`;
                     packElement.innerHTML = `
                         <div class="absolute top-1 right-1 bg-yellow-400 text-black text-xs font-bold rounded-full px-2 py-1">
-                            ⏰ WEEKLY
+                            ${badgeText}
                         </div>
                         <div class="font-bold text-lg text-white">${set.name}</div>
                         <div class="text-2xl text-white">${count}x</div>
                         <div class="text-sm text-yellow-200">Click to Open</div>
+                        ${set.lifecycle === 'featured' ? `
                         <div class="text-xs text-yellow-300 mt-1">
                             Time Left: <span id="weekly-countdown">Loading...</span>
                         </div>
+                        ` : ''}
                     `;
                 } else {
                     // Normal styling for regular sets

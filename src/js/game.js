@@ -21,6 +21,8 @@ class GameEngine {
             selectedPortrait: "👤"
         };
         this.storageManager = new StorageManager();
+        // Make storage manager globally available for getAllSets function
+        window.storageManager = this.storageManager;
         this.marketEngine = new MarketEngine();
         this.initializeState();
     }

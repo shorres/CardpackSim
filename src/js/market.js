@@ -83,7 +83,22 @@ class MarketEngine {
             this.state.supplyData[setId] = {};
         }
 
-        const setMultiplier = setData.isWeekly ? this.config.setMultipliers.weekly : this.config.setMultipliers.standard;
+        let setMultiplier = setData.isWeekly ? this.config.setMultipliers.weekly : this.config.setMultipliers.standard;
+        
+        // Apply lifecycle pricing for weekly sets
+        if (setData.isWeekly && setData.lifecycle) {
+            switch (setData.lifecycle) {
+                case 'featured':
+                    setMultiplier *= 1.0; // Full weekly pricing
+                    break;
+                case 'standard':
+                    setMultiplier *= 0.9; // Slight reduction
+                    break;
+                case 'legacy':
+                    setMultiplier *= 0.7; // Significant reduction for legacy
+                    break;
+            }
+        }
         
         // Initialize prices for each rarity
         Object.keys(setData.cards).forEach(rarity => {
@@ -380,7 +395,12 @@ class MarketEngine {
         
         if (!setData) return 0;
         
-        const basePrice = setData.isWeekly ? this.config.packPrices.weekly : this.config.packPrices.standard;
+        let basePrice = setData.isWeekly ? this.config.packPrices.weekly : this.config.packPrices.standard;
+        
+        // Apply lifecycle pricing for weekly sets
+        if (setData.isWeekly && setData.packPriceMultiplier) {
+            basePrice *= setData.packPriceMultiplier;
+        }
         
         // Apply booster box discount if buying a full box
         if (quantity >= setData.boosterBoxSize) {
