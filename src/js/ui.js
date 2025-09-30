@@ -244,6 +244,7 @@ class UIManager {
         } else if (tabName === 'market') {
             this.marketTab.classList.add('active');
             this.marketContent.classList.remove('hidden');
+            this.updateMarketPortfolioStats(); // Update stats first
             this.renderPortfolio(); // Refresh portfolio when switching to tab
             this.renderMarketSummary();
             this.renderHotCards();
@@ -617,12 +618,38 @@ class UIManager {
         } else {
             this.playerProfit.className = 'text-gray-400';
         }
+        
+        // Also update the market tab portfolio stats if they exist
+        this.updateMarketPortfolioStats();
+    }
+    
+    updateMarketPortfolioStats() {
+        const portfolioStats = this.gameEngine.getPortfolioSummary();
+        const playerStats = this.gameEngine.getPlayerStats();
+        
+        // Update portfolio value in the market tab
+        const portfolioValueElement = document.getElementById('portfolio-value');
+        if (portfolioValueElement) {
+            portfolioValueElement.textContent = `${portfolioStats.totalValue.toFixed(2)}`;
+        }
+        
+        // Update portfolio cash display in market tab
+        const portfolioCashElement = document.getElementById('portfolio-cash');
+        if (portfolioCashElement) {
+            portfolioCashElement.textContent = `${playerStats.wallet.toFixed(2)}`;
+        }
+        
+        // Update net worth in market tab
+        const portfolioNetworthElement = document.getElementById('portfolio-networth');
+        if (portfolioNetworthElement) {
+            portfolioNetworthElement.textContent = `${playerStats.netWorth.toFixed(2)}`;
+        }
     }
 
     renderPortfolio() {
         const portfolio = this.gameEngine.getPortfolioSummary();
         
-        this.portfolioValue.textContent = portfolio.totalValue.toFixed(2);
+        //this.portfolioValue.textContent = portfolio.totalValue.toFixed(2);
         this.portfolioDisplay.innerHTML = '';
         
         if (portfolio.cards.length === 0) {
@@ -698,6 +725,9 @@ class UIManager {
             
             this.portfolioDisplay.appendChild(cardElement);
         });
+        
+        // Update portfolio stats after rendering
+        this.updateMarketPortfolioStats();
     }
 
     filterPortfolioCards(cards) {
@@ -946,9 +976,23 @@ class UIManager {
         if (result.success) {
             this.showNotification(result.message, 'success');
             this.closeSellModal();
-            this.refreshUI();
-            this.renderPortfolio();
-            this.updatePlayerStats();
+            
+            // Immediate UI updates for better UX
+            this.updatePlayerStats(); // Update cash/net worth immediately
+            this.renderPortfolio(); // Update portfolio immediately
+            
+            // Update collection if we're on that tab
+            if (this.currentTab === 'collection') {
+                this.renderCollection();
+            }
+            
+            // If there's an open chart for this card, update it
+            if (this.currentChartCard && 
+                this.currentChartCard.setId === setId && 
+                this.currentChartCard.cardName === cardName) {
+                const timeframe = document.querySelector('.chart-timeframe-btn.active')?.dataset.timeframe || 1;
+                this.updateChart(parseInt(timeframe));
+            }
         } else {
             this.showNotification(result.message, 'error');
         }
