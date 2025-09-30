@@ -550,15 +550,95 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
     border: 1px solid var(--warning);
 }
 
+/* Player stats bar - positioned discreetly in top left */
+#player-stats-bar {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1000;
+    background-color: var(--bg-secondary) !important;
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: 8px 12px !important;
+    margin: 0 !important;
+    font-size: 0.8rem;
+    opacity: 0.9;
+    transition: opacity 0.3s ease;
+    max-width: 700px;
+    gap: 8px;
+}
+
+#player-stats-bar:hover {
+    opacity: 1;
+}
+
+#player-stats-bar > div {
+    font-size: 0.75rem;
+    margin: 0;
+    padding: 2px 4px;
+}
+
+/* Weekly notification positioned in top right corner of pack section */
+#pack-selection {
+    position: relative;
+}
+
+#weekly-set-notification {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    margin: 0 !important;
+    padding: 8px 12px !important;
+    font-size: 0.8rem;
+    max-width: 200px;
+    z-index: 10;
+    opacity: 0.95;
+    transition: opacity 0.3s ease;
+}
+
+#weekly-set-notification:hover {
+    opacity: 1;
+}
+
+#weekly-set-notification h3 {
+    font-size: 0.9rem !important;
+    margin-bottom: 4px !important;
+}
+
+#weekly-set-notification p {
+    font-size: 0.7rem !important;
+    margin: 2px 0 !important;
+}
+
+#weekly-set-notification div {
+    font-size: 0.65rem !important;
+    margin-top: 2px !important;
+}
+
 /* Player stats bar responsive */
 @media (max-width: 768px) {
     #player-stats-bar {
+        position: relative;
+        top: auto;
+        left: auto;
+        max-width: none;
+        width: 100%;
+        margin: 16px 0 !important;
         flex-direction: column;
         gap: 2px;
     }
     
     #player-stats-bar > div {
         justify-content: center;
+        font-size: 0.8rem;
+    }
+    
+    #weekly-set-notification {
+        position: relative;
+        top: auto;
+        right: auto;
+        max-width: none;
+        margin: 0 0 16px 0 !important;
     }
 }
 
@@ -887,6 +967,12 @@ input:focus, select:focus, textarea:focus {
 [data-theme="matrix"] #weekly-set-notification p,
 [data-theme="matrix"] #weekly-set-notification div {
     color: var(--text-primary) !important;
+}
+
+/* Matrix theme player stats bar */
+[data-theme="matrix"] #player-stats-bar {
+    background-color: var(--bg-secondary) !important;
+    border: 1px solid var(--border-secondary) !important;
 }
 
 /* Chart text readability improvements for all themes */

@@ -35,15 +35,19 @@
             
             <!-- Player Stats Bar -->
             <div id="player-stats-bar" class="rounded-lg p-4 mt-4 flex flex-wrap justify-center items-center gap-4 text-sm" style="background-color: var(--bg-secondary);">
+                <button id="profile-btn" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors" style="background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: var(--text-primary);">
+                    <span class="text-white">👤</span>
+                    <span class="text-white font-medium">Profile</span>
+                </button>
                 <div class="flex items-center gap-2">
                     <span class="text-green-400">💰</span>
                     <span>Cash: $<span id="player-wallet">50.00</span></span>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 hidden">
                     <span class="text-blue-400">📊</span>
                     <span>Net Worth: $<span id="player-networth">50.00</span></span>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 hidden">
                     <span class="text-yellow-400">🏆</span>
                     <span id="player-title">Rookie Trader</span>
                 </div>
@@ -51,10 +55,6 @@
                     <span class="text-purple-400">📈</span>
                     <span>P&L: $<span id="player-profit">0.00</span></span>
                 </div>
-                <button id="profile-btn" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors" style="background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: var(--text-primary);">
-                    <span class="text-white">👤</span>
-                    <span class="text-white font-medium">Profile</span>
-                </button>
             </div>
         </header>
 
@@ -82,8 +82,6 @@
                 <section id="pack-selection" class="rounded-2xl p-6 mb-8 shadow-lg" style="background-color: var(--bg-secondary);">
                     <!-- Weekly Set Notification -->
                     <div id="weekly-set-notification" class="rounded-lg p-4 mb-4 text-center" style="background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));">
-                        <h3 class="text-lg font-bold mb-2" style="color: var(--text-primary);">🌟 Weekly Sets 🌟</h3>
-                        <p class="text-sm" style="color: var(--text-primary); opacity: 0.9;">New sets each week! Collect them all!</p>
                         <div class="text-xs mt-1" style="color: var(--text-primary); opacity: 0.8;">
                             New set in: <span id="weekly-countdown">Loading...</span>
                         </div>
