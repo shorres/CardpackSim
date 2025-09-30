@@ -21,7 +21,7 @@ class MarketEngine {
             
             // Base price ranges by rarity
             basePriceRanges: {
-                common: { min: 0.10, max: 0.50 },
+                common: { min: 0.05, max: 0.50 },
                 uncommon: { min: 0.50, max: 2.00 },
                 rare: { min: 2.00, max: 8.00 },
                 mythic: { min: 8.00, max: 25.00 }
@@ -46,7 +46,14 @@ class MarketEngine {
             // Update frequency
             priceUpdateInterval: 30000, // 30 seconds (increased frequency)
             historyRetentionDays: 7, // Keep 7 days for charts
-            chartDataPoints: 200 // Max data points for charts (increased)
+            chartDataPoints: 200, // Max data points for charts (increased)
+            
+            // Price recording intervals (in minutes)
+            recordingIntervals: {
+                shortTerm: 30,  // 30 minutes for 24h charts
+                mediumTerm: 60, // 1 hour for 2-day charts  
+                longTerm: 720   // 12 hours for 1-week charts
+            }
         };
         
         this.eventTypes = [
@@ -147,12 +154,14 @@ class MarketEngine {
         const history = [];
         const now = Date.now();
         const hoursBack = 72; // Generate 3 days of history
-        const intervalMinutes = 30; // Data point every 30 minutes
+        const intervalMinutes = this.config.recordingIntervals.shortTerm; // Use consistent 30-minute intervals
+        const intervalMs = intervalMinutes * 60 * 1000;
         
         let currentPrice = basePrice;
         
-        for (let i = hoursBack; i >= 0; i--) {
-            const timestamp = now - (i * 60 * 60 * 1000);
+        // Generate data points going backwards in time at 30-minute intervals
+        for (let h = 0; h <= hoursBack * 2; h++) { // *2 because we're doing 30-minute intervals (2 per hour)
+            const timestamp = now - (h * intervalMs);
             
             // Add some realistic price movement
             const changePercent = (Math.random() - 0.5) * 0.1; // ±5% change
@@ -161,14 +170,11 @@ class MarketEngine {
             // Keep price within reasonable bounds (±50% of base)
             currentPrice = Math.max(basePrice * 0.5, Math.min(basePrice * 1.5, currentPrice));
             
-            // Only add data points every intervalMinutes
-            if (i % 2 === 0) { // Every 2 hours = every 4 intervals of 30 minutes
-                history.push({
-                    timestamp: timestamp,
-                    price: Math.round(currentPrice * 100) / 100,
-                    volume: 0
-                });
-            }
+            history.unshift({ // Add to beginning since we're going backwards
+                timestamp: timestamp,
+                price: Math.round(currentPrice * 100) / 100,
+                volume: 0
+            });
         }
         
         return history;
@@ -335,26 +341,77 @@ class MarketEngine {
         const history = this.state.priceHistory[setId][cardName];
         const now = Date.now();
         
-        // For more detailed charts, record every price update
-        history.push({
-            timestamp: now,
-            price: price,
-            volume: 0 // We'll track this when implementing actual trading
-        });
+        // Determine if we should record based on time intervals
+        const shouldRecord = this.shouldRecordPricePoint(history, now);
         
-        // Keep detailed history but limit points for performance
-        if (history.length > this.config.chartDataPoints) {
-            // Remove oldest entries but keep some for longer-term trends
-            const keepEveryN = Math.ceil(history.length / this.config.chartDataPoints);
-            this.state.priceHistory[setId][cardName] = history.filter((_, index) => 
-                index === history.length - 1 || index % keepEveryN === 0
-            );
+        if (shouldRecord) {
+            history.push({
+                timestamp: now,
+                price: price,
+                volume: 0 // We'll track this when implementing actual trading
+            });
+            
+            // Keep only recent history for charts
+            const cutoffTime = now - (this.config.historyRetentionDays * 24 * 60 * 60 * 1000);
+            this.state.priceHistory[setId][cardName] = 
+                this.state.priceHistory[setId][cardName].filter(entry => entry.timestamp > cutoffTime);
+        }
+    }
+
+    shouldRecordPricePoint(history, currentTime) {
+        if (history.length === 0) {
+            return true; // Always record the first point
         }
         
-        // Keep only recent history for charts
-        const cutoffTime = now - (this.config.historyRetentionDays * 24 * 60 * 60 * 1000);
-        this.state.priceHistory[setId][cardName] = 
-            this.state.priceHistory[setId][cardName].filter(entry => entry.timestamp > cutoffTime);
+        const lastEntry = history[history.length - 1];
+        const timeSinceLastRecord = currentTime - lastEntry.timestamp;
+        const intervalMinutes = this.config.recordingIntervals.shortTerm; // Use 30-minute intervals as base
+        const intervalMs = intervalMinutes * 60 * 1000;
+        
+        return timeSinceLastRecord >= intervalMs;
+    }
+
+    downsamplePriceHistory(history, hours) {
+        if (history.length === 0) return history;
+        
+        let intervalMinutes;
+        
+        // Determine appropriate interval based on time range
+        if (hours <= 24) {
+            intervalMinutes = this.config.recordingIntervals.shortTerm; // 30 minutes for 24h
+        } else if (hours <= 48) {
+            intervalMinutes = this.config.recordingIntervals.mediumTerm; // 1 hour for 2 days
+        } else {
+            intervalMinutes = this.config.recordingIntervals.longTerm; // 12 hours for 1 week+
+        }
+        
+        const intervalMs = intervalMinutes * 60 * 1000;
+        const downsampledHistory = [];
+        let lastIncludedTime = 0;
+        
+        for (const entry of history) {
+            // Always include the first entry
+            if (downsampledHistory.length === 0) {
+                downsampledHistory.push(entry);
+                lastIncludedTime = entry.timestamp;
+                continue;
+            }
+            
+            // Include entry if enough time has passed since last included entry
+            if (entry.timestamp - lastIncludedTime >= intervalMs) {
+                downsampledHistory.push(entry);
+                lastIncludedTime = entry.timestamp;
+            }
+        }
+        
+        // Always include the last entry to show current state
+        const lastEntry = history[history.length - 1];
+        if (downsampledHistory.length > 0 && 
+            downsampledHistory[downsampledHistory.length - 1].timestamp !== lastEntry.timestamp) {
+            downsampledHistory.push(lastEntry);
+        }
+        
+        return downsampledHistory;
     }
 
     cleanupOldData() {
@@ -447,23 +504,16 @@ class MarketEngine {
         }
         
         const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
-        return this.state.priceHistory[setId][cardName]
+        const filteredHistory = this.state.priceHistory[setId][cardName]
             .filter(entry => entry.timestamp > cutoffTime)
             .sort((a, b) => a.timestamp - b.timestamp);
+        
+        // Downsample data based on time range for cleaner charts
+        return this.downsamplePriceHistory(filteredHistory, hours);
     }
 
     getChartData(setId, cardName, hours = 24) {
         const history = this.getPriceHistory(setId, cardName, hours);
-        
-        console.log(`Getting chart data for ${cardName} (${hours}h):`, {
-            totalHistoryPoints: this.state.priceHistory[setId] && this.state.priceHistory[setId][cardName] ? 
-                this.state.priceHistory[setId][cardName].length : 0,
-            filteredPoints: history.length,
-            timeRange: hours,
-            cutoffTime: new Date(Date.now() - (hours * 60 * 60 * 1000)),
-            oldestPoint: history.length > 0 ? new Date(history[0].timestamp) : 'None',
-            newestPoint: history.length > 0 ? new Date(history[history.length - 1].timestamp) : 'None'
-        });
         
         if (history.length === 0) {
             return {
