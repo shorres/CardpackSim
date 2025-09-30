@@ -104,6 +104,12 @@ class GameEngine {
     generatePackContents(setId) {
         const allSets = window.getAllSets();
         const set = allSets[setId];
+        
+        if (!set) {
+            console.error(`Cannot generate pack contents for undefined set: ${setId}`);
+            return [];
+        }
+        
         const openedCards = [];
         
         // Generate common and uncommon cards
@@ -168,6 +174,12 @@ class GameEngine {
     getCardRarity(setId, cardName) {
         const allSets = window.getAllSets();
         const set = allSets[setId];
+        
+        if (!set) {
+            console.warn(`Cannot get card rarity for undefined set: ${setId}`);
+            return 'common';
+        }
+        
         for (const rarity in set.cards) {
             if (set.cards[rarity].includes(cardName)) {
                 return rarity;
@@ -179,6 +191,12 @@ class GameEngine {
     getCollectionProgress(setId) {
         const allSets = window.getAllSets();
         const set = allSets[setId];
+        
+        if (!set) {
+            console.warn(`Cannot get collection progress for undefined set: ${setId}`);
+            return { collected: 0, total: 0, percentage: 0 };
+        }
+        
         const collectionSet = this.state.collection[setId];
         let collectedCount = 0;
         

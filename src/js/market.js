@@ -72,6 +72,11 @@ class MarketEngine {
     }
 
     initializeSetPrices(setId, setData) {
+        if (!setData) {
+            console.warn(`Cannot initialize prices for undefined set: ${setId}`);
+            return;
+        }
+        
         if (!this.state.cardPrices[setId]) {
             this.state.cardPrices[setId] = {};
             this.state.priceHistory[setId] = {};

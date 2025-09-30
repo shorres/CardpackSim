@@ -32,6 +32,25 @@ class StorageManager {
                     }
                 });
                 
+                // Clean up obsolete sets (e.g., old weekly sets that are no longer active)
+                if (parsedState.unopenedPacks) {
+                    Object.keys(parsedState.unopenedPacks).forEach(setId => {
+                        if (!allSets[setId]) {
+                            console.log(`Removing obsolete set ${setId} from state`);
+                            delete parsedState.unopenedPacks[setId];
+                        }
+                    });
+                }
+                
+                if (parsedState.collection) {
+                    Object.keys(parsedState.collection).forEach(setId => {
+                        if (!allSets[setId]) {
+                            console.log(`Removing obsolete set ${setId} collection from state`);
+                            delete parsedState.collection[setId];
+                        }
+                    });
+                }
+                
                 return parsedState;
             }
         } catch (error) {

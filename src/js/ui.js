@@ -356,6 +356,14 @@ class UIManager {
             const count = this.gameEngine.state.unopenedPacks[setId];
             if (count > 0) {
                 const set = allSets[setId];
+                
+                // Skip if set no longer exists (e.g., old weekly sets)
+                if (!set) {
+                    console.warn(`Set ${setId} no longer exists, removing from state`);
+                    this.gameEngine.state.unopenedPacks[setId] = 0;
+                    return;
+                }
+                
                 const packElement = document.createElement('div');
                 
                 if (set.isWeekly) {
