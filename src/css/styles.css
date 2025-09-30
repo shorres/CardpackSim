@@ -316,4 +316,80 @@ body {
         width: 95%;
         margin: 0 auto;
     }
+    
+    #price-chart-modal .bg-gray-800 {
+        width: 95%;
+        margin: 0 auto;
+    }
+}
+
+/* Portfolio controls styling */
+.portfolio-controls {
+    gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .portfolio-controls {
+        flex-direction: column;
+    }
+    
+    .portfolio-controls input,
+    .portfolio-controls select {
+        width: 100%;
+    }
+}
+
+/* Chart button styling */
+.chart-btn, .hot-card-chart-btn {
+    transition: all 0.2s ease;
+}
+
+.chart-btn:hover, .hot-card-chart-btn:hover {
+    transform: scale(1.05);
+}
+
+/* Chart timeframe buttons */
+.chart-timeframe-btn {
+    transition: all 0.2s ease;
+}
+
+.chart-timeframe-btn.active {
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+/* Card hover effects for charts */
+.chart-card-trigger:hover {
+    background-color: rgba(59, 130, 246, 0.1);
+    border-radius: 0.375rem;
+}
+
+/* Portfolio search/filter enhancements */
+#portfolio-search:focus,
+#portfolio-sort:focus,
+#portfolio-filter:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+/* Hot cards clickable styling */
+.hot-cards-list [data-set-id]:hover {
+    background-color: rgba(59, 130, 246, 0.1);
+    cursor: pointer;
+}
+
+/* Chart modal backdrop blur */
+#price-chart-modal {
+    backdrop-filter: blur(4px);
+}
+
+/* Responsive chart container */
+@media (max-width: 768px) {
+    #price-chart {
+        height: 250px !important;
+    }
+    
+    #chart-stats {
+        grid-template-columns: 2fr 2fr;
+        gap: 1rem;
+    }
 }

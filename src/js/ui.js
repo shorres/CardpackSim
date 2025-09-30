@@ -36,8 +36,20 @@ class UIManager {
         // Market elements
         this.portfolioDisplay = document.getElementById('portfolio-display');
         this.portfolioValue = document.getElementById('portfolio-value');
+        this.portfolioSearch = document.getElementById('portfolio-search');
+        this.portfolioSort = document.getElementById('portfolio-sort');
+        this.portfolioFilter = document.getElementById('portfolio-filter');
         this.marketSummary = document.getElementById('market-summary');
         this.hotCardsList = document.getElementById('hot-cards-list');
+        
+        // Price chart modal elements
+        this.priceChartModal = document.getElementById('price-chart-modal');
+        this.chartCardName = document.getElementById('chart-card-name');
+        this.chartCardDetails = document.getElementById('chart-card-details');
+        this.closeChartBtn = document.getElementById('close-chart-btn');
+        this.priceChart = document.getElementById('price-chart');
+        this.chartStats = document.getElementById('chart-stats');
+        this.chartTimeframeBtns = document.querySelectorAll('.chart-timeframe-btn');
         
         // Modal elements
         this.packOpeningModal = document.getElementById('pack-opening-modal');
@@ -61,6 +73,13 @@ class UIManager {
         
         this.currentSellCard = null;
         this.currentTab = 'packs'; // Default tab
+        this.currentChart = null;
+        this.currentChartCard = null;
+        this.portfolioFilters = {
+            search: '',
+            sort: 'value-desc',
+            filter: 'all'
+        };
 
         // Populate selectors
         this.populateSetSelectors();
@@ -131,6 +150,37 @@ class UIManager {
         
         this.sellFoilOnly.addEventListener('change', () => {
             this.updateSalePreview();
+        });
+
+        // Portfolio filter/search/sort listeners
+        this.portfolioSearch.addEventListener('input', (e) => {
+            this.portfolioFilters.search = e.target.value.toLowerCase();
+            this.renderPortfolio();
+        });
+        
+        this.portfolioSort.addEventListener('change', (e) => {
+            this.portfolioFilters.sort = e.target.value;
+            this.renderPortfolio();
+        });
+        
+        this.portfolioFilter.addEventListener('change', (e) => {
+            this.portfolioFilters.filter = e.target.value;
+            this.renderPortfolio();
+        });
+
+        // Price chart modal listeners
+        this.closeChartBtn.addEventListener('click', () => this.closePriceChart());
+        this.priceChartModal.addEventListener('click', (e) => {
+            if (e.target === this.priceChartModal) {
+                this.closePriceChart();
+            }
+        });
+        
+        this.chartTimeframeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const timeframe = parseInt(e.target.dataset.timeframe);
+                this.updateChartTimeframe(timeframe);
+            });
         });
         
         // Click outside modal to close
@@ -580,7 +630,18 @@ class UIManager {
             return;
         }
         
-        portfolio.cards.slice(0, 20).forEach(card => { // Show top 20 most valuable
+        // Apply filters
+        let filteredCards = this.filterPortfolioCards(portfolio.cards);
+        
+        // Apply sorting
+        filteredCards = this.sortPortfolioCards(filteredCards);
+        
+        if (filteredCards.length === 0) {
+            this.portfolioDisplay.innerHTML = '<p class="text-gray-500 text-center">No cards match your filters.</p>';
+            return;
+        }
+        
+        filteredCards.forEach(card => {
             const cardElement = document.createElement('div');
             cardElement.className = 'flex justify-between items-center p-3 bg-gray-800 rounded-lg mb-2 hover:bg-gray-700 transition-colors';
             
@@ -590,7 +651,7 @@ class UIManager {
                               card.trend.trend === 'falling' ? 'text-red-400' : 'text-gray-400';
             
             cardElement.innerHTML = `
-                <div class="flex-1">
+                <div class="flex-1 cursor-pointer chart-card-trigger" data-set-id="${card.setId}" data-card-name="${card.cardName}">
                     <div class="font-medium text-sm">${card.cardName}</div>
                     <div class="text-xs text-gray-400">
                         ${card.regularCount > 0 ? `${card.regularCount}x regular ` : ''}
@@ -598,26 +659,101 @@ class UIManager {
                         | ${card.rarity}
                     </div>
                 </div>
-                <div class="text-right">
+                <div class="text-right mx-3">
                     <div class="font-medium">$${card.totalValue.toFixed(2)}</div>
                     <div class="text-xs ${trendColor}">
                         ${trendIcon} ${card.trend.change > 0 ? '+' : ''}${card.trend.change.toFixed(1)}%
                     </div>
                 </div>
-                <button class="ml-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-2 py-1 rounded sell-portfolio-btn"
-                        data-set-id="${card.setId}" 
-                        data-card-name="${card.cardName}">
-                    Sell
-                </button>
+                <div class="flex gap-1">
+                    <button class="chart-btn bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-2 py-1 rounded"
+                            data-set-id="${card.setId}" 
+                            data-card-name="${card.cardName}">
+                        📊
+                    </button>
+                    <button class="sell-portfolio-btn bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-2 py-1 rounded"
+                            data-set-id="${card.setId}" 
+                            data-card-name="${card.cardName}">
+                        💰
+                    </button>
+                </div>
             `;
             
-            // Add sell button event listener
+            // Add event listeners
             const sellBtn = cardElement.querySelector('.sell-portfolio-btn');
+            const chartBtn = cardElement.querySelector('.chart-btn');
+            const cardTrigger = cardElement.querySelector('.chart-card-trigger');
+            
             sellBtn.addEventListener('click', () => {
                 this.openSellModal(card.setId, card.cardName);
             });
             
+            chartBtn.addEventListener('click', () => {
+                this.openPriceChart(card.setId, card.cardName);
+            });
+            
+            cardTrigger.addEventListener('click', () => {
+                this.openPriceChart(card.setId, card.cardName);
+            });
+            
             this.portfolioDisplay.appendChild(cardElement);
+        });
+    }
+
+    filterPortfolioCards(cards) {
+        return cards.filter(card => {
+            // Search filter
+            if (this.portfolioFilters.search && 
+                !card.cardName.toLowerCase().includes(this.portfolioFilters.search)) {
+                return false;
+            }
+            
+            // Rarity filter
+            if (this.portfolioFilters.filter !== 'all') {
+                switch (this.portfolioFilters.filter) {
+                    case 'common':
+                    case 'uncommon':
+                    case 'rare':
+                    case 'mythic':
+                        if (card.rarity !== this.portfolioFilters.filter) return false;
+                        break;
+                    case 'foil':
+                        if (card.foilCount === 0) return false;
+                        break;
+                    case 'rising':
+                        if (card.trend.trend !== 'rising') return false;
+                        break;
+                    case 'falling':
+                        if (card.trend.trend !== 'falling') return false;
+                        break;
+                }
+            }
+            
+            return true;
+        });
+    }
+
+    sortPortfolioCards(cards) {
+        return cards.sort((a, b) => {
+            switch (this.portfolioFilters.sort) {
+                case 'value-desc':
+                    return b.totalValue - a.totalValue;
+                case 'value-asc':
+                    return a.totalValue - b.totalValue;
+                case 'name-asc':
+                    return a.cardName.localeCompare(b.cardName);
+                case 'name-desc':
+                    return b.cardName.localeCompare(a.cardName);
+                case 'rarity-desc':
+                    const rarityOrder = { mythic: 4, rare: 3, uncommon: 2, common: 1 };
+                    return (rarityOrder[b.rarity] || 0) - (rarityOrder[a.rarity] || 0);
+                case 'change-desc':
+                    return b.trend.change - a.trend.change;
+                case 'change-asc':
+                    return a.trend.change - b.trend.change;
+                default:
+                    return 0;
+            }
         });
     }
 
@@ -666,20 +802,33 @@ class UIManager {
         
         hotCards.forEach(card => {
             const cardElement = document.createElement('div');
-            cardElement.className = 'flex justify-between items-center p-2 bg-gray-800 rounded mb-2';
+            cardElement.className = 'flex justify-between items-center p-2 bg-gray-800 rounded mb-2 hover:bg-gray-700 transition-colors';
             
-            const eventBadge = card.event ? `<span class="bg-orange-500 text-xs px-1 rounded">${card.event}</span>` : '';
+            const eventBadge = card.event ? `<span class="bg-orange-500 text-xs px-1 rounded mr-1">${card.event}</span>` : '';
             
             cardElement.innerHTML = `
-                <div class="flex-1">
+                <div class="flex-1 cursor-pointer" data-set-id="${card.setId}" data-card-name="${card.cardName}">
                     <div class="text-sm font-medium">${card.cardName}</div>
                     <div class="text-xs text-gray-400">${eventBadge}</div>
                 </div>
-                <div class="text-right">
+                <div class="text-right mx-2">
                     <div class="text-sm">$${card.price.toFixed(2)}</div>
                     <div class="text-xs text-green-400">+${card.change.toFixed(1)}%</div>
                 </div>
+                <button class="hot-card-chart-btn bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded"
+                        data-set-id="${card.setId}" 
+                        data-card-name="${card.cardName}">
+                    📊
+                </button>
             `;
+            
+            // Add event listeners
+            const chartBtn = cardElement.querySelector('.hot-card-chart-btn');
+            const cardDiv = cardElement.querySelector('[data-set-id]');
+            
+            const openChart = () => this.openPriceChart(card.setId, card.cardName);
+            chartBtn.addEventListener('click', openChart);
+            cardDiv.addEventListener('click', openChart);
             
             this.hotCardsList.appendChild(cardElement);
         });
@@ -814,6 +963,167 @@ class UIManager {
         }, 5000);
     }
 
+    // Price Chart Methods
+
+    openPriceChart(setId, cardName) {
+        this.currentChartCard = { setId, cardName };
+        
+        const rarity = this.gameEngine.getCardRarity(setId, cardName);
+        const currentPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, false);
+        const foilPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, true);
+        const trend = this.gameEngine.marketEngine.getCardTrend(setId, cardName);
+        
+        this.chartCardName.textContent = cardName;
+        this.chartCardDetails.textContent = `${rarity} | $${currentPrice.toFixed(2)} (foil: $${foilPrice.toFixed(2)}) | ${trend.trend} ${trend.change > 0 ? '+' : ''}${trend.change.toFixed(1)}%`;
+        
+        this.updateChart(1); // Default to 1 day
+        this.priceChartModal.classList.remove('hidden');
+    }
+
+    closePriceChart() {
+        this.priceChartModal.classList.add('hidden');
+        if (this.currentChart) {
+            this.currentChart.destroy();
+            this.currentChart = null;
+        }
+        this.currentChartCard = null;
+    }
+
+    updateChartTimeframe(timeframeDays) {
+        // Update button states
+        this.chartTimeframeBtns.forEach(btn => {
+            btn.classList.remove('active', 'bg-blue-600', 'text-white');
+            btn.classList.add('bg-gray-700', 'text-gray-300');
+        });
+        
+        const activeBtn = document.querySelector(`[data-timeframe="${timeframeDays}"]`);
+        if (activeBtn) {
+            activeBtn.classList.add('active', 'bg-blue-600', 'text-white');
+            activeBtn.classList.remove('bg-gray-700', 'text-gray-300');
+        }
+        
+        this.updateChart(timeframeDays);
+    }
+
+    updateChart(timeframeDays) {
+        if (!this.currentChartCard) return;
+        
+        const { setId, cardName } = this.currentChartCard;
+        const hours = timeframeDays * 24;
+        const chartData = this.gameEngine.marketEngine.getChartData(setId, cardName, hours);
+        
+        if (this.currentChart) {
+            this.currentChart.destroy();
+        }
+        
+        const ctx = this.priceChart.getContext('2d');
+        
+        // Prepare chart data
+        const labels = chartData.labels.map(date => {
+            if (timeframeDays === 1) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else {
+                return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+        });
+        
+        // Determine line color based on overall trend
+        const lineColor = chartData.changePercent > 0 ? '#10b981' : 
+                         chartData.changePercent < 0 ? '#ef4444' : '#6b7280';
+        
+        this.currentChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Price ($)',
+                    data: chartData.data,
+                    borderColor: lineColor,
+                    backgroundColor: lineColor + '20',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 2,
+                    pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        grid: {
+                            color: '#374151'
+                        },
+                        ticks: {
+                            color: '#9ca3af',
+                            maxTicksLimit: 8
+                        }
+                    },
+                    y: {
+                        display: true,
+                        grid: {
+                            color: '#374151'
+                        },
+                        ticks: {
+                            color: '#9ca3af',
+                            callback: function(value) {
+                                return '$' + value.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                elements: {
+                    point: {
+                        backgroundColor: lineColor,
+                        borderColor: '#ffffff',
+                        borderWidth: 1
+                    }
+                }
+            }
+        });
+        
+        // Update chart stats
+        this.updateChartStats(chartData, timeframeDays);
+    }
+
+    updateChartStats(chartData, timeframeDays) {
+        const timeframeName = timeframeDays === 1 ? '24h' : 
+                             timeframeDays === 2 ? '2d' : 
+                             timeframeDays === 7 ? '1w' : `${timeframeDays}d`;
+        
+        this.chartStats.innerHTML = `
+            <div class="text-center">
+                <div class="text-gray-400 text-xs">Current Price</div>
+                <div class="font-bold">$${chartData.currentPrice.toFixed(2)}</div>
+            </div>
+            <div class="text-center">
+                <div class="text-gray-400 text-xs">${timeframeName} Change</div>
+                <div class="font-bold ${chartData.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}">
+                    ${chartData.changePercent >= 0 ? '+' : ''}${chartData.changePercent.toFixed(1)}%
+                </div>
+            </div>
+            <div class="text-center">
+                <div class="text-gray-400 text-xs">${timeframeName} High</div>
+                <div class="font-bold">$${chartData.maxPrice.toFixed(2)}</div>
+            </div>
+            <div class="text-center">
+                <div class="text-gray-400 text-xs">${timeframeName} Low</div>
+                <div class="font-bold">$${chartData.minPrice.toFixed(2)}</div>
+            </div>
+        `;
+    }
+
     // Public method to refresh all UI elements
     refreshUI() {
         this.renderUnopenedPacks();
@@ -838,6 +1148,10 @@ class UIManager {
         if (this.marketUpdateInterval) {
             clearInterval(this.marketUpdateInterval);
             this.marketUpdateInterval = null;
+        }
+        if (this.currentChart) {
+            this.currentChart.destroy();
+            this.currentChart = null;
         }
     }
 }

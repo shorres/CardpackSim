@@ -191,6 +191,36 @@
         </main>
     </div>
 
+    <!-- Price Chart Modal -->
+    <div id="price-chart-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h3 class="text-xl font-bold" id="chart-card-name">Card Name</h3>
+                    <p class="text-sm text-gray-400" id="chart-card-details">Details</p>
+                </div>
+                <button id="close-chart-btn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            
+            <!-- Chart Controls -->
+            <div class="mb-4 flex gap-2">
+                <button class="chart-timeframe-btn active bg-blue-600 text-white px-3 py-1 rounded text-sm" data-timeframe="1">1 Day</button>
+                <button class="chart-timeframe-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-sm" data-timeframe="2">2 Days</button>
+                <button class="chart-timeframe-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-sm" data-timeframe="7">1 Week</button>
+            </div>
+            
+            <!-- Chart Container -->
+            <div class="bg-gray-900 rounded-lg p-4 mb-4">
+                <canvas id="price-chart" width="800" height="400"></canvas>
+            </div>
+            
+            <!-- Chart Stats -->
+            <div id="chart-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <!-- Stats will be populated here -->
+            </div>
+        </div>
+    </div>
+
     <!-- Sell Card Modal -->
     <div id="sell-card-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="bg-gray-800 rounded-lg p-6 w-96 max-w-full mx-4">

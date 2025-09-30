@@ -45,7 +45,8 @@ class MarketEngine {
             
             // Update frequency
             priceUpdateInterval: 45000, // 45 seconds
-            historyRetentionDays: 30
+            historyRetentionDays: 7, // Keep 7 days for charts
+            chartDataPoints: 200 // Max data points for charts
         };
         
         this.eventTypes = [
@@ -285,15 +286,28 @@ class MarketEngine {
         }
         
         const history = this.state.priceHistory[setId][cardName];
+        const now = Date.now();
+        
+        // For more detailed charts, record every price update
         history.push({
-            timestamp: Date.now(),
+            timestamp: now,
             price: price,
             volume: 0 // We'll track this when implementing actual trading
         });
         
-        // Keep only recent history
-        const cutoffTime = Date.now() - (this.config.historyRetentionDays * 24 * 60 * 60 * 1000);
-        this.state.priceHistory[setId][cardName] = history.filter(entry => entry.timestamp > cutoffTime);
+        // Keep detailed history but limit points for performance
+        if (history.length > this.config.chartDataPoints) {
+            // Remove oldest entries but keep some for longer-term trends
+            const keepEveryN = Math.ceil(history.length / this.config.chartDataPoints);
+            this.state.priceHistory[setId][cardName] = history.filter((_, index) => 
+                index === history.length - 1 || index % keepEveryN === 0
+            );
+        }
+        
+        // Keep only recent history for charts
+        const cutoffTime = now - (this.config.historyRetentionDays * 24 * 60 * 60 * 1000);
+        this.state.priceHistory[setId][cardName] = 
+            this.state.priceHistory[setId][cardName].filter(entry => entry.timestamp > cutoffTime);
     }
 
     cleanupOldData() {
@@ -365,6 +379,43 @@ class MarketEngine {
         return this.state.priceHistory[setId][cardName]
             .filter(entry => entry.timestamp > cutoffTime)
             .sort((a, b) => a.timestamp - b.timestamp);
+    }
+
+    getChartData(setId, cardName, hours = 24) {
+        const history = this.getPriceHistory(setId, cardName, hours);
+        
+        if (history.length === 0) {
+            return {
+                labels: [],
+                data: [],
+                minPrice: 0,
+                maxPrice: 0,
+                currentPrice: 0,
+                change24h: 0,
+                changePercent: 0
+            };
+        }
+        
+        const currentPrice = this.getCardPrice(setId, cardName, false);
+        const startPrice = history[0].price;
+        const change24h = currentPrice - startPrice;
+        const changePercent = startPrice > 0 ? (change24h / startPrice) * 100 : 0;
+        
+        const prices = history.map(entry => entry.price);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        
+        return {
+            labels: history.map(entry => new Date(entry.timestamp)),
+            data: prices,
+            timestamps: history.map(entry => entry.timestamp),
+            minPrice,
+            maxPrice,
+            currentPrice,
+            change24h,
+            changePercent,
+            dataPoints: history.length
+        };
     }
 
     getMarketSummary() {
