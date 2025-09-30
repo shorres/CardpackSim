@@ -358,6 +358,97 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
 .rarity-rare { border-color: var(--warning); }
 .rarity-mythic { border-color: var(--accent-secondary); }
 
+/* Glyph Art Styles */
+.card-art-area {
+    position: relative;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15), rgba(255,255,255,0.02));
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.rarity-common .card-art-area {
+    background: radial-gradient(circle at 30% 30%, rgba(107, 114, 128, 0.2), rgba(107, 114, 128, 0.05));
+    border-color: rgba(107, 114, 128, 0.3);
+}
+
+.rarity-uncommon .card-art-area {
+    background: radial-gradient(circle at 30% 30%, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.05));
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.rarity-rare .card-art-area {
+    background: radial-gradient(circle at 30% 30%, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.05));
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.rarity-mythic .card-art-area {
+    background: radial-gradient(circle at 30% 30%, rgba(245, 158, 11, 0.3), rgba(239, 68, 68, 0.1));
+    border-color: rgba(245, 158, 11, 0.4);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+.glyph-art {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.glyph-element {
+    transition: all 0.3s ease;
+    text-shadow: 0 0 3px currentColor;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Art style specific enhancements */
+.glyph-art-organic .glyph-element {
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+.glyph-art-geometric .glyph-element {
+    font-weight: 900;
+    text-shadow: 0 0 5px currentColor;
+}
+
+.glyph-art-mystical .glyph-element {
+    filter: drop-shadow(0 0 8px currentColor) blur(0.5px);
+    animation: mystical-pulse 4s ease-in-out infinite alternate;
+}
+
+.glyph-art-technical .glyph-element {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    text-shadow: 0 0 2px currentColor;
+}
+
+@keyframes mystical-pulse {
+    0% { opacity: 1; filter: drop-shadow(0 0 8px currentColor) blur(0.5px); }
+    100% { opacity: 0.6; filter: drop-shadow(0 0 12px currentColor) blur(1px); }
+}
+
+/* Hover effects for glyph art */
+.card-face:hover .glyph-art .glyph-element {
+    transform: scale(1.1);
+}
+
+.rarity-mythic .card-face:hover .glyph-art .glyph-element {
+    animation: mythic-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes mythic-glow {
+    0% { text-shadow: 0 0 3px currentColor; }
+    100% { text-shadow: 0 0 8px currentColor, 0 0 12px currentColor; }
+}
+
+/* Foil effects for glyph art */
+.card-face.foil .glyph-art .glyph-element {
+    animation: foil-glyph-shine 3s ease-in-out infinite;
+}
+
+@keyframes foil-glyph-shine {
+    0%, 100% { text-shadow: 0 0 3px currentColor; }
+    50% { text-shadow: 0 0 8px currentColor, 0 0 15px rgba(255, 215, 0, 0.8); }
+}
+
 /* Pack Styles */
 .pack {
     cursor: pointer;

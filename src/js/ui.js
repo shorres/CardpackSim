@@ -615,9 +615,32 @@ class UIManager {
     }
 
     createCardFaceHTML(name, rarity) {
+        // Generate glyph art for this card (with fallback if not loaded)
+        let artHTML = '';
+        if (window.glyphArtGenerator) {
+            const artData = window.glyphArtGenerator.generateArt(name, rarity);
+            artHTML = window.glyphArtGenerator.renderArtHTML(artData);
+        } else {
+            // Fallback placeholder
+            artHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: rgba(255,255,255,0.3); font-size: 2em;">✨</div>';
+        }
+        
         return `
-            <div class="font-semibold text-sm leading-tight">${name}</div>
-            <div class="text-xs self-end capitalize text-gray-400">${rarity}</div>
+            <div class="card-art-area" style="
+                flex: 1;
+                position: relative;
+                min-height: 80px;
+                margin-bottom: 8px;
+                border-radius: 6px;
+                overflow: hidden;
+                background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            ">
+                ${artHTML}
+            </div>
+            <div class="card-text-area">
+                <div class="font-semibold text-sm leading-tight">${name}</div>
+                <div class="text-xs self-end capitalize text-gray-400">${rarity}</div>
+            </div>
         `;
     }
 
