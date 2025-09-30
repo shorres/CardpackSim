@@ -14,9 +14,9 @@ class MarketEngine {
         this.config = {
             // Pack pricing
             packPrices: {
-                standard: 10.00,
-                weekly: 13.00,
-                boosterBoxDiscount: 0.04 // 4% discount for boxes
+                standard: 6.00,
+                weekly: 10.00,
+                boosterBoxDiscount: 0.1 // 4% discount for boxes
             },
             
             // Base price ranges by rarity

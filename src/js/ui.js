@@ -93,7 +93,7 @@ class UIManager {
             const collectionOption = new Option(set.name, setId);
             
             // Add special styling for weekly sets
-            if (set.isWeekly) {
+            if (set && set.isWeekly) {
                 option.style.background = 'linear-gradient(90deg, #9333ea, #ec4899)';
                 option.style.color = 'white';
                 option.style.fontWeight = 'bold';
@@ -204,7 +204,7 @@ class UIManager {
     handlePurchaseResult(result) {
         if (result.success) {
             this.renderUnopenedPacks();
-            this.updatePlayerStats();
+            this.updatePlayerStats(); // Immediately update cash display
             this.showNotification(result.message, 'success');
         } else {
             this.showNotification(result.message, 'error');
@@ -243,8 +243,7 @@ class UIManager {
             this.renderCollection(); // Refresh collection when switching to tab
         } else if (tabName === 'market') {
             this.marketTab.classList.add('active');
-            this.marketContent.classList.remove('hidden');
-            this.updateMarketPortfolioStats(); // Update stats first
+            this.marketContent.classList.remove('hidden'); // Update stats first
             this.renderPortfolio(); // Refresh portfolio when switching to tab
             this.renderMarketSummary();
             this.renderHotCards();
@@ -618,32 +617,6 @@ class UIManager {
         } else {
             this.playerProfit.className = 'text-gray-400';
         }
-        
-        // Also update the market tab portfolio stats if they exist
-        this.updateMarketPortfolioStats();
-    }
-    
-    updateMarketPortfolioStats() {
-        const portfolioStats = this.gameEngine.getPortfolioSummary();
-        const playerStats = this.gameEngine.getPlayerStats();
-        
-        // Update portfolio value in the market tab
-        const portfolioValueElement = document.getElementById('portfolio-value');
-        if (portfolioValueElement) {
-            portfolioValueElement.textContent = `${portfolioStats.totalValue.toFixed(2)}`;
-        }
-        
-        // Update portfolio cash display in market tab
-        const portfolioCashElement = document.getElementById('portfolio-cash');
-        if (portfolioCashElement) {
-            portfolioCashElement.textContent = `${playerStats.wallet.toFixed(2)}`;
-        }
-        
-        // Update net worth in market tab
-        const portfolioNetworthElement = document.getElementById('portfolio-networth');
-        if (portfolioNetworthElement) {
-            portfolioNetworthElement.textContent = `${playerStats.netWorth.toFixed(2)}`;
-        }
     }
 
     renderPortfolio() {
@@ -727,7 +700,7 @@ class UIManager {
         });
         
         // Update portfolio stats after rendering
-        this.updateMarketPortfolioStats();
+        this.updatePlayerStats();
     }
 
     filterPortfolioCards(cards) {
