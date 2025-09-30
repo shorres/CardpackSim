@@ -44,9 +44,9 @@ class MarketEngine {
             sentimentChangeRate: 0.001, // How fast sentiment changes
             
             // Update frequency
-            priceUpdateInterval: 45000, // 45 seconds
+            priceUpdateInterval: 30000, // 30 seconds (increased frequency)
             historyRetentionDays: 7, // Keep 7 days for charts
-            chartDataPoints: 200 // Max data points for charts
+            chartDataPoints: 300 // Max data points for charts (increased)
         };
         
         this.eventTypes = [
@@ -99,11 +99,7 @@ class MarketEngine {
                         trend: 'stable' // 'rising', 'falling', 'stable'
                     };
                     
-                    this.state.priceHistory[setId][cardName] = [{
-                        timestamp: Date.now(),
-                        price: basePrice,
-                        volume: 0
-                    }];
+                    this.state.priceHistory[setId][cardName] = this.generateInitialPriceHistory(basePrice);
                     
                     this.state.supplyData[setId][cardName] = {
                         totalOpened: 0,
@@ -130,6 +126,37 @@ class MarketEngine {
         const min = this.config.foilMultiplier.min;
         const max = this.config.foilMultiplier.max;
         return min + Math.random() * (max - min);
+    }
+
+    generateInitialPriceHistory(basePrice) {
+        const history = [];
+        const now = Date.now();
+        const hoursBack = 72; // Generate 3 days of history
+        const intervalMinutes = 30; // Data point every 30 minutes
+        
+        let currentPrice = basePrice;
+        
+        for (let i = hoursBack; i >= 0; i--) {
+            const timestamp = now - (i * 60 * 60 * 1000);
+            
+            // Add some realistic price movement
+            const changePercent = (Math.random() - 0.5) * 0.1; // ±5% change
+            currentPrice *= (1 + changePercent);
+            
+            // Keep price within reasonable bounds (±50% of base)
+            currentPrice = Math.max(basePrice * 0.5, Math.min(basePrice * 1.5, currentPrice));
+            
+            // Only add data points every intervalMinutes
+            if (i % 2 === 0) { // Every 2 hours = every 4 intervals of 30 minutes
+                history.push({
+                    timestamp: timestamp,
+                    price: Math.round(currentPrice * 100) / 100,
+                    volume: 0
+                });
+            }
+        }
+        
+        return history;
     }
 
     startPriceUpdates() {
@@ -380,6 +407,25 @@ class MarketEngine {
             return [];
         }
         
+        const history = this.state.priceHistory[setId][cardName];
+        
+        // Check if we need to backfill historical data for cards that existed before proper tracking
+        // App launch date - September 27, 2025 (adjust this to when the app was first created)
+        const appLaunchDate = new Date('2025-09-27T00:00:00').getTime();
+        const hasPreLaunchData = history.some(entry => entry.timestamp < appLaunchDate);
+        
+        if (!hasPreLaunchData && history.length > 0) {
+            // This card exists but has no pre-launch history, so it was created before proper tracking
+            const oldestEntry = history[0];
+            if (oldestEntry.timestamp > appLaunchDate) {
+                const currentPrice = this.getCardPrice(setId, cardName, false);
+                const backfilledHistory = this.generateInitialPriceHistory(currentPrice);
+                // Merge backfilled history with existing data
+                this.state.priceHistory[setId][cardName] = [...backfilledHistory, ...history];
+                console.log(`Backfilled pre-launch history for ${cardName} with ${backfilledHistory.length} data points`);
+            }
+        }
+        
         const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
         return this.state.priceHistory[setId][cardName]
             .filter(entry => entry.timestamp > cutoffTime)
@@ -388,6 +434,16 @@ class MarketEngine {
 
     getChartData(setId, cardName, hours = 24) {
         const history = this.getPriceHistory(setId, cardName, hours);
+        
+        console.log(`Getting chart data for ${cardName} (${hours}h):`, {
+            totalHistoryPoints: this.state.priceHistory[setId] && this.state.priceHistory[setId][cardName] ? 
+                this.state.priceHistory[setId][cardName].length : 0,
+            filteredPoints: history.length,
+            timeRange: hours,
+            cutoffTime: new Date(Date.now() - (hours * 60 * 60 * 1000)),
+            oldestPoint: history.length > 0 ? new Date(history[0].timestamp) : 'None',
+            newestPoint: history.length > 0 ? new Date(history[history.length - 1].timestamp) : 'None'
+        });
         
         if (history.length === 0) {
             return {

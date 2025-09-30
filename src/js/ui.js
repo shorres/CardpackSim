@@ -403,7 +403,15 @@ class UIManager {
     showPackOpeningModal(setId) {
         if (this.gameEngine.state.unopenedPacks[setId] <= 0) return;
         
-        const setName = window.TCG_SETS[setId].name;
+        const allSets = window.getAllSets();
+        const set = allSets[setId];
+        
+        if (!set) {
+            console.error(`Cannot show pack opening modal for undefined set: ${setId}`);
+            return;
+        }
+        
+        const setName = set.name;
         this.packArtSetName.textContent = setName;
         this.packOpeningModal.style.display = 'flex';
         
@@ -1242,6 +1250,19 @@ class UIManager {
         const { setId, cardName } = this.currentChartCard;
         const hours = timeframeDays * 24;
         const chartData = this.gameEngine.marketEngine.getChartData(setId, cardName, hours);
+        
+        // Debug logging to help understand chart data
+        console.log(`Chart data for ${cardName} (${timeframeDays} days / ${hours} hours):`, {
+            dataPoints: chartData.dataPoints,
+            labels: chartData.labels.length,
+            currentPrice: chartData.currentPrice,
+            change24h: chartData.change24h,
+            changePercent: chartData.changePercent,
+            timeRange: chartData.labels.length > 0 ? {
+                from: chartData.labels[0],
+                to: chartData.labels[chartData.labels.length - 1]
+            } : 'No data'
+        });
         
         if (this.currentChart) {
             this.currentChart.destroy();
