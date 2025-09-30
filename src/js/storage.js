@@ -19,7 +19,8 @@ class StorageManager {
                 const parsedState = JSON.parse(savedState);
                 
                 // Ensure all sets are represented in the state
-                Object.keys(window.TCG_SETS || {}).forEach(setId => {
+                const allSets = window.getAllSets ? window.getAllSets() : (window.TCG_SETS || {});
+                Object.keys(allSets).forEach(setId => {
                     if (!parsedState.unopenedPacks || typeof parsedState.unopenedPacks[setId] === 'undefined') {
                         if (!parsedState.unopenedPacks) parsedState.unopenedPacks = {};
                         parsedState.unopenedPacks[setId] = 0;

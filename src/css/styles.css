@@ -101,6 +101,20 @@ body {
     transform: scale(1.05);
 }
 
+/* Weekly Pack Special Effects */
+.pack.weekly-pack {
+    animation: weekly-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes weekly-glow {
+    from {
+        box-shadow: 0 0 10px rgba(147, 51, 234, 0.5), 0 0 20px rgba(236, 72, 153, 0.3);
+    }
+    to {
+        box-shadow: 0 0 20px rgba(147, 51, 234, 0.8), 0 0 30px rgba(236, 72, 153, 0.6);
+    }
+}
+
 /* Pack Opening Modal */
 #pack-opening-modal {
     display: none; /* Hidden by default */

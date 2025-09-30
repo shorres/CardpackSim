@@ -31,10 +31,22 @@ class UIManager {
     }
 
     populateSetSelectors() {
-        Object.keys(window.TCG_SETS).forEach(setId => {
-            const set = window.TCG_SETS[setId];
+        const allSets = window.getAllSets();
+        Object.keys(allSets).forEach(setId => {
+            const set = allSets[setId];
             const option = new Option(set.name, setId);
             const collectionOption = new Option(set.name, setId);
+            
+            // Add special styling for weekly sets
+            if (set.isWeekly) {
+                option.style.background = 'linear-gradient(90deg, #9333ea, #ec4899)';
+                option.style.color = 'white';
+                option.style.fontWeight = 'bold';
+                collectionOption.style.background = 'linear-gradient(90deg, #9333ea, #ec4899)';
+                collectionOption.style.color = 'white';
+                collectionOption.style.fontWeight = 'bold';
+            }
+            
             this.setSelector.add(option);
             this.collectionSetSelector.add(collectionOption);
         });
@@ -43,6 +55,7 @@ class UIManager {
     setupEventListeners() {
         this.setSelector.addEventListener('change', (e) => {
             this.gameEngine.setSelectedSet(e.target.value);
+            this.updateBuyBoxButtonText();
         });
         
         this.collectionSetSelector.addEventListener('change', () => {
@@ -55,9 +68,76 @@ class UIManager {
         });
         
         this.buyBoxBtn.addEventListener('click', () => {
-            const set = window.TCG_SETS[this.gameEngine.state.selectedSet];
+            const allSets = window.getAllSets();
+            const set = allSets[this.gameEngine.state.selectedSet];
             this.gameEngine.buyPacks(set.boosterBoxSize);
             this.renderUnopenedPacks();
+        });
+
+        // Start the countdown timer for weekly sets
+        this.startWeeklyCountdown();
+        
+        // Initial button text update
+        this.updateBuyBoxButtonText();
+    }
+
+    updateBuyBoxButtonText() {
+        const allSets = window.getAllSets();
+        const selectedSet = allSets[this.gameEngine.state.selectedSet];
+        if (selectedSet) {
+            this.buyBoxBtn.textContent = `Buy Booster Box (${selectedSet.boosterBoxSize} Packs)`;
+        }
+    }
+
+    startWeeklyCountdown() {
+        // Prevent multiple intervals
+        if (this.countdownInterval) {
+            clearInterval(this.countdownInterval);
+        }
+        
+        // Update countdown every 5 seconds (less aggressive)
+        this.countdownInterval = setInterval(() => {
+            this.updateWeeklyCountdown();
+        }, 5000);
+        
+        // Initial update
+        this.updateWeeklyCountdown();
+    }
+
+    updateWeeklyCountdown() {
+        const countdownElements = document.querySelectorAll('#weekly-countdown');
+        if (countdownElements.length === 0) return;
+
+        const timeUntilNext = window.weeklySetGenerator.getTimeUntilNextWeek();
+        
+        // Only show notification if time is very low, don't auto-reload
+        if (timeUntilNext <= 0) {
+            countdownElements.forEach(element => {
+                element.textContent = 'New set available! Refresh to see it.';
+                element.style.color = '#fbbf24'; // yellow color
+                element.style.fontWeight = 'bold';
+            });
+            return;
+        }
+
+        // Safety check for reasonable time values
+        if (timeUntilNext > 1000 * 60 * 60 * 24 * 8) { // More than 8 days
+            countdownElements.forEach(element => {
+                element.textContent = 'Calculating...';
+            });
+            return;
+        }
+
+        const days = Math.floor(timeUntilNext / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((timeUntilNext % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((timeUntilNext % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((timeUntilNext % (1000 * 60)) / 1000);
+
+        const timeString = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+        countdownElements.forEach(element => {
+            element.textContent = timeString;
+            element.style.color = '';
+            element.style.fontWeight = '';
         });
     }
 
@@ -65,17 +145,37 @@ class UIManager {
         this.unopenedPacksDisplay.innerHTML = '';
         let totalPacks = Object.values(this.gameEngine.state.unopenedPacks).reduce((a, b) => a + b, 0);
         
+        const allSets = window.getAllSets();
         Object.keys(this.gameEngine.state.unopenedPacks).forEach(setId => {
             const count = this.gameEngine.state.unopenedPacks[setId];
             if (count > 0) {
-                const set = window.TCG_SETS[setId];
+                const set = allSets[setId];
                 const packElement = document.createElement('div');
-                packElement.className = 'pack p-4 bg-gray-700 rounded-lg text-center shadow-md';
-                packElement.innerHTML = `
-                    <div class="font-bold text-lg">${set.name}</div>
-                    <div class="text-2xl">${count}x</div>
-                    <div class="text-sm text-gray-400">Click to Open</div>
-                `;
+                
+                if (set.isWeekly) {
+                    // Special styling for weekly sets
+                    packElement.className = 'pack p-4 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg text-center shadow-lg border-2 border-yellow-400 relative';
+                    packElement.innerHTML = `
+                        <div class="absolute top-1 right-1 bg-yellow-400 text-black text-xs font-bold rounded-full px-2 py-1">
+                            ⏰ WEEKLY
+                        </div>
+                        <div class="font-bold text-lg text-white">${set.name}</div>
+                        <div class="text-2xl text-white">${count}x</div>
+                        <div class="text-sm text-yellow-200">Click to Open</div>
+                        <div class="text-xs text-yellow-300 mt-1">
+                            Time Left: <span id="weekly-countdown">Loading...</span>
+                        </div>
+                    `;
+                } else {
+                    // Normal styling for regular sets
+                    packElement.className = 'pack p-4 bg-gray-700 rounded-lg text-center shadow-md';
+                    packElement.innerHTML = `
+                        <div class="font-bold text-lg">${set.name}</div>
+                        <div class="text-2xl">${count}x</div>
+                        <div class="text-sm text-gray-400">Click to Open</div>
+                    `;
+                }
+                
                 packElement.onclick = () => this.showPackOpeningModal(setId);
                 this.unopenedPacksDisplay.appendChild(packElement);
             }
@@ -276,6 +376,14 @@ class UIManager {
     refreshUI() {
         this.renderUnopenedPacks();
         this.renderCollection();
+    }
+
+    // Cleanup method to prevent memory leaks
+    destroy() {
+        if (this.countdownInterval) {
+            clearInterval(this.countdownInterval);
+            this.countdownInterval = null;
+        }
     }
 }
 

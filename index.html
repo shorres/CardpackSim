@@ -36,12 +36,22 @@
             <!-- Set Selection and Pack Buying -->
             <section id="pack-selection" class="bg-gray-800 rounded-2xl p-6 mb-8 shadow-lg">
                 <h2 class="text-2xl font-semibold mb-4 text-center">Choose a Set</h2>
+                
+                <!-- Weekly Set Notification -->
+                <div id="weekly-set-notification" class="bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg p-4 mb-4 text-center">
+                    <h3 class="text-lg font-bold text-white mb-2">🌟 Weekly Featured Set 🌟</h3>
+                    <p class="text-yellow-200 text-sm">Limited time! Better rates and exclusive themes!</p>
+                    <div class="text-xs text-yellow-300 mt-1">
+                        New set in: <span id="weekly-countdown">Loading...</span>
+                    </div>
+                </div>
+                
                 <div class="flex flex-wrap justify-center items-center gap-4">
                     <select id="set-selector" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
                         <!-- Options will be populated by JS -->
                     </select>
                     <button id="buy-pack-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Buy 1 Pack</button>
-                    <button id="buy-box-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Buy Booster Box (30 Packs)</button>
+                    <button id="buy-box-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Buy Booster Box</button>
                 </div>
                 <div id="unopened-packs-container" class="mt-6 text-center">
                     <h3 class="text-xl font-semibold mb-2">Your Packs</h3>

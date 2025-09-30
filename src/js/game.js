@@ -11,8 +11,11 @@ class GameEngine {
     }
 
     initializeState() {
+        // Get all sets including weekly ones
+        const allSets = window.getAllSets();
+        
         // Initialize state for all sets
-        Object.keys(window.TCG_SETS).forEach(setId => {
+        Object.keys(allSets).forEach(setId => {
             if (!this.state.unopenedPacks[setId]) this.state.unopenedPacks[setId] = 0;
             if (!this.state.collection[setId]) this.state.collection[setId] = {};
         });
@@ -21,6 +24,12 @@ class GameEngine {
         const savedState = this.storageManager.loadState();
         if (savedState) {
             this.state = savedState;
+            
+            // Ensure new sets are initialized even in loaded state
+            Object.keys(allSets).forEach(setId => {
+                if (!this.state.unopenedPacks[setId]) this.state.unopenedPacks[setId] = 0;
+                if (!this.state.collection[setId]) this.state.collection[setId] = {};
+            });
         }
     }
 
@@ -31,7 +40,8 @@ class GameEngine {
     }
 
     generatePackContents(setId) {
-        const set = window.TCG_SETS[setId];
+        const allSets = window.getAllSets();
+        const set = allSets[setId];
         const openedCards = [];
         
         // Generate common and uncommon cards
@@ -87,7 +97,8 @@ class GameEngine {
     }
 
     getCardRarity(setId, cardName) {
-        const set = window.TCG_SETS[setId];
+        const allSets = window.getAllSets();
+        const set = allSets[setId];
         for (const rarity in set.cards) {
             if (set.cards[rarity].includes(cardName)) {
                 return rarity;
@@ -97,7 +108,8 @@ class GameEngine {
     }
 
     getCollectionProgress(setId) {
-        const set = window.TCG_SETS[setId];
+        const allSets = window.getAllSets();
+        const set = allSets[setId];
         const collectionSet = this.state.collection[setId];
         let collectedCount = 0;
         
@@ -138,7 +150,7 @@ class GameEngine {
         this.state = {
             unopenedPacks: {},
             collection: {},
-            selectedSet: Object.keys(window.TCG_SETS)[0],
+            selectedSet: Object.keys(window.getAllSets())[0],
         };
         this.initializeState();
         this.storageManager.clearState();
