@@ -6,10 +6,14 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
+    "clean": "rimraf dist",
+    "force-clean": "rimraf dist && timeout 2",
+    "prebuild": "npm run clean",
     "build": "electron-builder",
-    "build-win": "electron-builder --win",
-    "build-mac": "electron-builder --mac",
-    "build-linux": "electron-builder --linux",
+    "build-win": "npm run force-clean && electron-builder --win",
+    "build-mac": "npm run force-clean && electron-builder --mac", 
+    "build-linux": "npm run force-clean && electron-builder --linux",
+    "build-safe": "npm run clean && timeout 3 && electron-builder",
     "dist": "npm run build"
   },
   "keywords": [
@@ -23,7 +27,8 @@
   "license": "MIT",
   "devDependencies": {
     "electron": "^28.0.0",
-    "electron-builder": "^24.9.1"
+    "electron-builder": "^24.9.1",
+    "rimraf": "^5.0.0"
   },
   "build": {
     "appId": "com.cardpacksim.tcgpacksimulator",
@@ -41,21 +46,22 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "target": "nsis"
         },
         {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
+          "target": "portable"
         }
       ]
     },
     "mac": {
-      "target": "dmg"
+      "target": [
+        {
+          "target": "dmg"
+        },
+        {
+          "target": "zip"
+        }
+      ]
     },
     "linux": {
       "target": "AppImage"

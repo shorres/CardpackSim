@@ -9,4 +9,5 @@ context/
 
 # Build files
 dist/
-build.bat
+build.*
+build-robust*
