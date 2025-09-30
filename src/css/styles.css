@@ -1,32 +1,262 @@
 /* TCG Pack Simulator Styles */
 
+/* CSS Custom Properties for Theming */
+:root {
+    /* Default Theme (Dark Mode) */
+    --bg-primary: #111827;
+    --bg-secondary: #1f2937;
+    --bg-tertiary: #374151;
+    --bg-quaternary: #4b5563;
+    --text-primary: #ffffff;
+    --text-secondary: #d1d5db;
+    --text-muted: #9ca3af;
+    --accent-primary: #9333ea;
+    --accent-secondary: #ec4899;
+    --accent-tertiary: #3b82f6;
+    --border-primary: #4b5563;
+    --border-secondary: #6b7280;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --info: #60a5fa;
+    --highlight: rgba(147, 51, 234, 0.3);
+    --shadow: rgba(0, 0, 0, 0.3);
+}
+
+/* Matrix/UNIX Theme */
+[data-theme="matrix"] {
+    --bg-primary: #000000;
+    --bg-secondary: #001100;
+    --bg-tertiary: #002200;
+    --bg-quaternary: #003300;
+    --text-primary: #00ff00;
+    --text-secondary: #00cc00;
+    --text-muted: #008800;
+    --accent-primary: #00ff00;
+    --accent-secondary: #00aa00;
+    --accent-tertiary: #00dd00;
+    --border-primary: #003300;
+    --border-secondary: #006600;
+    --success: #00ff00;
+    --warning: #ffff00;
+    --error: #ff0000;
+    --info: #00ffff;
+    --highlight: rgba(0, 255, 0, 0.3);
+    --shadow: rgba(0, 255, 0, 0.2);
+}
+
+/* Outrun/Synthwave Theme */
+[data-theme="outrun"] {
+    --bg-primary: #0f0515;
+    --bg-secondary: #1a0a2a;
+    --bg-tertiary: #2a1540;
+    --bg-quaternary: #3a2055;
+    --text-primary: #ffffff;
+    --text-secondary: #e0e0e0;
+    --text-muted: #b0b0b0;
+    --accent-primary: #ff0080;
+    --accent-secondary: #00ffff;
+    --accent-tertiary: #ff4080;
+    --border-primary: #3a2055;
+    --border-secondary: #ff0080;
+    --success: #00ffaa;
+    --warning: #ffaa00;
+    --error: #ff4040;
+    --info: #40a0ff;
+    --highlight: rgba(255, 0, 128, 0.3);
+    --shadow: rgba(255, 0, 128, 0.4);
+}
+
+/* Windows 95 Theme */
+[data-theme="windows95"] {
+    --bg-primary: #c0c0c0;
+    --bg-secondary: #c0c0c0;
+    --bg-tertiary: #e0e0e0;
+    --bg-quaternary: #d0d0d0;
+    --text-primary: #000000;
+    --text-secondary: #000000;
+    --text-muted: #404040;
+    --accent-primary: #000080;
+    --accent-secondary: #008080;
+    --accent-tertiary: #000080;
+    --border-primary: #808080;
+    --border-secondary: #000000;
+    --success: #008000;
+    --warning: #808000;
+    --error: #800000;
+    --info: #000080;
+    --highlight: rgba(0, 0, 128, 0.2);
+    --shadow: rgba(0, 0, 0, 0.3);
+}
+
+/* Light Mode Theme */
+[data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #e2e8f0;
+    --bg-quaternary: #cbd5e1;
+    --text-primary: #0f172a;
+    --text-secondary: #1e293b;
+    --text-muted: #475569;
+    --accent-primary: #7c3aed;
+    --accent-secondary: #db2777;
+    --accent-tertiary: #2563eb;
+    --border-primary: #cbd5e1;
+    --border-secondary: #94a3b8;
+    --success: #059669;
+    --warning: #d97706;
+    --error: #dc2626;
+    --info: #2563eb;
+    --highlight: rgba(124, 58, 237, 0.1);
+    --shadow: rgba(0, 0, 0, 0.1);
+}
+
+/* Cotton Candy Theme */
+[data-theme="cotton-candy"] {
+    --bg-primary: #fdf2f8;
+    --bg-secondary: #fce7f3;
+    --bg-tertiary: #e879f9;
+    --bg-quaternary: #d946ef;
+    --text-primary: #701a75;
+    --text-secondary: #86198f;
+    --text-muted: #a21caf;
+    --accent-primary: #ec4899;
+    --accent-secondary: #a855f7;
+    --accent-tertiary: #06b6d4;
+    --border-primary: #f9a8d4;
+    --border-secondary: #ec4899;
+    --success: #059669;
+    --warning: #d97706;
+    --error: #dc2626;
+    --info: #2563eb;
+    --highlight: rgba(236, 72, 153, 0.2);
+    --shadow: rgba(236, 72, 153, 0.3);
+}
+
+/* Sunset Theme */
+[data-theme="sunset"] {
+    --bg-primary: #1e1b3b;
+    --bg-secondary: #2d2649;
+    --bg-tertiary: #3c3158;
+    --bg-quaternary: #4b3c66;
+    --text-primary: #fbbf24;
+    --text-secondary: #f59e0b;
+    --text-muted: #d97706;
+    --accent-primary: #f59e0b;
+    --accent-secondary: #ef4444;
+    --accent-tertiary: #fb923c;
+    --border-primary: #4b3c66;
+    --border-secondary: #f59e0b;
+    --success: #10b981;
+    --warning: #fbbf24;
+    --error: #ef4444;
+    --info: #06b6d4;
+    --highlight: rgba(245, 158, 11, 0.3);
+    --shadow: rgba(251, 191, 36, 0.4);
+}
+
+/* Storm Theme */
+[data-theme="storm"] {
+    --bg-primary: #0f1419;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --bg-quaternary: #475569;
+    --text-primary: #f1f5f9;
+    --text-secondary: #e2e8f0;
+    --text-muted: #cbd5e1;
+    --accent-primary: #06b6d4;
+    --accent-secondary: #0ea5e9;
+    --accent-tertiary: #8b5cf6;
+    --border-primary: #475569;
+    --border-secondary: #64748b;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --info: #06b6d4;
+    --highlight: rgba(6, 182, 212, 0.3);
+    --shadow: rgba(6, 182, 212, 0.2);
+}
+
 /* Base Styles */
 body {
     font-family: 'Inter', sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Tab Navigation Styles */
 .tab-btn {
     transition: all 0.3s ease;
     position: relative;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-primary);
 }
 
 .tab-btn.active {
-    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-    box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.3);
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-tertiary));
+    box-shadow: 0 4px 14px 0 var(--highlight);
+    color: var(--text-primary);
 }
 
 .tab-btn:hover:not(.active) {
-    background-color: #374151;
-    color: white;
+    background-color: var(--bg-quaternary);
+    color: var(--text-primary);
 }
 
 .tab-content {
     animation: fadeIn 0.3s ease-in-out;
+    background-color: var(--bg-secondary);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
 }
 
 .tab-content.hidden {
     display: none;
+}
+
+/* Universal container styling for theme support */
+.theme-container {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-primary);
+}
+
+/* Input and form elements */
+input[type="text"], input[type="number"], select, textarea {
+    background-color: var(--bg-tertiary) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-primary) !important;
+}
+
+input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+    border-color: var(--accent-primary) !important;
+    box-shadow: 0 0 0 2px var(--highlight) !important;
+    outline: none;
+}
+
+/* Button styling for consistency */
+.btn-primary {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    color: var(--text-primary);
+    border: none;
+}
+
+.btn-secondary {
+    background-color: var(--bg-quaternary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-primary);
+}
+
+.btn-success {
+    background-color: var(--success);
+    color: var(--text-primary);
+}
+
+.btn-danger {
+    background-color: var(--error);
+    color: var(--text-primary);
 }
 
 @keyframes fadeIn {
@@ -64,20 +294,22 @@ body {
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
     border-radius: 0.5rem;
+    border: 2px solid var(--border-primary);
 }
 
 .card-front {
     transform: rotateY(180deg);
+    background-color: var(--bg-secondary);
 }
 
 .card-front:hover {
     transform: rotateY(180deg) translateY(-10px) rotateX(5deg);
-    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    box-shadow: 0 20px 25px -5px var(--shadow), 0 8px 10px -6px var(--shadow);
 }
 
 .card-back {
-    background: #374151; /* gray-700 */
-    border: 4px solid #4b5563; /* gray-600 */
+    background: var(--bg-tertiary);
+    border: 4px solid var(--border-primary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -86,13 +318,13 @@ body {
 
 .card-back:hover {
     transform: translateY(-5px);
-    background: #4b5563;
+    background: var(--bg-quaternary);
 }
 
 .card-back-logo {
     font-size: 2rem;
     font-weight: bold;
-    color: #1f2937; /* gray-800 */
+    color: var(--text-muted);
 }
 
 /* Foil Card Effects */
@@ -120,20 +352,23 @@ body {
     100% { transform: translateX(75%) translateY(75%) rotate(30deg); }
 }
 
-/* Card Rarity Colors */
-.rarity-common { border-color: #6b7280; }
-.rarity-uncommon { border-color: #60a5fa; }
-.rarity-rare { border-color: #facc15; }
-.rarity-mythic { border-color: #f97316; }
+/* Card Rarity Colors - Using theme variables as base, with specific rarity colors */
+.rarity-common { border-color: var(--text-muted); }
+.rarity-uncommon { border-color: var(--info); }
+.rarity-rare { border-color: var(--warning); }
+.rarity-mythic { border-color: var(--accent-secondary); }
 
 /* Pack Styles */
 .pack {
     cursor: pointer;
     transition: transform 0.2s ease-in-out;
+    background-color: var(--bg-tertiary);
+    border: 2px solid var(--border-primary);
 }
 
 .pack:hover {
     transform: scale(1.05);
+    border-color: var(--border-secondary);
 }
 
 /* Weekly Pack Special Effects */
@@ -143,10 +378,10 @@ body {
 
 @keyframes weekly-glow {
     from {
-        box-shadow: 0 0 10px rgba(147, 51, 234, 0.5), 0 0 20px rgba(236, 72, 153, 0.3);
+        box-shadow: 0 0 10px var(--highlight), 0 0 20px var(--accent-secondary);
     }
     to {
-        box-shadow: 0 0 20px rgba(147, 51, 234, 0.8), 0 0 30px rgba(236, 72, 153, 0.6);
+        box-shadow: 0 0 20px var(--accent-primary), 0 0 30px var(--accent-secondary);
     }
 }
 
@@ -176,7 +411,7 @@ body {
     position: absolute;
     width: 100%;
     height: 100%;
-    background-color: #4a5568;
+    background-color: var(--bg-tertiary);
     border-radius: 10px;
     display: flex;
     flex-direction: column;
@@ -184,8 +419,8 @@ body {
     justify-content: center;
     font-size: 2rem;
     font-weight: bold;
-    color: white;
-    border: 4px solid #2d3748;
+    color: var(--text-primary);
+    border: 4px solid var(--border-primary);
     overflow: hidden;
     cursor: grab;
 }
@@ -232,22 +467,24 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: #1f2937;
+    background: var(--bg-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #4b5563;
+    background: var(--bg-quaternary);
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #6b7280;
+    background: var(--border-secondary);
 }
 
 /* Market-specific styles */
 .sell-card-btn {
     opacity: 0;
     transition: opacity 0.2s ease;
+    background-color: var(--accent-primary);
+    color: var(--text-primary);
 }
 
 .card-face:hover .sell-card-btn {
@@ -256,11 +493,26 @@ body {
 
 .portfolio-card {
     transition: all 0.2s ease;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    color: var(--text-primary);
 }
 
 .portfolio-card:hover {
     transform: translateX(5px);
-    background-color: #374151;
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-secondary);
+}
+
+.hot-card-item {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    color: var(--text-primary);
+}
+
+.hot-card-item:hover {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-secondary);
 }
 
 /* Achievement notification animation */
@@ -281,21 +533,21 @@ body {
 
 /* Market trend indicators */
 .trend-rising {
-    color: #10b981;
+    color: var(--success);
 }
 
 .trend-falling {
-    color: #ef4444;
+    color: var(--error);
 }
 
 .trend-stable {
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 /* Hot card glow effect */
 .hot-card {
-    box-shadow: 0 0 10px rgba(251, 146, 60, 0.5);
-    border: 1px solid #f59e0b;
+    box-shadow: 0 0 10px var(--warning);
+    border: 1px solid var(--warning);
 }
 
 /* Player stats bar responsive */
@@ -390,36 +642,39 @@ body {
 
 #profile-modal .bg-gray-800 {
     animation: slideUp 0.3s ease-out;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 25px 50px -12px var(--shadow);
+    background-color: var(--bg-secondary) !important;
+    border: 1px solid var(--border-primary);
 }
 
 #profile-portrait {
-    background: linear-gradient(135deg, #374151, #4b5563);
-    border: 3px solid #6b7280;
+    background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-quaternary));
+    border: 3px solid var(--border-secondary);
     transition: all 0.3s ease;
 }
 
 #profile-portrait:hover {
     transform: scale(1.05);
-    border-color: #9333ea;
-    box-shadow: 0 0 20px rgba(147, 51, 234, 0.3);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 20px var(--highlight);
 }
 
 .profile-stat-card {
-    background: linear-gradient(135deg, #374151, #4b5563);
+    background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-quaternary));
     transition: all 0.3s ease;
-    border: 1px solid #4b5563;
+    border: 1px solid var(--border-primary);
 }
 
 .profile-stat-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 25px -8px rgba(0, 0, 0, 0.3);
-    border-color: #6b7280;
+    box-shadow: 0 8px 25px -8px var(--shadow);
+    border-color: var(--border-secondary);
 }
 
 #networth-chart {
     background: rgba(17, 24, 39, 0.5);
     border-radius: 0.5rem;
+    background-color: var(--bg-primary) !important;
 }
 
 @keyframes slideUp {
@@ -435,14 +690,237 @@ body {
 
 /* Profile button styling */
 #profile-btn {
-    background: linear-gradient(135deg, #9333ea, #ec4899);
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
     transition: all 0.3s ease;
-    box-shadow: 0 4px 14px 0 rgba(147, 51, 234, 0.3);
+    box-shadow: 0 4px 14px 0 var(--highlight);
 }
 
 #profile-btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px 0 rgba(147, 51, 234, 0.4);
+    box-shadow: 0 6px 20px 0 var(--highlight);
+}
+
+/* Theme Selector Styles */
+.theme-selector {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.theme-selector h3 {
+    color: var(--text-primary);
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+
+.theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.5rem;
+}
+
+.theme-option {
+    padding: 0.75rem;
+    border: 2px solid var(--border-primary);
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    font-size: 0.875rem;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.theme-option:hover {
+    border-color: var(--border-secondary);
+    transform: translateY(-1px);
+}
+
+.theme-option.active {
+    border-color: var(--accent-primary);
+    background-color: var(--accent-primary);
+    color: var(--text-primary);
+    box-shadow: 0 0 10px var(--highlight);
+}
+
+.theme-preview {
+    width: 100%;
+    height: 24px;
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--border-primary);
+}
+
+/* Theme preview colors */
+.theme-preview.default { background: linear-gradient(90deg, #111827, #9333ea, #ec4899); }
+.theme-preview.matrix { background: linear-gradient(90deg, #000000, #00ff00, #008800); }
+.theme-preview.outrun { background: linear-gradient(90deg, #0f0515, #ff0080, #00ffff); }
+.theme-preview.windows95 { background: linear-gradient(90deg, #c0c0c0, #000080, #008080); }
+.theme-preview.light { background: linear-gradient(90deg, #ffffff, #7c3aed, #db2777); }
+.theme-preview.cotton-candy { background: linear-gradient(90deg, #fdf2f8, #ec4899, #a855f7); }
+.theme-preview.sunset { background: linear-gradient(90deg, #1e1b3b, #f59e0b, #ef4444); }
+.theme-preview.storm { background: linear-gradient(90deg, #0f1419, #06b6d4, #8b5cf6); }
+
+/* Enhanced readability for all themes */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-primary);
+}
+
+/* Ensure proper contrast for interactive elements */
+button {
+    transition: all 0.2s ease;
+}
+
+button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+/* Input focus states for better accessibility */
+input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* Card text contrast improvements */
+.card-face {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Enhanced modal backdrop for all themes */
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+}
+
+/* Theme-specific text contrast fixes */
+[data-theme="matrix"] .text-yellow-400,
+[data-theme="matrix"] .text-blue-400,
+[data-theme="matrix"] .text-purple-400 {
+    color: var(--accent-primary) !important;
+}
+
+[data-theme="outrun"] .text-gray-400 {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="windows95"] .text-purple-400,
+[data-theme="windows95"] .text-pink-600 {
+    color: var(--accent-primary) !important;
+}
+
+[data-theme="light"] .text-white {
+    color: var(--text-primary) !important;
+}
+
+/* Card name and collection text readability fixes */
+[data-theme="light"] .card-face,
+[data-theme="cotton-candy"] .card-face {
+    color: var(--text-primary) !important;
+    text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="light"] .portfolio-card,
+[data-theme="cotton-candy"] .portfolio-card {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .portfolio-card .text-gray-400,
+[data-theme="cotton-candy"] .portfolio-card .text-gray-400 {
+    color: var(--text-muted) !important;
+}
+
+/* Chart text improvements for light themes */
+[data-theme="light"] #networth-chart,
+[data-theme="cotton-candy"] #networth-chart {
+    background-color: var(--bg-secondary) !important;
+}
+
+/* Market card list text contrast */
+[data-theme="light"] .hot-cards-list [data-set-id],
+[data-theme="cotton-candy"] .hot-cards-list [data-set-id] {
+    color: var(--text-primary) !important;
+}
+
+/* Collection grid card text */
+[data-theme="light"] #collection-display .card-face,
+[data-theme="cotton-candy"] #collection-display .card-face {
+    background-color: var(--bg-quaternary) !important;
+    color: var(--text-primary) !important;
+    border: 2px solid var(--border-secondary) !important;
+}
+
+/* Portfolio search and filter improvements */
+[data-theme="light"] #portfolio-search::placeholder,
+[data-theme="cotton-candy"] #portfolio-search::placeholder {
+    color: var(--text-muted) !important;
+}
+
+/* Matrix theme specific fixes to prevent light green on light green */
+[data-theme="matrix"] .bg-green-600,
+[data-theme="matrix"] .bg-green-700 {
+    background-color: var(--bg-quaternary) !important;
+}
+
+[data-theme="matrix"] .text-green-400,
+[data-theme="matrix"] .text-green-500 {
+    color: var(--text-primary) !important;
+}
+
+/* Matrix theme button text contrast fixes */
+[data-theme="matrix"] #buy-pack-btn,
+[data-theme="matrix"] #buy-box-btn {
+    background-color: var(--bg-quaternary) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-secondary) !important;
+}
+
+[data-theme="matrix"] #weekly-set-notification {
+    background: var(--bg-quaternary) !important;
+    border: 1px solid var(--border-secondary) !important;
+}
+
+[data-theme="matrix"] #weekly-set-notification h3,
+[data-theme="matrix"] #weekly-set-notification p,
+[data-theme="matrix"] #weekly-set-notification div {
+    color: var(--text-primary) !important;
+}
+
+/* Chart text readability improvements for all themes */
+canvas {
+    color: var(--text-primary) !important;
+}
+
+/* Chart.js tooltip styling override */
+.chartjs-tooltip {
+    background-color: var(--bg-quaternary) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-secondary) !important;
+}
+
+/* Force chart text colors to be readable */
+[data-theme="light"] canvas,
+[data-theme="cotton-candy"] canvas {
+    filter: none !important;
+}
+
+/* Ensure chart container backgrounds are properly themed */
+#networth-chart {
+    background-color: var(--bg-primary) !important;
+}
+
+#price-chart {
+    background-color: var(--bg-primary) !important;
+}
+
+/* Ensure tooltips and overlays are readable */
+.tooltip, .overlay-text {
+    background-color: var(--bg-quaternary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-secondary);
 }
 
 /* Responsive chart container */

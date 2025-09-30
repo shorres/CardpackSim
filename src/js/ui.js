@@ -6,6 +6,7 @@ class UIManager {
         this.initializeElements();
         this.setupEventListeners();
         this.setupPackTearing();
+        this.initializeThemes();
     }
 
     initializeElements() {
@@ -210,6 +211,9 @@ class UIManager {
             }
         });
 
+        // Theme selector event listeners
+        this.setupThemeEventListeners();
+
         // Start the countdown timer for weekly sets
         this.startWeeklyCountdown();
         
@@ -368,7 +372,7 @@ class UIManager {
                     `;
                 } else {
                     // Normal styling for regular sets
-                    packElement.className = 'pack p-4 bg-gray-700 rounded-lg text-center shadow-md';
+                    packElement.className = 'pack p-4 rounded-lg text-center shadow-md';
                     packElement.innerHTML = `
                         <div class="font-bold text-lg">${set.name}</div>
                         <div class="text-2xl">${count}x</div>
@@ -523,7 +527,7 @@ class UIManager {
                 if (card.isFoil) {
                     cardFront.classList.add('foil');
                 }
-                cardFront.classList.add(`rarity-${rarity}`, 'border-4', 'rounded-lg', 'p-2', 'h-full', 'flex', 'flex-col', 'justify-between', 'bg-gray-800', 'shadow-md');
+                cardFront.classList.add(`rarity-${rarity}`, 'border-4', 'rounded-lg', 'p-2', 'h-full', 'flex', 'flex-col', 'justify-between', 'shadow-md');
                 cardContainer.classList.add('flipped');
             }, { once: true });
         });
@@ -560,7 +564,7 @@ class UIManager {
         const element = document.createElement('div');
         const foilClass = isFoil ? 'foil' : '';
         const ownedClass = count === 0 ? 'opacity-40' : '';
-        element.className = `card-face relative border-4 rounded-lg p-2 h-40 flex flex-col justify-between bg-gray-800 shadow-md rarity-${rarity} ${foilClass} ${ownedClass} cursor-pointer hover:transform hover:scale-105 transition-transform`;
+        element.className = `card-face relative border-4 rounded-lg p-2 h-40 flex flex-col justify-between shadow-md rarity-${rarity} ${foilClass} ${ownedClass} cursor-pointer hover:transform hover:scale-105 transition-transform`;
         
         let countDisplay = `
             <div class="absolute top-1 right-1 bg-gray-900 text-white text-xs font-bold rounded-full px-2 py-1">
@@ -663,7 +667,7 @@ class UIManager {
         
         filteredCards.forEach(card => {
             const cardElement = document.createElement('div');
-            cardElement.className = 'flex justify-between items-center p-3 bg-gray-800 rounded-lg mb-2 hover:bg-gray-700 transition-colors';
+            cardElement.className = 'portfolio-card flex justify-between items-center p-3 rounded-lg mb-2 transition-colors';
             
             const trendIcon = card.trend.trend === 'rising' ? '📈' : 
                              card.trend.trend === 'falling' ? '📉' : '➡️';
@@ -825,7 +829,7 @@ class UIManager {
         
         hotCards.forEach(card => {
             const cardElement = document.createElement('div');
-            cardElement.className = 'flex justify-between items-center p-2 bg-gray-800 rounded mb-2 hover:bg-gray-700 transition-colors';
+            cardElement.className = 'hot-card-item flex justify-between items-center p-2 rounded mb-2 transition-colors';
             
             const eventBadge = card.event ? `<span class="bg-orange-500 text-xs px-1 rounded mr-1">${card.event}</span>` : '';
             
@@ -1042,6 +1046,9 @@ class UIManager {
             this.netWorthChart.destroy();
         }
         
+        // Get theme colors
+        const colors = this.getThemeColors();
+        
         // Prepare data
         const chartData = netWorthHistory.map(entry => ({
             x: new Date(entry.timestamp),
@@ -1054,8 +1061,8 @@ class UIManager {
                 datasets: [{
                     label: 'Net Worth',
                     data: chartData,
-                    borderColor: 'rgb(147, 51, 234)',
-                    backgroundColor: 'rgba(147, 51, 234, 0.1)',
+                    borderColor: colors.accentPrimary,
+                    backgroundColor: colors.accentPrimary + '20',
                     borderWidth: 2,
                     fill: true,
                     tension: 0.1
@@ -1073,10 +1080,10 @@ class UIManager {
                         display: false
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        titleColor: 'white',
-                        bodyColor: 'white',
-                        borderColor: 'rgb(147, 51, 234)',
+                        backgroundColor: colors.bgTertiary,
+                        titleColor: colors.textPrimary,
+                        bodyColor: colors.textPrimary,
+                        borderColor: colors.borderSecondary,
                         borderWidth: 1,
                         callbacks: {
                             title: function(context) {
@@ -1101,19 +1108,19 @@ class UIManager {
                             }
                         },
                         grid: {
-                            color: 'rgba(255, 255, 255, 0.1)'
+                            color: colors.borderPrimary
                         },
                         ticks: {
-                            color: 'rgba(255, 255, 255, 0.7)'
+                            color: colors.textSecondary
                         }
                     },
                     y: {
                         beginAtZero: true,
                         grid: {
-                            color: 'rgba(255, 255, 255, 0.1)'
+                            color: colors.borderPrimary
                         },
                         ticks: {
-                            color: 'rgba(255, 255, 255, 0.7)',
+                            color: colors.textSecondary,
                             callback: function(value) {
                                 return '$' + value.toFixed(2);
                             }
@@ -1177,6 +1184,10 @@ class UIManager {
             this.currentChart.destroy();
         }
         
+        // Get theme colors
+        const colors = this.getThemeColors();
+        this.currentTimeframeDays = timeframeDays;
+        
         const ctx = this.priceChart.getContext('2d');
         
         // Prepare chart data
@@ -1188,9 +1199,9 @@ class UIManager {
             }
         });
         
-        // Determine line color based on overall trend
-        const lineColor = chartData.changePercent > 0 ? '#10b981' : 
-                         chartData.changePercent < 0 ? '#ef4444' : '#6b7280';
+        // Use theme-aware colors for trend
+        const lineColor = chartData.changePercent > 0 ? colors.accentPrimary : 
+                         chartData.changePercent < 0 ? '#ef4444' : colors.textMuted;
         
         this.currentChart = new Chart(ctx, {
             type: 'line',
@@ -1220,20 +1231,20 @@ class UIManager {
                     x: {
                         display: true,
                         grid: {
-                            color: '#374151'
+                            color: colors.borderPrimary
                         },
                         ticks: {
-                            color: '#9ca3af',
+                            color: colors.textSecondary,
                             maxTicksLimit: 8
                         }
                     },
                     y: {
                         display: true,
                         grid: {
-                            color: '#374151'
+                            color: colors.borderPrimary
                         },
                         ticks: {
-                            color: '#9ca3af',
+                            color: colors.textSecondary,
                             callback: function(value) {
                                 return '$' + value.toFixed(2);
                             }
@@ -1247,7 +1258,7 @@ class UIManager {
                 elements: {
                     point: {
                         backgroundColor: lineColor,
-                        borderColor: '#ffffff',
+                        borderColor: colors.textPrimary,
                         borderWidth: 1
                     }
                 }
@@ -1283,6 +1294,95 @@ class UIManager {
                 <div class="font-bold">$${chartData.minPrice.toFixed(2)}</div>
             </div>
         `;
+    }
+
+    // Theme Management Methods
+    
+    initializeThemes() {
+        // Load saved theme or default to 'default'
+        const savedTheme = this.loadTheme() || 'default';
+        this.applyTheme(savedTheme);
+        this.updateThemeSelector(savedTheme);
+    }
+    
+    getThemeColors() {
+        const computedStyle = getComputedStyle(document.documentElement);
+        return {
+            textPrimary: computedStyle.getPropertyValue('--text-primary').trim(),
+            textSecondary: computedStyle.getPropertyValue('--text-secondary').trim(),
+            textMuted: computedStyle.getPropertyValue('--text-muted').trim(),
+            bgPrimary: computedStyle.getPropertyValue('--bg-primary').trim(),
+            bgSecondary: computedStyle.getPropertyValue('--bg-secondary').trim(),
+            bgTertiary: computedStyle.getPropertyValue('--bg-tertiary').trim(),
+            accentPrimary: computedStyle.getPropertyValue('--accent-primary').trim(),
+            accentSecondary: computedStyle.getPropertyValue('--accent-secondary').trim(),
+            borderPrimary: computedStyle.getPropertyValue('--border-primary').trim(),
+            borderSecondary: computedStyle.getPropertyValue('--border-secondary').trim()
+        };
+    }
+    
+    setupThemeEventListeners() {
+        const themeOptions = document.querySelectorAll('.theme-option');
+        themeOptions.forEach(option => {
+            option.addEventListener('click', (e) => {
+                const theme = e.currentTarget.dataset.theme;
+                this.setTheme(theme);
+            });
+        });
+    }
+    
+    setTheme(themeName) {
+        this.applyTheme(themeName);
+        this.saveTheme(themeName);
+        this.updateThemeSelector(themeName);
+        
+        // Recreate charts with new theme colors
+        if (this.netWorthChart) {
+            const stats = this.gameEngine.getPlayerStats();
+            this.createNetWorthChart(stats.netWorthHistory);
+        }
+        
+        if (this.currentChart && this.currentChartCard) {
+            // Recreate price chart if it's open
+            this.updateChart(this.currentTimeframeDays || 1);
+        }
+    }
+    
+    applyTheme(themeName) {
+        // Remove existing theme data attributes
+        document.documentElement.removeAttribute('data-theme');
+        
+        // Apply new theme
+        if (themeName !== 'default') {
+            document.documentElement.setAttribute('data-theme', themeName);
+        }
+    }
+    
+    updateThemeSelector(selectedTheme) {
+        const themeOptions = document.querySelectorAll('.theme-option');
+        themeOptions.forEach(option => {
+            option.classList.remove('active');
+            if (option.dataset.theme === selectedTheme) {
+                option.classList.add('active');
+            }
+        });
+    }
+    
+    saveTheme(themeName) {
+        try {
+            localStorage.setItem('tcgSimTheme', themeName);
+        } catch (error) {
+            console.error('Failed to save theme preference:', error);
+        }
+    }
+    
+    loadTheme() {
+        try {
+            return localStorage.getItem('tcgSimTheme');
+        } catch (error) {
+            console.error('Failed to load theme preference:', error);
+            return null;
+        }
     }
 
     // Public method to refresh all UI elements

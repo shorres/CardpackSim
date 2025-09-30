@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="src/css/styles.css">
 </head>
-<body class="bg-gray-900 text-white antialiased">
+<body class="antialiased">
     
     <!-- Pack Opening Modal -->
     <div id="pack-opening-modal">
@@ -28,13 +28,13 @@
         </div>
     </div>
 
-    <div class="container mx-auto p-4 md:p-8">
+    <div class="container mx-auto p-4 md:p-8" style="background-color: var(--bg-primary); color: var(--text-primary);">
         <header class="text-center mb-8">
             <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">TCG Pack Simulator</h1>
-            <p class="text-gray-400 mt-2">Open virtual packs and trade your way to fortune!</p>
+            <p class="mt-2" style="color: var(--text-muted);">Open virtual packs and trade your way to fortune!</p>
             
             <!-- Player Stats Bar -->
-            <div id="player-stats-bar" class="bg-gray-800 rounded-lg p-4 mt-4 flex flex-wrap justify-center items-center gap-4 text-sm">
+            <div id="player-stats-bar" class="rounded-lg p-4 mt-4 flex flex-wrap justify-center items-center gap-4 text-sm" style="background-color: var(--bg-secondary);">
                 <div class="flex items-center gap-2">
                     <span class="text-green-400">💰</span>
                     <span>Cash: $<span id="player-wallet">50.00</span></span>
@@ -51,7 +51,7 @@
                     <span class="text-purple-400">📈</span>
                     <span>P&L: $<span id="player-profit">0.00</span></span>
                 </div>
-                <button id="profile-btn" class="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-3 py-2 rounded-lg transition-colors">
+                <button id="profile-btn" class="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors" style="background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: var(--text-primary);">
                     <span class="text-white">👤</span>
                     <span class="text-white font-medium">Profile</span>
                 </button>
@@ -62,14 +62,14 @@
             <!-- Tab Navigation -->
             <div class="mb-8">
                 <div class="flex justify-center">
-                    <nav class="bg-gray-800 rounded-lg p-1 flex gap-1">
-                        <button id="packs-tab" class="tab-btn bg-transparent text-gray-300 hover:text-white px-6 py-3 rounded-md font-medium transition-colors">
+                    <nav class="rounded-lg p-1 flex gap-1" style="background-color: var(--bg-secondary);">
+                        <button id="packs-tab" class="tab-btn bg-transparent px-6 py-3 rounded-md font-medium transition-colors">
                             📦 Packs & Opening
                         </button>
-                        <button id="collection-tab" class="tab-btn bg-transparent text-gray-300 hover:text-white px-6 py-3 rounded-md font-medium transition-colors">
+                        <button id="collection-tab" class="tab-btn bg-transparent px-6 py-3 rounded-md font-medium transition-colors">
                             🗂️ My Collection
                         </button>
-                        <button id="market-tab" class="tab-btn bg-transparent text-gray-300 hover:text-white px-6 py-3 rounded-md font-medium transition-colors">
+                        <button id="market-tab" class="tab-btn bg-transparent px-6 py-3 rounded-md font-medium transition-colors">
                             📈 Trading Market
                         </button>
                     </nav>
@@ -79,37 +79,35 @@
             <!-- Packs & Opening Tab -->
             <div id="packs-content" class="tab-content">
                 <!-- Set Selection and Pack Buying -->
-                <section id="pack-selection" class="bg-gray-800 rounded-2xl p-6 mb-8 shadow-lg">
-                    <h2 class="text-2xl font-semibold mb-4 text-center">Choose a Set</h2>
-                    
+                <section id="pack-selection" class="rounded-2xl p-6 mb-8 shadow-lg" style="background-color: var(--bg-secondary);">
                     <!-- Weekly Set Notification -->
-                    <div id="weekly-set-notification" class="bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg p-4 mb-4 text-center">
-                        <h3 class="text-lg font-bold text-white mb-2">🌟 Weekly Featured Set 🌟</h3>
-                        <p class="text-yellow-200 text-sm">Limited time! Better rates and exclusive themes!</p>
-                        <div class="text-xs text-yellow-300 mt-1">
+                    <div id="weekly-set-notification" class="rounded-lg p-4 mb-4 text-center" style="background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));">
+                        <h3 class="text-lg font-bold mb-2" style="color: var(--text-primary);">🌟 Weekly Sets 🌟</h3>
+                        <p class="text-sm" style="color: var(--text-primary); opacity: 0.9;">New sets each week! Collect them all!</p>
+                        <div class="text-xs mt-1" style="color: var(--text-primary); opacity: 0.8;">
                             New set in: <span id="weekly-countdown">Loading...</span>
                         </div>
                     </div>
-                    
+                    <h2 class="text-2xl font-semibold mb-4 text-center">Buy Packs</h2>
                     <div class="flex flex-wrap justify-center items-center gap-4">
-                        <select id="set-selector" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+                        <select id="set-selector" class="text-sm rounded-lg block p-2.5" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
                             <!-- Options will be populated by JS -->
                         </select>
-                        <button id="buy-pack-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Buy 1 Pack</button>
-                        <button id="buy-box-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Buy Booster Box</button>
+                        <button id="buy-pack-btn" class="font-bold py-2 px-4 rounded-lg transition-colors" style="background-color: var(--accent-tertiary); color: var(--text-primary);">Buy 1 Pack</button>
+                        <button id="buy-box-btn" class="font-bold py-2 px-4 rounded-lg transition-colors" style="background-color: var(--success); color: var(--text-primary);">Buy Booster Box</button>
                     </div>
                     <div id="unopened-packs-container" class="mt-6 text-center">
                         <h3 class="text-xl font-semibold mb-2">Your Packs</h3>
-                        <div id="unopened-packs-display" class="flex flex-wrap justify-center gap-4 p-4 bg-gray-950/65 rounded-lg min-h-[150px]">
+                        <div id="unopened-packs-display" class="flex flex-wrap justify-center gap-4 p-4 rounded-lg min-h-[150px]" style="background-color: var(--bg-primary); opacity: 0.8;">
                             <!-- Unopened packs will be displayed here -->
                         </div>
                     </div>
                 </section>
 
                 <!-- Opened Pack Display -->
-                <section id="opened-pack-container" class="bg-gray-800 rounded-2xl p-6 mb-8 shadow-lg min-h-[300px]">
+                <section id="opened-pack-container" class="rounded-2xl p-6 mb-8 shadow-lg min-h-[300px]" style="background-color: var(--bg-secondary);">
                      <h2 class="text-2xl font-semibold mb-4 text-center">Opened Pack</h2>
-                     <div id="opened-pack-display" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-4 bg-gray-950/65 rounded-lg p-4 min-h-[300px]">
+                     <div id="opened-pack-display" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-4 rounded-lg p-4 min-h-[300px]" style="background-color: var(--bg-primary); opacity: 0.8;">
                         <!-- Cards from the opened pack will be displayed here -->
                      </div>
                 </section>
@@ -117,18 +115,18 @@
 
             <!-- Collection Tab -->
             <div id="collection-content" class="tab-content hidden">
-                <section id="collection-container" class="bg-gray-800 rounded-2xl p-6 shadow-lg">
+                <section id="collection-container" class="rounded-2xl p-6 shadow-lg" style="background-color: var(--bg-secondary);">
                     <div class="flex flex-col md:flex-row justify-between items-center mb-4">
                         <h2 class="text-2xl font-semibold">My Collection</h2>
                         <div class="flex items-center gap-4 mt-4 md:mt-0">
                             <label for="collection-set-selector" class="text-sm">View Set:</label>
-                            <select id="collection-set-selector" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+                            <select id="collection-set-selector" class="text-sm rounded-lg block p-2.5" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
                                 <!-- Options will be populated by JS -->
                             </select>
                              <div id="collection-progress" class="text-sm"></div>
                         </div>
                     </div>
-                    <div id="collection-display" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-4 max-h-[600px] overflow-y-auto p-4 bg-gray-950/65 rounded-lg">
+                    <div id="collection-display" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-4 max-h-[600px] overflow-y-auto p-4 rounded-lg" style="background-color: var(--bg-primary); opacity: 0.8;">
                         <!-- User's collection will be displayed here -->
                     </div>
                 </section>
@@ -136,7 +134,7 @@
 
             <!-- Trading Market Tab -->
             <div id="market-content" class="tab-content hidden">
-                <section id="market-container" class="bg-gray-800 rounded-2xl p-6 shadow-lg">
+                <section id="market-container" class="rounded-2xl p-6 shadow-lg" style="background-color: var(--bg-secondary);">
                     <div class="flex flex-col lg:flex-row gap-6">
                         <!-- Portfolio View -->
                         <div class="flex-1">
@@ -152,8 +150,8 @@
                             <!-- Portfolio Controls -->
                             <div class="mb-4 flex flex-wrap gap-2">
                                 <input type="text" id="portfolio-search" placeholder="Search cards..." 
-                                       class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 flex-1 min-w-[200px]">
-                                <select id="portfolio-sort" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2">
+                                       class="text-sm rounded-lg px-3 py-2 flex-1 min-w-[200px]" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
+                                <select id="portfolio-sort" class="text-sm rounded-lg px-3 py-2" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
                                     <option value="value-desc">Value (High to Low)</option>
                                     <option value="value-asc">Value (Low to High)</option>
                                     <option value="name-asc">Name (A-Z)</option>
@@ -162,7 +160,7 @@
                                     <option value="change-desc">Biggest Gainers</option>
                                     <option value="change-asc">Biggest Losers</option>
                                 </select>
-                                <select id="portfolio-filter" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2">
+                                <select id="portfolio-filter" class="text-sm rounded-lg px-3 py-2" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
                                     <option value="all">All Cards</option>
                                     <option value="common">Commons Only</option>
                                     <option value="uncommon">Uncommons Only</option>
@@ -230,18 +228,18 @@
 
     <!-- Player Profile Modal -->
     <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto" style="background-color: var(--bg-secondary); color: var(--text-primary);">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">Player Profile</h3>
-                <button id="close-profile-btn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                <button id="close-profile-btn" class="text-2xl" style="color: var(--text-muted);">&times;</button>
             </div>
             
             <!-- Profile Header -->
-            <div class="bg-gradient-to-r from-purple-900/50 to-pink-900/50 rounded-lg p-6 mb-6">
+            <div class="rounded-lg p-6 mb-6" style="background: linear-gradient(to right, var(--accent-primary), var(--accent-secondary)); opacity: 0.8;">
                 <div class="flex flex-col md:flex-row items-center gap-6">
                     <!-- Portrait -->
                     <div class="flex-shrink-0">
-                        <div id="profile-portrait" class="w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center text-4xl">
+                        <div id="profile-portrait" class="w-24 h-24 rounded-full flex items-center justify-content-center text-4xl">
                             👤
                         </div>
                     </div>
@@ -251,11 +249,11 @@
                         <h4 id="profile-title" class="text-2xl font-bold text-yellow-400 mb-2">Rookie Trader</h4>
                         <div class="grid grid-cols-2 gap-4 text-sm">
                             <div>
-                                <div class="text-gray-400">Net Worth</div>
+                                <div style="color: var(--text-muted);">Net Worth</div>
                                 <div class="text-xl font-bold text-green-400">$<span id="profile-networth">0.00</span></div>
                             </div>
                             <div>
-                                <div class="text-gray-400">Total Sales</div>
+                                <div style="color: var(--text-muted);">Total Sales</div>
                                 <div class="text-xl font-bold text-blue-400"><span id="profile-sales-count">0</span></div>
                             </div>
                         </div>
@@ -265,39 +263,81 @@
             
             <!-- Stats Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div class="profile-stat-card bg-gray-700 rounded-lg p-4 text-center">
+                <div class="profile-stat-card rounded-lg p-4 text-center">
                     <div class="text-2xl mb-2">💰</div>
-                    <div class="text-gray-400 text-sm">Current Cash</div>
+                    <div class="text-sm" style="color: var(--text-muted);">Current Cash</div>
                     <div class="text-lg font-bold text-green-400">$<span id="profile-cash">0.00</span></div>
                 </div>
                 
-                <div class="profile-stat-card bg-gray-700 rounded-lg p-4 text-center">
+                <div class="profile-stat-card rounded-lg p-4 text-center">
                     <div class="text-2xl mb-2">🏆</div>
-                    <div class="text-gray-400 text-sm">Highest Sale</div>
+                    <div class="text-sm" style="color: var(--text-muted);">Highest Sale</div>
                     <div class="text-lg font-bold text-yellow-400">$<span id="profile-highest-sale">0.00</span></div>
                 </div>
                 
-                <div class="profile-stat-card bg-gray-700 rounded-lg p-4 text-center">
+                <div class="profile-stat-card rounded-lg p-4 text-center">
                     <div class="text-2xl mb-2">📈</div>
-                    <div class="text-gray-400 text-sm">Total Earnings</div>
+                    <div class="text-sm" style="color: var(--text-muted);">Total Earnings</div>
                     <div class="text-lg font-bold text-purple-400">$<span id="profile-total-earnings">0.00</span></div>
                 </div>
                 
-                <div class="profile-stat-card bg-gray-700 rounded-lg p-4 text-center">
+                <div class="profile-stat-card rounded-lg p-4 text-center">
                     <div class="text-2xl mb-2">💸</div>
-                    <div class="text-gray-400 text-sm">Total Spent</div>
+                    <div class="text-sm" style="color: var(--text-muted);">Total Spent</div>
                     <div class="text-lg font-bold text-red-400">$<span id="profile-total-spent">0.00</span></div>
                 </div>
             </div>
             
             <!-- Net Worth Chart -->
-            <div class="bg-gray-700 rounded-lg p-6">
+            <div class="rounded-lg p-6 mb-6" style="background-color: var(--bg-tertiary);">
                 <h5 class="text-lg font-semibold mb-4 flex items-center gap-2">
                     <span>📊</span>
                     Net Worth Over Time
                 </h5>
-                <div class="bg-gray-900 rounded-lg p-4">
+                <div class="rounded-lg p-4" style="background-color: var(--bg-primary);">
                     <canvas id="networth-chart" width="800" height="300"></canvas>
+                </div>
+            </div>
+            
+            <!-- Theme Selector -->
+            <div class="theme-selector">
+                <h3 class="flex items-center gap-2">
+                    <span>🎨</span>
+                    Color Theme
+                </h3>
+                <div class="theme-grid">
+                    <div class="theme-option active" data-theme="default">
+                        <div class="theme-preview default"></div>
+                        Dark Mode
+                    </div>
+                    <div class="theme-option" data-theme="light">
+                        <div class="theme-preview light"></div>
+                        Light Mode
+                    </div>
+                    <div class="theme-option" data-theme="matrix">
+                        <div class="theme-preview matrix"></div>
+                        Matrix
+                    </div>
+                    <div class="theme-option" data-theme="outrun">
+                        <div class="theme-preview outrun"></div>
+                        Outrun
+                    </div>
+                    <div class="theme-option" data-theme="windows95">
+                        <div class="theme-preview windows95"></div>
+                        Windows 95
+                    </div>
+                    <div class="theme-option" data-theme="cotton-candy">
+                        <div class="theme-preview cotton-candy"></div>
+                        Cotton Candy
+                    </div>
+                    <div class="theme-option" data-theme="sunset">
+                        <div class="theme-preview sunset"></div>
+                        Sunset
+                    </div>
+                    <div class="theme-option" data-theme="storm">
+                        <div class="theme-preview storm"></div>
+                        Storm
+                    </div>
                 </div>
             </div>
         </div>
@@ -305,14 +345,14 @@
 
     <!-- Sell Card Modal -->
     <div id="sell-card-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-gray-800 rounded-lg p-6 w-96 max-w-full mx-4">
+        <div class="rounded-lg p-6 w-96 max-w-full mx-4" style="background-color: var(--bg-secondary); color: var(--text-primary);">
             <h3 class="text-xl font-bold mb-4">Sell Card</h3>
             <div id="sell-card-info" class="mb-4">
                 <!-- Card info will be populated here -->
             </div>
             <div class="mb-4">
                 <label for="sell-quantity" class="block text-sm font-medium mb-2">Quantity to Sell</label>
-                <input type="number" id="sell-quantity" min="1" value="1" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg w-full p-2.5">
+                <input type="number" id="sell-quantity" min="1" value="1" class="text-sm rounded-lg w-full p-2.5" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
             </div>
             <div class="mb-4">
                 <label class="flex items-center">
@@ -320,14 +360,14 @@
                     <span class="text-sm">Sell foil version only</span>
                 </label>
             </div>
-            <div id="sale-preview" class="mb-4 p-3 bg-gray-700 rounded text-sm">
+            <div id="sale-preview" class="mb-4 p-3 rounded text-sm" style="background-color: var(--bg-tertiary);">
                 <!-- Sale preview will be shown here -->
             </div>
             <div class="flex gap-2">
-                <button id="confirm-sell-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded flex-1">
+                <button id="confirm-sell-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--success); color: var(--text-primary);">
                     Sell
                 </button>
-                <button id="cancel-sell-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded flex-1">
+                <button id="cancel-sell-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--bg-quaternary); color: var(--text-primary);">
                     Cancel
                 </button>
             </div>
