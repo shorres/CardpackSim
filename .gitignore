@@ -1,0 +1,12 @@
+# Node Modules and related files
+node_modules/
+
+# Development and context files
+context/
+
+# Misc
+
+
+# Build files
+dist/
+build.bat

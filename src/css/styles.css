@@ -1,0 +1,196 @@
+/* TCG Pack Simulator Styles */
+
+/* Base Styles */
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Card Styles */
+.card-container {
+    perspective: 1000px;
+}
+
+.card {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+}
+
+.card-container.flipped .card {
+    transform: rotateY(180deg);
+}
+
+.card-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    border-radius: 0.5rem;
+}
+
+.card-front {
+    transform: rotateY(180deg);
+}
+
+.card-front:hover {
+    transform: rotateY(180deg) translateY(-10px) rotateX(5deg);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+.card-back {
+    background: #374151; /* gray-700 */
+    border: 4px solid #4b5563; /* gray-600 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.card-back:hover {
+    transform: translateY(-5px);
+    background: #4b5563;
+}
+
+.card-back-logo {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #1f2937; /* gray-800 */
+}
+
+/* Foil Card Effects */
+.card-face.foil {
+    box-shadow: 0 0 15px 5px rgba(255, 215, 0, 0.6);
+    overflow: hidden;
+}
+
+.card-face.foil::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.1) 35%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.1) 65%, rgba(255,255,255,0.1) 100%);
+    transform: rotate(30deg);
+    animation: foil-sheen 3s infinite linear;
+    pointer-events: none;
+    z-index: 10;
+}
+
+@keyframes foil-sheen {
+    0% { transform: translateX(-75%) translateY(-75%) rotate(30deg); }
+    100% { transform: translateX(75%) translateY(75%) rotate(30deg); }
+}
+
+/* Card Rarity Colors */
+.rarity-common { border-color: #6b7280; }
+.rarity-uncommon { border-color: #60a5fa; }
+.rarity-rare { border-color: #facc15; }
+.rarity-mythic { border-color: #f97316; }
+
+/* Pack Styles */
+.pack {
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out;
+}
+
+.pack:hover {
+    transform: scale(1.05);
+}
+
+/* Pack Opening Modal */
+#pack-opening-modal {
+    display: none; /* Hidden by default */
+    position: fixed;
+    z-index: 50;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.8);
+    align-items: center;
+    justify-content: center;
+}
+
+.pack-art-container {
+    position: relative;
+    width: 200px;
+    height: 300px;
+    user-select: none;
+}
+
+.pack-art {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-color: #4a5568;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: bold;
+    color: white;
+    border: 4px solid #2d3748;
+    overflow: hidden;
+    cursor: grab;
+}
+
+.pack-art-back {
+    z-index: 1;
+}
+
+.pack-art-front {
+    z-index: 2;
+    clip-path: inset(0 0 0 0); /* Initially fully visible */
+    transition: clip-path 0.1s linear;
+}
+
+.pack-art-front:active {
+    cursor: grabbing;
+}
+
+.pack-art-tear-off {
+    z-index: 3;
+    clip-path: inset(0 100% 0 0);
+    height: 10%;
+    pointer-events: none;
+}
+
+.pack-opening-text {
+    position: absolute;
+    bottom: 15%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-size: 1rem;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}

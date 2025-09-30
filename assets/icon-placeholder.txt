@@ -1,0 +1,12 @@
+# Placeholder icon - replace with proper icons
+# This is a text file representing where icon files should be placed
+# You should add proper icon files here:
+# - icon.ico (256x256 Windows icon)
+# - icon.icns (macOS icon)  
+# - icon.png (512x512 Linux icon)
+
+For now, the build will work without custom icons, using default Electron icons.
+You can create proper icons later using tools like:
+- https://www.electronjs.org/docs/latest/tutorial/icon-tutorial
+- Online icon generators
+- Image editing software (GIMP, Photoshop, etc.)
