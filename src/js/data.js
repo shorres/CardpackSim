@@ -40,35 +40,49 @@ class WeeklySetGenerator {
         this.cardNameGenerators = {
             common: [
                 "Ancient", "Brave", "Cunning", "Dark", "Elder", "Fierce", "Golden", "Hidden", "Iron", "Jade",
-                "Knight", "Loyal", "Mystic", "Noble", "Ominous", "Proud", "Quick", "Royal", "Silent", "True"
+                "Knight", "Loyal", "Mystic", "Noble", "Ominous", "Proud", "Quick", "Royal", "Silent", "True",
+                "Bold", "Calm", "Daring", "Eager", "Feral", "Gentle", "Hardy", "Ivory", "Jolly", "Keen",
+                "Lucky", "Mighty", "Nimble", "Oddly", "Pure", "Quiet", "Rough", "Steady", "Trusty", "Vile"
             ],
             uncommon: [
                 "Arcane", "Blazing", "Celestial", "Divine", "Ethereal", "Forbidden", "Glorious", "Haunted", "Infernal", "Jeweled",
-                "Legendary", "Majestic", "Nightmare", "Obsidian", "Phantom", "Radiant", "Spectral", "Thunderous", "Umbral", "Vengeful"
+                "Legendary", "Majestic", "Nightmare", "Obsidian", "Phantom", "Radiant", "Spectral", "Thunderous", "Umbral", "Vengeful",
+                "Astral", "Burning", "Cursed", "Dreadful", "Enchanted", "Frozen", "Ghostly", "Hallowed", "Icy", "Jinxed",
+                "Luminous", "Molten", "Noxious", "Opulent", "Poisoned", "Quaking", "Ruined", "Shadowy", "Twisted", "Volatile"
             ],
             rare: [
                 "Apex", "Boundless", "Catastrophic", "Dominion", "Eternal", "Fractal", "Genesis", "Harbinger", "Infinite", "Juggernaut",
-                "Kinetic", "Luminous", "Metamorphic", "Nexus", "Omnipotent", "Primordial", "Quantum", "Runic", "Sovereign", "Transcendent"
+                "Kinetic", "Luminous", "Metamorphic", "Nexus", "Omnipotent", "Primordial", "Quantum", "Runic", "Sovereign", "Transcendent",
+                "Abyssal", "Blistering", "Cataclysmic", "Devastating", "Epochal", "Formidable", "Gargantuan", "Hypnotic", "Immaculate", "Jagged",
+                "Kaleidoscopic", "Legendary", "Monumental", "Nightmarish", "Overwhelming", "Paradoxical", "Quintessential", "Relentless", "Seismic", "Titanic"
             ],
             mythic: [
                 "Absolute", "Boundless", "Cosmic", "Divine", "Endless", "Fundamental", "Godlike", "Heavenly", "Immortal", "Infinite",
-                "Limitless", "Masterful", "Omniscient", "Perfect", "Quintessential", "Supreme", "Timeless", "Ultimate", "Void", "World-Breaking"
+                "Limitless", "Masterful", "Omniscient", "Perfect", "Quintessential", "Supreme", "Timeless", "Ultimate", "Void", "World-Breaking",
+                "Apocalyptic", "Beyond", "Celestial", "Dimensional", "Everlasting", "Fathomless", "Galactic", "Hallowed", "Immeasurable", "Judgmental",
+                "Kingdom", "Legendary", "Metaphysical", "Neverending", "Omnipresent", "Planetary", "Quantum", "Reality", "Supernatural", "Transcendental"
             ]
         };
 
         this.creatureTypes = [
             "Avatar", "Beast", "Demon", "Dragon", "Elemental", "Giant", "Golem", "Griffin", "Horror", "Knight",
-            "Mage", "Phoenix", "Serpent", "Shade", "Spirit", "Titan", "Warrior", "Wizard", "Wraith", "Zombie"
+            "Mage", "Phoenix", "Serpent", "Shade", "Spirit", "Titan", "Warrior", "Wizard", "Wraith", "Zombie",
+            "Angel", "Barbarian", "Chimera", "Djinn", "Elf", "Faerie", "Gargoyle", "Hydra", "Imp", "Juggernaut",
+            "Kraken", "Lich", "Minotaur", "Nymph", "Orc", "Pegasus", "Quetzal", "Revenant", "Sphinx", "Troll"
         ];
 
         this.spellTypes = [
             "Blast", "Bolt", "Charm", "Curse", "Force", "Fury", "Gaze", "Lance", "Nova", "Pact",
-            "Rage", "Rift", "Shield", "Storm", "Strike", "Surge", "Veil", "Ward", "Wave", "Wind"
+            "Rage", "Rift", "Shield", "Storm", "Strike", "Surge", "Veil", "Ward", "Wave", "Wind",
+            "Aura", "Bane", "Call", "Doom", "Echo", "Flux", "Gift", "Hex", "Infusion", "Jinx",
+            "Kiss", "Lure", "Mark", "Orb", "Pulse", "Quell", "Rush", "Spell", "Touch", "Whisper"
         ];
 
         this.artifactTypes = [
             "Amulet", "Armor", "Blade", "Crown", "Gauntlet", "Helm", "Orb", "Ring", "Rod", "Scepter",
-            "Shield", "Staff", "Sword", "Tome", "Wand", "Bow", "Dagger", "Hammer", "Mace", "Spear"
+            "Shield", "Staff", "Sword", "Tome", "Wand", "Bow", "Dagger", "Hammer", "Mace", "Spear",
+            "Axe", "Bracelet", "Cloak", "Diadem", "Earring", "Flute", "Girdle", "Horn", "Idol", "Jewel",
+            "Key", "Lantern", "Mirror", "Necklace", "Opal", "Pendant", "Quiver", "Relic", "Stone", "Talisman"
         ];
 
         this.themes = [
