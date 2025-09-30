@@ -76,6 +76,8 @@ class UIManager {
         this.profileModal = document.getElementById('profile-modal');
         this.profileBtn = document.getElementById('profile-btn');
         this.closeProfileBtn = document.getElementById('close-profile-btn');
+        this.networthTimeframeBtns = null; // Will be initialized when modal opens
+        this.currentNetworthTimeframe = 24; // Default to 24 hours
         
         this.currentSellCard = null;
         this.currentTab = 'packs'; // Default tab
@@ -1006,7 +1008,32 @@ class UIManager {
 
     openProfileModal() {
         this.populateProfileModal();
+        this.setupNetworthTimeframeButtons();
         this.profileModal.classList.remove('hidden');
+    }
+
+    setupNetworthTimeframeButtons() {
+        this.networthTimeframeBtns = document.querySelectorAll('.chart-timeframe-btn');
+        
+        this.networthTimeframeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Remove active class from all buttons
+                this.networthTimeframeBtns.forEach(b => b.classList.remove('active'));
+                
+                // Add active class to clicked button
+                e.target.classList.add('active');
+                
+                // Update timeframe and refresh chart
+                const range = e.target.dataset.range;
+                this.currentNetworthTimeframe = range === 'all' ? 'all' : parseInt(range);
+                this.refreshNetworthChart();
+            });
+        });
+    }
+
+    refreshNetworthChart() {
+        const stats = this.gameEngine.getPlayerStats();
+        this.createNetWorthChart(stats.netWorthHistory);
     }
 
     closeProfileModal() {
@@ -1049,8 +1076,34 @@ class UIManager {
         // Get theme colors
         const colors = this.getThemeColors();
         
-        // Prepare data
-        const chartData = netWorthHistory.map(entry => ({
+        // Prepare data and ensure we have current time as endpoint
+        const now = Date.now();
+        const currentNetWorth = this.gameEngine.getPlayerStats().netWorth;
+        
+        // Create a copy of the history and ensure current net worth is included
+        let historyData = [...netWorthHistory];
+        const lastEntry = historyData[historyData.length - 1];
+        
+        // If the last entry is not recent (more than 1 minute old), add current value
+        if (!lastEntry || (now - lastEntry.timestamp) > 60000) {
+            historyData.push({ timestamp: now, value: currentNetWorth });
+        }
+        
+        // Calculate time range based on selected timeframe
+        let minTime, maxTime;
+        if (this.currentNetworthTimeframe === 'all') {
+            // Show all data
+            const timestamps = historyData.map(entry => entry.timestamp);
+            minTime = new Date(Math.min(...timestamps));
+            maxTime = new Date(now);
+        } else {
+            // Show specific hours
+            const timeRange = this.currentNetworthTimeframe * 60 * 60 * 1000; // hours to milliseconds
+            minTime = new Date(now - timeRange);
+            maxTime = new Date(now);
+        }
+        
+        const chartData = historyData.map(entry => ({
             x: new Date(entry.timestamp),
             y: entry.value
         }));
@@ -1099,6 +1152,8 @@ class UIManager {
                 scales: {
                     x: {
                         type: 'time',
+                        min: minTime,
+                        max: maxTime,
                         time: {
                             displayFormats: {
                                 hour: 'MMM dd HH:mm',
