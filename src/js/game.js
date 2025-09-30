@@ -13,7 +13,12 @@ class GameEngine {
             achievements: [],
             currentTitle: "Rookie Trader",
             unlockedBanners: [],
-            unlockedPortraits: []
+            unlockedPortraits: [],
+            // Profile tracking
+            salesCount: 0,
+            highestSale: 0,
+            netWorthHistory: [{ timestamp: Date.now(), value: 50.00 }],
+            selectedPortrait: "👤"
         };
         this.storageManager = new StorageManager();
         this.marketEngine = new MarketEngine();
@@ -52,10 +57,25 @@ class GameEngine {
                 this.state.unlockedBanners = [];
                 this.state.unlockedPortraits = [];
             }
+            
+            // Initialize profile tracking fields for existing saves
+            if (typeof this.state.salesCount === 'undefined') {
+                this.state.salesCount = 0;
+                this.state.highestSale = 0;
+                this.state.selectedPortrait = "👤";
+            }
+            if (!this.state.netWorthHistory) {
+                this.state.netWorthHistory = [{ timestamp: Date.now(), value: this.state.netWorth }];
+            }
         }
         
         // Update net worth on initialization
         this.updateNetWorth();
+        
+        // Add some sample net worth history for testing if empty
+        if (this.state.netWorthHistory.length === 1) {
+            this.generateSampleNetWorthHistory();
+        }
     }
 
     buyPacks(amount) {
@@ -70,6 +90,7 @@ class GameEngine {
         this.state.unopenedPacks[this.state.selectedSet] += amount;
         
         this.updateNetWorth();
+        this.recordNetWorthHistory();
         this.saveState();
         
         return { 
@@ -248,7 +269,14 @@ class GameEngine {
         this.state.wallet = Math.round((this.state.wallet + netValue) * 100) / 100;
         this.state.totalEarnings = Math.round((this.state.totalEarnings + netValue) * 100) / 100;
         
+        // Track sales statistics for profile
+        this.state.salesCount++;
+        if (netValue > this.state.highestSale) {
+            this.state.highestSale = netValue;
+        }
+        
         this.updateNetWorth();
+        this.recordNetWorthHistory();
         this.checkAchievements();
         this.saveState();
         
@@ -331,6 +359,44 @@ class GameEngine {
         });
     }
 
+    recordNetWorthHistory() {
+        const now = Date.now();
+        const currentValue = this.state.netWorth;
+        
+        // Only record if it's been at least 5 minutes since last recording or value changed significantly
+        const lastEntry = this.state.netWorthHistory[this.state.netWorthHistory.length - 1];
+        const timeDiff = now - lastEntry.timestamp;
+        const valueDiff = Math.abs(currentValue - lastEntry.value);
+        
+        if (timeDiff > 5 * 60 * 1000 || valueDiff > 0.01) { // 5 minutes or $0.01 change
+            this.state.netWorthHistory.push({ timestamp: now, value: currentValue });
+            
+            // Keep only last 100 entries to prevent excessive data
+            if (this.state.netWorthHistory.length > 100) {
+                this.state.netWorthHistory = this.state.netWorthHistory.slice(-100);
+            }
+        }
+    }
+
+    generateSampleNetWorthHistory() {
+        // Generate some sample data points over the last few days for demo purposes
+        const now = Date.now();
+        const sampleData = [];
+        
+        // Start from 3 days ago
+        for (let i = 72; i >= 0; i -= 6) { // Every 6 hours for 3 days
+            const timestamp = now - (i * 60 * 60 * 1000); // i hours ago
+            const baseValue = 50 + (72 - i) * 2; // Gradual increase
+            const variance = (Math.random() - 0.5) * 20; // Random variance
+            const value = Math.max(10, baseValue + variance); // Ensure minimum value
+            
+            sampleData.push({ timestamp, value: Math.round(value * 100) / 100 });
+        }
+        
+        this.state.netWorthHistory = sampleData;
+        this.state.netWorthHistory.push({ timestamp: now, value: this.state.netWorth });
+    }
+
     getPlayerStats() {
         return {
             wallet: this.state.wallet,
@@ -341,7 +407,11 @@ class GameEngine {
             currentTitle: this.state.currentTitle,
             achievements: this.state.achievements,
             unlockedBanners: this.state.unlockedBanners,
-            unlockedPortraits: this.state.unlockedPortraits
+            unlockedPortraits: this.state.unlockedPortraits,
+            salesCount: this.state.salesCount,
+            highestSale: this.state.highestSale,
+            netWorthHistory: this.state.netWorthHistory,
+            selectedPortrait: this.state.selectedPortrait
         };
     }
 

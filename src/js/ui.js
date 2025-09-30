@@ -71,6 +71,11 @@ class UIManager {
         this.achievementNotification = document.getElementById('achievement-notification');
         this.achievementText = document.getElementById('achievement-text');
         
+        // Profile modal elements
+        this.profileModal = document.getElementById('profile-modal');
+        this.profileBtn = document.getElementById('profile-btn');
+        this.closeProfileBtn = document.getElementById('close-profile-btn');
+        
         this.currentSellCard = null;
         this.currentTab = 'packs'; // Default tab
         this.currentChart = null;
@@ -187,6 +192,21 @@ class UIManager {
         this.sellCardModal.addEventListener('click', (e) => {
             if (e.target === this.sellCardModal) {
                 this.closeSellModal();
+            }
+        });
+
+        // Profile modal event listeners
+        this.profileBtn.addEventListener('click', () => {
+            this.openProfileModal();
+        });
+        
+        this.closeProfileBtn.addEventListener('click', () => {
+            this.closeProfileModal();
+        });
+        
+        this.profileModal.addEventListener('click', (e) => {
+            if (e.target === this.profileModal) {
+                this.closeProfileModal();
             }
         });
 
@@ -978,6 +998,130 @@ class UIManager {
         setTimeout(() => {
             this.achievementNotification.classList.add('hidden');
         }, 5000);
+    }
+
+    openProfileModal() {
+        this.populateProfileModal();
+        this.profileModal.classList.remove('hidden');
+    }
+
+    closeProfileModal() {
+        this.profileModal.classList.add('hidden');
+        // Destroy chart if it exists
+        if (this.netWorthChart) {
+            this.netWorthChart.destroy();
+            this.netWorthChart = null;
+        }
+    }
+
+    populateProfileModal() {
+        const stats = this.gameEngine.getPlayerStats();
+        
+        // Update basic info
+        document.getElementById('profile-title').textContent = stats.currentTitle;
+        document.getElementById('profile-portrait').textContent = stats.selectedPortrait;
+        document.getElementById('profile-networth').textContent = stats.netWorth.toFixed(2);
+        document.getElementById('profile-sales-count').textContent = stats.salesCount;
+        
+        // Update stats cards
+        document.getElementById('profile-cash').textContent = stats.wallet.toFixed(2);
+        document.getElementById('profile-highest-sale').textContent = stats.highestSale.toFixed(2);
+        document.getElementById('profile-total-earnings').textContent = stats.totalEarnings.toFixed(2);
+        document.getElementById('profile-total-spent').textContent = stats.totalSpent.toFixed(2);
+        
+        // Create net worth chart
+        this.createNetWorthChart(stats.netWorthHistory);
+    }
+
+    createNetWorthChart(netWorthHistory) {
+        const canvas = document.getElementById('networth-chart');
+        const ctx = canvas.getContext('2d');
+        
+        // Destroy existing chart if it exists
+        if (this.netWorthChart) {
+            this.netWorthChart.destroy();
+        }
+        
+        // Prepare data
+        const chartData = netWorthHistory.map(entry => ({
+            x: new Date(entry.timestamp),
+            y: entry.value
+        }));
+        
+        this.netWorthChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Net Worth',
+                    data: chartData,
+                    borderColor: 'rgb(147, 51, 234)',
+                    backgroundColor: 'rgba(147, 51, 234, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: 'white',
+                        bodyColor: 'white',
+                        borderColor: 'rgb(147, 51, 234)',
+                        borderWidth: 1,
+                        callbacks: {
+                            title: function(context) {
+                                const date = new Date(context[0].parsed.x);
+                                return date.toLocaleString();
+                            },
+                            label: function(context) {
+                                return `Net Worth: $${context.parsed.y.toFixed(2)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            displayFormats: {
+                                hour: 'MMM dd HH:mm',
+                                day: 'MMM dd',
+                                week: 'MMM dd',
+                                month: 'MMM yyyy'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            callback: function(value) {
+                                return '$' + value.toFixed(2);
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 
     // Price Chart Methods

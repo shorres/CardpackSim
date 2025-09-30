@@ -6,6 +6,7 @@
     <title>TCG Pack Opening Simulator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="src/css/styles.css">
 </head>
@@ -50,6 +51,10 @@
                     <span class="text-purple-400">📈</span>
                     <span>P&L: $<span id="player-profit">0.00</span></span>
                 </div>
+                <button id="profile-btn" class="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-3 py-2 rounded-lg transition-colors">
+                    <span class="text-white">👤</span>
+                    <span class="text-white font-medium">Profile</span>
+                </button>
             </div>
         </header>
 
@@ -219,6 +224,81 @@
             <!-- Chart Stats -->
             <div id="chart-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <!-- Stats will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Player Profile Modal -->
+    <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">Player Profile</h3>
+                <button id="close-profile-btn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            
+            <!-- Profile Header -->
+            <div class="bg-gradient-to-r from-purple-900/50 to-pink-900/50 rounded-lg p-6 mb-6">
+                <div class="flex flex-col md:flex-row items-center gap-6">
+                    <!-- Portrait -->
+                    <div class="flex-shrink-0">
+                        <div id="profile-portrait" class="w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center text-4xl">
+                            👤
+                        </div>
+                    </div>
+                    
+                    <!-- Basic Info -->
+                    <div class="text-center md:text-left">
+                        <h4 id="profile-title" class="text-2xl font-bold text-yellow-400 mb-2">Rookie Trader</h4>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <div class="text-gray-400">Net Worth</div>
+                                <div class="text-xl font-bold text-green-400">$<span id="profile-networth">0.00</span></div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400">Total Sales</div>
+                                <div class="text-xl font-bold text-blue-400"><span id="profile-sales-count">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="profile-stat-card bg-gray-700 rounded-lg p-4 text-center">
+                    <div class="text-2xl mb-2">💰</div>
+                    <div class="text-gray-400 text-sm">Current Cash</div>
+                    <div class="text-lg font-bold text-green-400">$<span id="profile-cash">0.00</span></div>
+                </div>
+                
+                <div class="profile-stat-card bg-gray-700 rounded-lg p-4 text-center">
+                    <div class="text-2xl mb-2">🏆</div>
+                    <div class="text-gray-400 text-sm">Highest Sale</div>
+                    <div class="text-lg font-bold text-yellow-400">$<span id="profile-highest-sale">0.00</span></div>
+                </div>
+                
+                <div class="profile-stat-card bg-gray-700 rounded-lg p-4 text-center">
+                    <div class="text-2xl mb-2">📈</div>
+                    <div class="text-gray-400 text-sm">Total Earnings</div>
+                    <div class="text-lg font-bold text-purple-400">$<span id="profile-total-earnings">0.00</span></div>
+                </div>
+                
+                <div class="profile-stat-card bg-gray-700 rounded-lg p-4 text-center">
+                    <div class="text-2xl mb-2">💸</div>
+                    <div class="text-gray-400 text-sm">Total Spent</div>
+                    <div class="text-lg font-bold text-red-400">$<span id="profile-total-spent">0.00</span></div>
+                </div>
+            </div>
+            
+            <!-- Net Worth Chart -->
+            <div class="bg-gray-700 rounded-lg p-6">
+                <h5 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <span>📊</span>
+                    Net Worth Over Time
+                </h5>
+                <div class="bg-gray-900 rounded-lg p-4">
+                    <canvas id="networth-chart" width="800" height="300"></canvas>
+                </div>
             </div>
         </div>
     </div>
