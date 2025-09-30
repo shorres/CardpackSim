@@ -180,7 +180,7 @@ class WeeklySetGenerator {
         };
 
         // Generate different amounts for each rarity
-        const cardCounts = { common: 15, uncommon: 10, rare: 8, mythic: 4 };
+        const cardCounts = { common: 30, uncommon: 20, rare: 15, mythic: 8 };
 
         for (const rarity in cardCounts) {
             for (let i = 0; i < cardCounts[rarity]; i++) {
@@ -195,7 +195,7 @@ class WeeklySetGenerator {
             name: `${theme.name} - Week ${targetWeek}`,
             totalCards: Object.values(cardCounts).reduce((a, b) => a + b, 0),
             packSize: 12,
-            boosterBoxSize: 24, // Slightly smaller for weekly sets
+            boosterBoxSize: 26, // Slightly smaller for weekly sets
             packComposition: { common: 7, uncommon: 3, rare: 1 },
             mythicChance: 1 / 6, // Better mythic rate for weekly sets
             foilChance: 1 / 4, // Better foil rate for weekly sets
