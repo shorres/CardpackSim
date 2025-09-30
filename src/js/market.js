@@ -46,7 +46,7 @@ class MarketEngine {
             // Update frequency
             priceUpdateInterval: 30000, // 30 seconds (increased frequency)
             historyRetentionDays: 7, // Keep 7 days for charts
-            chartDataPoints: 300 // Max data points for charts (increased)
+            chartDataPoints: 200 // Max data points for charts (increased)
         };
         
         this.eventTypes = [
