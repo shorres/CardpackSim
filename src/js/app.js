@@ -21,6 +21,9 @@ class TCGPackSimulator {
         // Initial render
         this.uiManager.refreshUI();
         
+        // Set up Electron IPC listeners for new game functionality
+        this.setupElectronListeners();
+        
         console.log('TCG Pack Simulator with Market System initialized successfully!');
     }
 
@@ -29,6 +32,90 @@ class TCGPackSimulator {
         this.gameEngine.marketEngine.destroy();
         this.gameEngine.marketEngine = new MarketEngine();
         this.uiManager.refreshUI();
+    }
+
+    setupElectronListeners() {
+        // Check if we're running in Electron
+        if (window.electronAPI) {
+            // Listen for new game requests from the main process
+            window.electronAPI.onNewGameRequest(() => {
+                this.showNewGameConfirmation();
+            });
+            
+            // Listen for confirmed game reset
+            window.electronAPI.onResetGame(() => {
+                this.reset();
+            });
+        }
+    }
+
+    showNewGameConfirmation() {
+        // Create a modal confirmation dialog
+        const modal = document.createElement('div');
+        modal.className = 'reset-confirmation-modal';
+        modal.innerHTML = `
+            <div class="reset-confirmation-content">
+                <h3>Start New Game</h3>
+                <p>Are you sure you want to start a new game?</p>
+                <p><strong>This will permanently delete all your progress:</strong></p>
+                <ul>
+                    <li>Card collection</li>
+                    <li>Unopened packs</li>
+                    <li>Wallet and earnings</li>
+                    <li>Market data</li>
+                    <li>Achievements and titles</li>
+                </ul>
+                <p><em>This action cannot be undone.</em></p>
+                <div class="reset-confirmation-buttons">
+                    <button id="confirm-reset" class="btn btn-danger">Start New Game</button>
+                    <button id="cancel-reset" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        `;
+        
+        // Add event listeners
+        const confirmBtn = modal.querySelector('#confirm-reset');
+        const cancelBtn = modal.querySelector('#cancel-reset');
+        
+        confirmBtn.addEventListener('click', () => {
+            document.body.removeChild(modal);
+            if (window.electronAPI) {
+                window.electronAPI.newGameConfirmed();
+            }
+            // Also reset immediately
+            this.reset();
+        });
+        
+        cancelBtn.addEventListener('click', () => {
+            document.body.removeChild(modal);
+            if (window.electronAPI) {
+                window.electronAPI.newGameCancelled();
+            }
+        });
+        
+        // Close on background click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                document.body.removeChild(modal);
+                if (window.electronAPI) {
+                    window.electronAPI.newGameCancelled();
+                }
+            }
+        });
+        
+        // Close on Escape key
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                document.body.removeChild(modal);
+                if (window.electronAPI) {
+                    window.electronAPI.newGameCancelled();
+                }
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+        
+        document.body.appendChild(modal);
     }
 }
 

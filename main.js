@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 
 // Keep a global reference of the window object
@@ -53,9 +53,9 @@ function createMenu() {
           label: 'New Game',
           accelerator: 'CmdOrCtrl+N',
           click: () => {
-            // Reset the game by reloading the window
+            // Request new game with confirmation
             if (mainWindow) {
-              mainWindow.reload();
+              requestNewGame();
             }
           }
         },
@@ -122,6 +122,26 @@ function createMenu() {
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
 }
+
+function requestNewGame() {
+  // Send a request to the renderer to show confirmation dialog
+  if (mainWindow) {
+    mainWindow.webContents.send('request-new-game');
+  }
+}
+
+// IPC handlers for new game functionality
+ipcMain.on('new-game-confirmed', () => {
+  // User confirmed - reset the game properly
+  if (mainWindow) {
+    mainWindow.webContents.send('reset-game');
+  }
+});
+
+ipcMain.on('new-game-cancelled', () => {
+  // User cancelled - do nothing
+  console.log('New game cancelled by user');
+});
 
 // This method will be called when Electron has finished initialization
 app.whenReady().then(createWindow);

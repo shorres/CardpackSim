@@ -1138,3 +1138,94 @@ canvas {
     color: var(--text-primary);
     border-color: var(--accent-primary);
 }
+
+/* Reset Confirmation Modal Styles */
+.reset-confirmation-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    backdrop-filter: blur(5px);
+}
+
+.reset-confirmation-content {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    padding: 30px;
+    border-radius: 15px;
+    max-width: 500px;
+    margin: 20px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border-primary);
+}
+
+.reset-confirmation-content h3 {
+    margin-top: 0;
+    color: var(--error);
+    text-align: center;
+    font-size: 1.5em;
+    margin-bottom: 20px;
+}
+
+.reset-confirmation-content p {
+    margin-bottom: 15px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.reset-confirmation-content ul {
+    margin: 15px 0;
+    padding-left: 20px;
+    color: var(--text-secondary);
+}
+
+.reset-confirmation-content li {
+    margin-bottom: 5px;
+}
+
+.reset-confirmation-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 25px;
+}
+
+.reset-confirmation-buttons .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1em;
+    transition: all 0.3s ease;
+    min-width: 120px;
+}
+
+.reset-confirmation-buttons .btn-danger {
+    background: var(--error);
+    color: white;
+}
+
+.reset-confirmation-buttons .btn-danger:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+}
+
+.reset-confirmation-buttons .btn-secondary {
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-secondary);
+}
+
+.reset-confirmation-buttons .btn-secondary:hover {
+    background: var(--bg-tertiary);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(75, 85, 99, 0.4);
+}
