@@ -50,9 +50,9 @@ class MarketEngine {
             
             // Price recording intervals (in minutes)
             recordingIntervals: {
-                shortTerm: 30,  // 30 minutes for 24h charts
-                mediumTerm: 60, // 1 hour for 2-day charts  
-                longTerm: 720   // 12 hours for 1-week charts
+                shortTerm: 30,  // 30 minutes for 24h charts (48 points)
+                mediumTerm: 60, // 1 hour for 2-day charts (48 points)
+                longTerm: 240   // 4 hours for 1-week charts (42 points)
             }
         };
         
@@ -153,7 +153,7 @@ class MarketEngine {
     generateInitialPriceHistory(basePrice) {
         const history = [];
         const now = Date.now();
-        const hoursBack = 72; // Generate 3 days of history
+        const hoursBack = 168; // Generate 7 days of history (7 * 24 = 168 hours)
         const intervalMinutes = this.config.recordingIntervals.shortTerm; // Use consistent 30-minute intervals
         const intervalMs = intervalMinutes * 60 * 1000;
         
@@ -486,24 +486,33 @@ class MarketEngine {
         
         const history = this.state.priceHistory[setId][cardName];
         
-        // Check if we need to backfill historical data for cards that existed before proper tracking
-        // App launch date - September 27, 2025 (adjust this to when the app was first created)
-        const appLaunchDate = new Date('2025-09-27T00:00:00').getTime();
-        const hasPreLaunchData = history.some(entry => entry.timestamp < appLaunchDate);
+        // Check if this is a legacy set that should have backfilled historical data
+        const allSets = window.getAllSets();
+        const setData = allSets[setId];
+        const shouldBackfill = setData && !setData.isWeekly; // Only backfill for original non-weekly sets
         
-        if (!hasPreLaunchData && history.length > 0) {
-            // This card exists but has no pre-launch history, so it was created before proper tracking
-            const oldestEntry = history[0];
-            if (oldestEntry.timestamp > appLaunchDate) {
-                const currentPrice = this.getCardPrice(setId, cardName, false);
-                const backfilledHistory = this.generateInitialPriceHistory(currentPrice);
-                // Merge backfilled history with existing data
-                this.state.priceHistory[setId][cardName] = [...backfilledHistory, ...history];
-                console.log(`Backfilled pre-launch history for ${cardName} with ${backfilledHistory.length} data points`);
+        const now = Date.now();
+        
+        if (shouldBackfill) {
+            // Check if we need to backfill historical data for legacy sets only
+            const fiveDaysAgo = now - (120 * 60 * 60 * 1000);
+            const hasHistoricalData = history.some(entry => entry.timestamp < fiveDaysAgo);
+            
+            if (!hasHistoricalData && history.length > 0) {
+                // This legacy set needs historical data - use the ORIGINAL base price, not current price
+                const cardData = this.state.cardPrices[setId][cardName];
+                if (cardData && cardData.basePrice) {
+                    const backfilledHistory = this.generateInitialPriceHistory(cardData.basePrice);
+                    // Merge backfilled history with existing data, avoiding duplicates
+                    const existingTimestamps = new Set(history.map(entry => entry.timestamp));
+                    const newBackfillData = backfilledHistory.filter(entry => !existingTimestamps.has(entry.timestamp));
+                    this.state.priceHistory[setId][cardName] = [...newBackfillData, ...history].sort((a, b) => a.timestamp - b.timestamp);
+                    console.log(`Backfilled historical data for legacy card ${cardName} from ${setData.name} with ${newBackfillData.length} new data points`);
+                }
             }
         }
         
-        const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
+        const cutoffTime = now - (hours * 60 * 60 * 1000);
         const filteredHistory = this.state.priceHistory[setId][cardName]
             .filter(entry => entry.timestamp > cutoffTime)
             .sort((a, b) => a.timestamp - b.timestamp);
