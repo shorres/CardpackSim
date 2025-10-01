@@ -1,71 +1,52 @@
 # TCG Pack Simulator
 
-A Trading Card Game Pack Opening Simulator built with Electron.
+An immersive Trading Card Game pack opening simulator with dynamic market economics. Experience the thrill of opening packs while managing your collection as a trading portfolio.
 
-## Features
+## What It Does
 
-- Multiple TCG sets to choose from
-- Interactive pack opening with tear animation
-- Collection tracking and progress
-- Foil card effects
-- Local storage for persistence
+**CardpackSim** simulates the complete TCG experience from pack opening to market trading:
 
-## Development
+- 💰 **Dynamic Market System** - Buy packs with virtual currency and sell cards at fluctuating market prices  
+- 📈 **Economic Strategy** - Manage your wallet, track card values, and maximize profits from your collection
+- 🗓️ **Weekly Sets** - Limited-time premium sets with higher value cards and market demand
+- 📊 **Collection Tracking** - Monitor your inventory, collection progress, and portfolio value
+- 🏆 **Achievement System** - Earn rewards and unlock new content as you play
+
+Perfect for TCG enthusiasts who want to experience the excitement of pack opening and collection building without the real-world cost.
+
+## Quick Start
 
 ### Prerequisites
-
 - Node.js (v16 or higher)
 - npm
 
-### Installation
-
-1. Clone or download this repository
-2. Navigate to the project directory
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-### Running the Application
-
+### Installation & Running
 ```bash
+# Install dependencies
+npm install
+
+# Run the application
 npm start
-```
 
-For development with DevTools:
-```bash
+# Development mode with DevTools
 npm run dev
 ```
 
 ### Building Executables
-
-Build for current platform:
 ```bash
-npm run build
+npm run build          # Current platform
+npm run build-win      # Windows
+npm run build-mac      # macOS  
+npm run build-linux    # Linux
 ```
+Built executables will be in the `dist/` folder.
 
-Build for specific platforms:
-```bash
-npm run build-win    # Windows
-npm run build-mac    # macOS  
-npm run build-linux  # Linux
-```
+## Technology Stack
 
-The built executables will be in the `dist/` folder.
-
-## Project Structure
-
-```
-CardpackSim/
-├── assets/          # Icons and images
-├── src/             # Source files
-│   ├── js/          # JavaScript modules
-│   └── css/         # Stylesheets
-├── main.js          # Electron main process
-├── preload.js       # Preload script
-├── index.html       # Main HTML file
-└── package.json     # Project configuration
-```
+**Built with Electron** - Cross-platform desktop application
+- **Frontend**: HTML5, CSS3, JavaScript (ES6+)
+- **Backend**: Node.js with local storage persistence
+- **Architecture**: Modular design with separated game logic, UI, and market systems
 
 ## License
 
