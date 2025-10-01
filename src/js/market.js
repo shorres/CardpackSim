@@ -797,15 +797,26 @@ class MarketEngine {
     }
     
     createListing(setId, cardName, rarity) {
+        // Enhanced AI trader behavior for more realistic pricing
         const basePrice = this.getCardPrice(setId, cardName, false);
         const trader = this.getRandomTrader();
         const isFoil = Math.random() < 0.15; // 15% chance for foil listings
         
-        // Calculate listing price based on trader type and market conditions
-        const priceVariance = (Math.random() - 0.5) * this.config.priceVariance * 2;
-        const traderMultiplier = trader.priceMultiplier;
+        // Calculate listing price with enhanced variance
         const marketPrice = isFoil ? basePrice * 3 : basePrice;
-        const listingPrice = Math.max(0.01, marketPrice * traderMultiplier * (1 + priceVariance));
+        
+        // More realistic price variance based on market conditions
+        const marketSentiment = this.state.marketSentiment || 1.0;
+        const baseVariance = (Math.random() - 0.5) * this.config.priceVariance * 2;
+        
+        // Add competitive pricing - some traders undercut, others premium price
+        const competitiveVariance = this.getCompetitivePricing(setId, cardName, trader.type);
+        
+        // Trader-specific pricing psychology
+        const traderPsychology = this.getTraderPricingPsychology(trader.type);
+        
+        const totalVariance = baseVariance + competitiveVariance + traderPsychology;
+        const listingPrice = Math.max(0.01, marketPrice * trader.priceMultiplier * marketSentiment * (1 + totalVariance));
         
         const listing = {
             price: Math.round(listingPrice * 100) / 100,
@@ -820,6 +831,59 @@ class MarketEngine {
         
         this.state.marketListings[setId][cardName].push(listing);
         this.recordMarketActivity('list', setId, cardName, listing.price, listing.quantity, listing.isFoil);
+    }
+
+    // Enhanced pricing helper methods for more realistic AI trader behavior
+    getCompetitivePricing(setId, cardName, traderType) {
+        // Check existing listings to apply competitive pricing
+        const existingListings = this.getAvailableListings(setId, cardName);
+        if (!existingListings || existingListings.length === 0) {
+            return 0; // No competition, use base variance
+        }
+
+        const prices = existingListings.map(l => l.price);
+        const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+        const lowestPrice = Math.min(...prices);
+
+        // Different trader types have different competitive strategies
+        switch(traderType) {
+            case 'bargain_hunter':
+                // Always tries to undercut by 5-15%
+                return -0.05 - (Math.random() * 0.1);
+            case 'whale':
+                // Premium pricing, doesn't care about competition
+                return 0.1 + (Math.random() * 0.2);
+            case 'flipper':
+                // Opportunistic - either undercuts heavily or prices high
+                return Math.random() < 0.6 ? -0.1 - (Math.random() * 0.1) : 0.15 + (Math.random() * 0.15);
+            case 'casual':
+                // Just wants to sell, often underprices
+                return -0.02 - (Math.random() * 0.08);
+            default:
+                // Standard competitive behavior - slight undercut to compete
+                return -0.01 - (Math.random() * 0.05);
+        }
+    }
+
+    getTraderPricingPsychology(traderType) {
+        // Add psychological pricing patterns based on trader personality
+        switch(traderType) {
+            case 'whale':
+                // Confident premium pricing
+                return 0.05 + (Math.random() * 0.1);
+            case 'bargain_hunter':
+                // Always looking for deals, prices aggressively
+                return -0.08 - (Math.random() * 0.07);
+            case 'flipper':
+                // Volatile pricing based on market timing
+                return (Math.random() - 0.5) * 0.3;
+            case 'casual':
+                // Inconsistent pricing, often undervalues
+                return -0.05 + (Math.random() * 0.1);
+            default:
+                // Standard market participant
+                return (Math.random() - 0.5) * 0.1;
+        }
     }
     
     getListingQuantity(rarity, traderType) {
@@ -879,7 +943,7 @@ class MarketEngine {
     }
     
     // Purchase System
-    purchaseCard(setId, cardName, isFoil, listingIndex) {
+    purchaseCard(setId, cardName, isFoil, listingIndex, quantityToBuy = 1) {
         const listings = this.getAvailableListings(setId, cardName, isFoil);
         
         if (!listings || listingIndex >= listings.length) {
@@ -887,31 +951,38 @@ class MarketEngine {
         }
         
         const listing = listings[listingIndex];
-        const cost = listing.price * listing.quantity;
+        const actualQuantity = Math.min(quantityToBuy, listing.quantity);
+        const cost = listing.price * actualQuantity;
         
-        // This will be called from GameEngine, so we need to access the game state
+        // Check if player has enough funds
         if (window.gameEngine && window.gameEngine.state.wallet < cost) {
             return { success: false, message: 'Insufficient funds' };
         }
         
-        // Remove listing first to prevent double purchase
+        // Update listing quantity or remove if depleted
         const originalListings = this.state.marketListings[setId][cardName];
         const actualIndex = originalListings.indexOf(listing);
         if (actualIndex !== -1) {
-            originalListings.splice(actualIndex, 1);
+            if (listing.quantity <= actualQuantity) {
+                // Remove entire listing if we bought it all
+                originalListings.splice(actualIndex, 1);
+            } else {
+                // Reduce quantity
+                listing.quantity -= actualQuantity;
+            }
         }
         
         // Record activity
-        this.recordMarketActivity('buy', setId, cardName, listing.price, listing.quantity, isFoil);
+        this.recordMarketActivity('buy', setId, cardName, listing.price, actualQuantity, isFoil);
         
         // Check if this satisfies any wishlist items
         this.checkWishlistFulfillment(setId, cardName, isFoil);
         
         return { 
             success: true, 
-            message: `Purchased ${listing.quantity}x ${cardName} for $${cost.toFixed(2)}`,
+            message: `Purchased ${actualQuantity}x ${cardName} for $${cost.toFixed(2)}`,
             cost,
-            quantity: listing.quantity,
+            quantity: actualQuantity,
             isFoil: listing.isFoil
         };
     }

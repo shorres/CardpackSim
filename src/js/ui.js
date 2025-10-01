@@ -2206,7 +2206,7 @@ class UIManager {
                 </div>
                 <button onclick="uiManager.purchaseListing('${this.selectedCard.setId}', '${this.selectedCard.cardName}', ${isFoil}, ${index})" 
                         class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm">
-                    Buy
+                    Buy 1 for $${listing.price.toFixed(2)}
                 </button>
             </div>
         `).join('');
