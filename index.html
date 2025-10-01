@@ -189,9 +189,112 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Enhanced Trading Market Section -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                        <!-- Card Marketplace -->
+                        <div class="bg-gray-900/50 rounded-lg p-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-xl font-semibold">🛒 Card Marketplace</h3>
+                                <div class="flex gap-2">
+                                    <select id="market-set-filter" class="bg-gray-800 border border-gray-600 rounded px-3 py-1 text-sm">
+                                        <option value="">All Sets</option>
+                                    </select>
+                                    <select id="market-rarity-filter" class="bg-gray-800 border border-gray-600 rounded px-3 py-1 text-sm">
+                                        <option value="">All Rarities</option>
+                                        <option value="common">Common</option>
+                                        <option value="uncommon">Uncommon</option>
+                                        <option value="rare">Rare</option>
+                                        <option value="mythic">Mythic</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <input type="text" id="market-search" placeholder="Search cards..." 
+                                       class="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm">
+                            </div>
+                            
+                            <div id="market-listings" class="max-h-96 overflow-y-auto space-y-2">
+                                <!-- Market listings will appear here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Card Details & Purchase -->
+                        <div class="bg-gray-900/50 rounded-lg p-4">
+                            <h3 class="text-xl font-semibold mb-4">📋 Card Details</h3>
+                            <div id="card-details-panel">
+                                <div class="text-center text-gray-400 py-8">
+                                    Select a card from the marketplace to view details and purchase options
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Wishlist Section -->
+                    <div class="mt-6 bg-gray-900/50 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold">⭐ My Wishlist</h3>
+                            <button id="add-to-wishlist-btn" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm">
+                                + Add Card
+                            </button>
+                        </div>
+                        
+                        <div id="wishlist-display" class="max-h-64 overflow-y-auto">
+                            <!-- Wishlist items will appear here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Market Activity Feed -->
+                    <div class="mt-6 bg-gray-900/50 rounded-lg p-4">
+                        <h3 class="text-xl font-semibold mb-4">📈 Recent Market Activity</h3>
+                        <div id="market-activity-feed" class="max-h-48 overflow-y-auto space-y-1 text-sm">
+                            <!-- Market activity will appear here -->
+                        </div>
+                    </div>
                 </section>
             </div>
         </main>
+    </div>
+
+    <!-- Add to Wishlist Modal -->
+    <div id="wishlist-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold">Add Card to Wishlist</h3>
+                <button onclick="closeWishlistModal()" class="text-gray-400 hover:text-white">&times;</button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Set</label>
+                    <select id="wishlist-set-select" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                        <option value="">Select a set...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Card Name</label>
+                    <input type="text" id="wishlist-card-input" placeholder="Enter card name..." 
+                           class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Maximum Price (optional)</label>
+                    <input type="number" id="wishlist-price-input" placeholder="e.g., 10.00" step="0.01"
+                           class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" id="wishlist-foil-checkbox" class="mr-2">
+                    <label for="wishlist-foil-checkbox" class="text-sm">Foil version</label>
+                </div>
+                <div class="flex gap-2 pt-4">
+                    <button onclick="closeWishlistModal()" class="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">
+                        Cancel
+                    </button>
+                    <button onclick="addToWishlistFromModal()" class="flex-1 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">
+                        Add to Wishlist
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Price Chart Modal -->
@@ -399,5 +502,55 @@
     <script src="src/js/game.js"></script>
     <script src="src/js/ui.js"></script>
     <script src="src/js/app.js"></script>
+    
+    <!-- Trading Market Global Functions -->
+    <script>
+        // Global functions for trading market interactions
+        function closeWishlistModal() {
+            const modal = document.getElementById('wishlist-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+        
+        function addToWishlistFromModal() {
+            const setId = document.getElementById('wishlist-set-select')?.value;
+            const cardName = document.getElementById('wishlist-card-input')?.value;
+            const maxPrice = document.getElementById('wishlist-price-input')?.value;
+            const isFoil = document.getElementById('wishlist-foil-checkbox')?.checked;
+            
+            if (!setId || !cardName) {
+                if (window.uiManager) {
+                    window.uiManager.showNotification('Please select a set and enter a card name', 'error');
+                }
+                return;
+            }
+            
+            const maxPriceNum = maxPrice ? parseFloat(maxPrice) : null;
+            if (maxPrice && isNaN(maxPriceNum)) {
+                if (window.uiManager) {
+                    window.uiManager.showNotification('Invalid price entered', 'error');
+                }
+                return;
+            }
+            
+            if (window.gameEngine) {
+                const result = window.gameEngine.marketEngine.addToWishlist(setId, cardName, maxPriceNum, isFoil, 'medium');
+                if (window.uiManager) {
+                    window.uiManager.showNotification(result.message, result.success ? 'success' : 'error');
+                    if (result.success) {
+                        window.uiManager.renderWishlist();
+                        window.uiManager.renderMarketListings();
+                    }
+                }
+            }
+            
+            closeWishlistModal();
+            
+            // Clear form
+            document.getElementById('wishlist-card-input').value = '';
+            document.getElementById('wishlist-price-input').value = '';
+            document.getElementById('wishlist-foil-checkbox').checked = false;
+            document.getElementById('wishlist-set-select').value = '';
+        }
+    </script>
 </body>
 </html>

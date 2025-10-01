@@ -1239,3 +1239,88 @@ canvas {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(75, 85, 99, 0.4);
 }
+
+/* Auto-Complete Dropdown Styles */
+.autocomplete-wrapper {
+    position: relative;
+}
+
+.autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 10px 25px var(--shadow);
+}
+
+.autocomplete-dropdown.hidden {
+    display: none;
+}
+
+.autocomplete-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-primary);
+    transition: background-color 0.2s ease;
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.bg-gray-700 {
+    background: var(--bg-tertiary);
+}
+
+.autocomplete-item .card-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.autocomplete-item .card-details {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.autocomplete-item .rarity-common {
+    color: var(--text-muted);
+}
+
+.autocomplete-item .rarity-uncommon {
+    color: var(--success);
+}
+
+.autocomplete-item .rarity-rare {
+    color: var(--accent-tertiary);
+}
+
+.autocomplete-item .rarity-mythic {
+    color: var(--accent-primary);
+}
+
+/* Smooth scrollbar for autocomplete */
+.autocomplete-dropdown::-webkit-scrollbar {
+    width: 6px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-thumb {
+    background: var(--border-secondary);
+    border-radius: 3px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
+    background: var(--border-primary);
+}

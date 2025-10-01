@@ -48,6 +48,22 @@ class UIManager {
         this.chartCardName = document.getElementById('chart-card-name');
         this.chartCardDetails = document.getElementById('chart-card-details');
         this.closeChartBtn = document.getElementById('close-chart-btn');
+        
+        // Trading market elements
+        this.marketSearch = document.getElementById('market-search');
+        this.marketSetFilter = document.getElementById('market-set-filter');
+        this.marketRarityFilter = document.getElementById('market-rarity-filter');
+        this.marketListings = document.getElementById('market-listings');
+        this.cardDetailsPanel = document.getElementById('card-details-panel');
+        this.wishlistDisplay = document.getElementById('wishlist-display');
+        this.addToWishlistBtn = document.getElementById('add-to-wishlist-btn');
+        this.marketActivityFeed = document.getElementById('market-activity-feed');
+        this.wishlistModal = document.getElementById('wishlist-modal');
+        this.wishlistCardInput = document.getElementById('wishlist-card-input');
+        this.wishlistSetSelect = document.getElementById('wishlist-set-select');
+        
+        // Selected card for purchase
+        this.selectedCard = null;
         this.priceChart = document.getElementById('price-chart');
         this.chartStats = document.getElementById('chart-stats');
         this.chartTimeframeBtns = document.querySelectorAll('.chart-timeframe-btn');
@@ -134,6 +150,384 @@ class UIManager {
             
             this.setSelector.add(option);
             this.collectionSetSelector.add(collectionOption);
+        });
+    }
+
+    // Card Auto-Suggestion System
+    createCardDatabase() {
+        if (this.cardDatabase) return this.cardDatabase;
+        
+        const allSets = window.getAllSets();
+        this.cardDatabase = [];
+        
+        Object.keys(allSets).forEach(setId => {
+            const setData = allSets[setId];
+            if (!setData || !setData.cards) return;
+            
+            Object.keys(setData.cards).forEach(rarity => {
+                const cardsInRarity = setData.cards[rarity];
+                if (!Array.isArray(cardsInRarity)) return;
+                
+                cardsInRarity.forEach(cardName => {
+                    this.cardDatabase.push({
+                        name: cardName,
+                        setId: setId,
+                        setName: setData.name || setId,
+                        rarity: rarity,
+                        searchText: `${cardName} ${setData.name} ${rarity}`.toLowerCase()
+                    });
+                });
+            });
+        });
+        
+        return this.cardDatabase;
+    }
+    
+    searchCards(query, limit = 10, setFilter = null) {
+        if (!query || query.length < 2) return [];
+        
+        const cards = this.createCardDatabase();
+        const searchTerm = query.toLowerCase();
+        const results = [];
+        
+        // Apply set filter if provided
+        const filteredCards = setFilter ? 
+            cards.filter(card => card.setId === setFilter) : 
+            cards;
+        
+        // Exact matches first
+        const exactMatches = filteredCards.filter(card => 
+            card.name.toLowerCase().includes(searchTerm)
+        );
+        
+        // Set name matches
+        const setMatches = filteredCards.filter(card => 
+            !exactMatches.includes(card) && 
+            card.setName.toLowerCase().includes(searchTerm)
+        );
+        
+        // Fuzzy matches (word starts)
+        const fuzzyMatches = filteredCards.filter(card => 
+            !exactMatches.includes(card) && 
+            !setMatches.includes(card) &&
+            card.searchText.split(' ').some(word => word.startsWith(searchTerm))
+        );
+        
+        // Combine results
+        results.push(...exactMatches, ...setMatches, ...fuzzyMatches);
+        
+        return results.slice(0, limit);
+    }
+    
+    createAutoCompleteDropdown(inputElement, onSelect, placeholder = "Search cards...") {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'autocomplete-wrapper relative';
+        
+        // Replace the input with our wrapped version
+        const parent = inputElement.parentNode;
+        parent.insertBefore(wrapper, inputElement);
+        wrapper.appendChild(inputElement);
+        
+        // Set placeholder
+        inputElement.placeholder = placeholder;
+        
+        // Create dropdown
+        const dropdown = document.createElement('div');
+        dropdown.className = 'autocomplete-dropdown absolute top-full left-0 right-0 bg-gray-800 border border-gray-600 rounded-b-lg max-h-60 overflow-y-auto z-50 hidden';
+        wrapper.appendChild(dropdown);
+        
+        let currentFocus = -1;
+        
+        const showDropdown = () => {
+            dropdown.classList.remove('hidden');
+        };
+        
+        const hideDropdown = () => {
+            dropdown.classList.add('hidden');
+            currentFocus = -1;
+        };
+        
+        const updateDropdown = (results) => {
+            dropdown.innerHTML = '';
+            currentFocus = -1;
+            
+            if (results.length === 0) {
+                dropdown.innerHTML = '<div class="p-3 text-gray-400 text-sm">No cards found</div>';
+                showDropdown();
+                return;
+            }
+            
+            results.forEach((card, index) => {
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item p-3 hover:bg-gray-700 cursor-pointer border-b border-gray-700 last:border-b-0';
+                
+                const rarityColor = {
+                    common: 'text-gray-300',
+                    uncommon: 'text-green-400',
+                    rare: 'text-blue-400',
+                    mythic: 'text-purple-400'
+                }[card.rarity] || 'text-gray-300';
+                
+                item.innerHTML = `
+                    <div class="font-medium text-white">${card.name}</div>
+                    <div class="text-xs text-gray-400 mt-1">
+                        <span class="${rarityColor} font-medium">${card.rarity.toUpperCase()}</span>
+                        <span class="mx-2">•</span>
+                        <span>${card.setName}</span>
+                    </div>
+                `;
+                
+                item.addEventListener('click', () => {
+                    onSelect(card);
+                    hideDropdown();
+                });
+                
+                dropdown.appendChild(item);
+            });
+            
+            showDropdown();
+        };
+        
+        // Input event handling
+        inputElement.addEventListener('input', (e) => {
+            const query = e.target.value;
+            if (query.length < 2) {
+                hideDropdown();
+                return;
+            }
+            
+            const results = this.searchCards(query);
+            updateDropdown(results);
+        });
+        
+        // Keyboard navigation
+        inputElement.addEventListener('keydown', (e) => {
+            const items = dropdown.querySelectorAll('.autocomplete-item');
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                currentFocus = Math.min(currentFocus + 1, items.length - 1);
+                updateFocus(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                currentFocus = Math.max(currentFocus - 1, -1);
+                updateFocus(items);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (currentFocus >= 0 && items[currentFocus]) {
+                    items[currentFocus].click();
+                }
+            } else if (e.key === 'Escape') {
+                hideDropdown();
+            }
+        });
+        
+        const updateFocus = (items) => {
+            items.forEach((item, index) => {
+                if (index === currentFocus) {
+                    item.classList.add('bg-gray-700');
+                } else {
+                    item.classList.remove('bg-gray-700');
+                }
+            });
+        };
+        
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!wrapper.contains(e.target)) {
+                hideDropdown();
+            }
+        });
+        
+        return {
+            wrapper,
+            dropdown,
+            hideDropdown,
+            showDropdown
+        };
+    }
+
+    setupMarketSearchAutoComplete() {
+        const autocomplete = this.createAutoCompleteDropdown(
+            this.marketSearch,
+            (selectedCard) => {
+                // When a card is selected from suggestions
+                this.marketSearch.value = selectedCard.name;
+                
+                // Set filters to match the selected card
+                if (this.marketSetFilter) {
+                    this.marketSetFilter.value = selectedCard.setId;
+                }
+                if (this.marketRarityFilter) {
+                    this.marketRarityFilter.value = selectedCard.rarity;
+                }
+                
+                // Re-render marketplace with filters applied
+                this.renderMarketListings();
+                
+                // Optionally select the card for purchase if available
+                setTimeout(() => {
+                    const cardElement = document.querySelector(`[data-card="${selectedCard.name}"][data-set="${selectedCard.setId}"]`);
+                    if (cardElement) {
+                        cardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        cardElement.classList.add('bg-yellow-900');
+                        setTimeout(() => cardElement.classList.remove('bg-yellow-900'), 2000);
+                    }
+                }, 100);
+            },
+            "Search cards in marketplace..."
+        );
+        
+        // Add a debounced re-render to the input event
+        let searchTimeout;
+        this.marketSearch.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                this.renderMarketListings();
+            }, 300); // 300ms debounce
+        });
+    }
+
+    setupWishlistAutoComplete() {
+        // Create a custom autocomplete for wishlist that respects set filtering
+        const wrapper = document.createElement('div');
+        wrapper.className = 'autocomplete-wrapper relative';
+        
+        // Replace the input with our wrapped version
+        const parent = this.wishlistCardInput.parentNode;
+        parent.insertBefore(wrapper, this.wishlistCardInput);
+        wrapper.appendChild(this.wishlistCardInput);
+        
+        // Set placeholder
+        this.wishlistCardInput.placeholder = "Type card name...";
+        
+        // Create dropdown
+        const dropdown = document.createElement('div');
+        dropdown.className = 'autocomplete-dropdown absolute top-full left-0 right-0 bg-gray-800 border border-gray-600 rounded-b-lg max-h-60 overflow-y-auto z-50 hidden';
+        wrapper.appendChild(dropdown);
+        
+        let currentFocus = -1;
+        
+        const showDropdown = () => dropdown.classList.remove('hidden');
+        const hideDropdown = () => {
+            dropdown.classList.add('hidden');
+            currentFocus = -1;
+        };
+        
+        const updateDropdown = (results) => {
+            dropdown.innerHTML = '';
+            currentFocus = -1;
+            
+            if (results.length === 0) {
+                dropdown.innerHTML = '<div class="p-3 text-gray-400 text-sm">No cards found</div>';
+                showDropdown();
+                return;
+            }
+            
+            results.forEach((card, index) => {
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item p-3 hover:bg-gray-700 cursor-pointer border-b border-gray-700 last:border-b-0';
+                
+                const rarityColor = {
+                    common: 'text-gray-300',
+                    uncommon: 'text-green-400',
+                    rare: 'text-blue-400',
+                    mythic: 'text-purple-400'
+                }[card.rarity] || 'text-gray-300';
+                
+                item.innerHTML = `
+                    <div class="font-medium text-white">${card.name}</div>
+                    <div class="text-xs text-gray-400 mt-1">
+                        <span class="${rarityColor} font-medium">${card.rarity.toUpperCase()}</span>
+                        <span class="mx-2">•</span>
+                        <span>${card.setName}</span>
+                    </div>
+                `;
+                
+                item.addEventListener('click', () => {
+                    // Select the card
+                    this.wishlistCardInput.value = card.name;
+                    
+                    // Auto-select the set
+                    if (this.wishlistSetSelect) {
+                        this.wishlistSetSelect.value = card.setId;
+                    }
+                    
+                    // Focus next input
+                    const priceInput = document.getElementById('wishlist-price-input');
+                    if (priceInput) {
+                        setTimeout(() => priceInput.focus(), 100);
+                    }
+                    
+                    hideDropdown();
+                });
+                
+                dropdown.appendChild(item);
+            });
+            
+            showDropdown();
+        };
+        
+        // Input event handling
+        this.wishlistCardInput.addEventListener('input', (e) => {
+            const query = e.target.value;
+            if (query.length < 2) {
+                hideDropdown();
+                return;
+            }
+            
+            const selectedSet = this.wishlistSetSelect?.value || null;
+            const results = this.searchCards(query, 10, selectedSet);
+            updateDropdown(results);
+        });
+        
+        // Keyboard navigation
+        this.wishlistCardInput.addEventListener('keydown', (e) => {
+            const items = dropdown.querySelectorAll('.autocomplete-item');
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                currentFocus = Math.min(currentFocus + 1, items.length - 1);
+                updateFocus(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                currentFocus = Math.max(currentFocus - 1, -1);
+                updateFocus(items);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (currentFocus >= 0 && items[currentFocus]) {
+                    items[currentFocus].click();
+                }
+            } else if (e.key === 'Escape') {
+                hideDropdown();
+            }
+        });
+        
+        const updateFocus = (items) => {
+            items.forEach((item, index) => {
+                if (index === currentFocus) {
+                    item.classList.add('bg-gray-700');
+                } else {
+                    item.classList.remove('bg-gray-700');
+                }
+            });
+        };
+        
+        // Re-search when set changes
+        if (this.wishlistSetSelect) {
+            this.wishlistSetSelect.addEventListener('change', () => {
+                if (this.wishlistCardInput.value.length >= 2) {
+                    const event = new Event('input');
+                    this.wishlistCardInput.dispatchEvent(event);
+                }
+            });
+        }
+        
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!wrapper.contains(e.target)) {
+                hideDropdown();
+            }
         });
     }
 
@@ -234,6 +628,23 @@ class UIManager {
                 this.closeProfileModal();
             }
         });
+        
+        // Trading market event listeners
+        if (this.marketSearch) {
+            this.setupMarketSearchAutoComplete();
+        }
+        if (this.marketSetFilter) {
+            this.marketSetFilter.addEventListener('change', () => this.renderMarketListings());
+        }
+        if (this.marketRarityFilter) {
+            this.marketRarityFilter.addEventListener('change', () => this.renderMarketListings());
+        }
+        if (this.addToWishlistBtn) {
+            this.addToWishlistBtn.addEventListener('click', () => this.showAddToWishlistModal());
+        }
+        if (this.wishlistCardInput) {
+            this.setupWishlistAutoComplete();
+        }
 
         // Theme selector event listeners
         this.setupThemeEventListeners();
@@ -692,6 +1103,9 @@ class UIManager {
             this.renderPortfolio();
             this.renderMarketSummary();
             this.renderHotCards();
+            this.renderMarketListings();
+            this.renderWishlist();
+            this.renderMarketActivity();
         }, 30000);
         
         // Initial render
@@ -699,6 +1113,10 @@ class UIManager {
         this.renderPortfolio();
         this.renderMarketSummary();
         this.renderHotCards();
+        this.populateSetFilters();
+        this.renderMarketListings();
+        this.renderWishlist();
+        this.renderMarketActivity();
     }
 
     onMarketUpdate() {
@@ -707,6 +1125,12 @@ class UIManager {
         this.renderPortfolio();
         this.renderMarketSummary();
         this.renderHotCards();
+        this.renderMarketListings();
+        this.renderWishlist();
+        this.renderMarketActivity();
+        if (this.selectedCard) {
+            this.renderCardDetailsPanel();
+        }
     }
 
     updatePlayerStats() {
@@ -1290,6 +1714,52 @@ class UIManager {
         this.priceChartModal.classList.remove('hidden');
     }
 
+    showPriceChart(setId, cardName) {
+        // Store current card for reference
+        this.currentChartCard = { setId, cardName };
+        
+        // Update modal title and details
+        if (this.chartCardName) {
+            this.chartCardName.textContent = cardName;
+        }
+        
+        if (this.chartCardDetails) {
+            const allSets = window.getAllSets();
+            const setData = allSets[setId];
+            const setName = setData ? setData.name : setId;
+            
+            // Get current price and rarity
+            const currentPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName);
+            const rarity = this.gameEngine.getCardRarity(setId, cardName);
+            
+            this.chartCardDetails.innerHTML = `
+                <div class="text-sm text-gray-400">
+                    <span class="font-medium">${setName}</span> • 
+                    <span class="capitalize text-${this.getRarityColor(rarity)}-400">${rarity}</span>
+                </div>
+                <div class="text-lg font-bold text-white mt-1">
+                    Current Price: $${currentPrice?.toFixed(2) || 'N/A'}
+                </div>
+            `;
+        }
+        
+        // Show modal
+        this.priceChartModal.classList.remove('hidden');
+        
+        // Load default timeframe (24 hours)
+        this.updateChartTimeframe(1);
+    }
+    
+    getRarityColor(rarity) {
+        const colors = {
+            common: 'gray',
+            uncommon: 'green',
+            rare: 'blue',
+            mythic: 'purple'
+        };
+        return colors[rarity] || 'gray';
+    }
+
     closePriceChart() {
         this.priceChartModal.classList.add('hidden');
         if (this.currentChart) {
@@ -1552,7 +2022,393 @@ class UIManager {
             this.renderPortfolio();
             this.renderMarketSummary();
             this.renderHotCards();
+            this.renderMarketListings();
+            this.renderWishlist();
+            this.renderMarketActivity();
         }
+    }
+
+    // =============================================================================
+    // TRADING MARKET UI METHODS
+    // =============================================================================
+
+    populateSetFilters() {
+        if (!this.marketSetFilter) return;
+        
+        // Clear existing options except the first "All Sets"
+        while (this.marketSetFilter.children.length > 1) {
+            this.marketSetFilter.removeChild(this.marketSetFilter.lastChild);
+        }
+        
+        const allSets = window.getAllSets();
+        Object.keys(allSets).forEach(setId => {
+            const option = document.createElement('option');
+            option.value = setId;
+            option.textContent = allSets[setId].name;
+            this.marketSetFilter.appendChild(option);
+        });
+    }
+
+    renderMarketListings() {
+        if (!this.marketListings) return;
+        
+        if (!this.gameEngine || !this.gameEngine.marketEngine) {
+            console.warn('Market engine not available for rendering listings');
+            this.marketListings.innerHTML = '<div class="text-center text-gray-400 py-4">Market not available</div>';
+            return;
+        }
+        
+        const searchTerm = this.marketSearch?.value.toLowerCase() || '';
+        const setFilter = this.marketSetFilter?.value || '';
+        const rarityFilter = this.marketRarityFilter?.value || '';
+        
+        this.marketListings.innerHTML = '';
+        
+        const allSets = window.getAllSets();
+        const availableCards = [];
+        
+        // Collect all cards with listings
+        Object.keys(allSets).forEach(setId => {
+            if (setFilter && setId !== setFilter) return;
+            
+            const setData = allSets[setId];
+            if (!setData || !setData.cards) {
+                console.warn(`Set ${setId} has invalid structure, skipping`);
+                return;
+            }
+            
+            Object.keys(setData.cards).forEach(rarity => {
+                if (rarityFilter && rarity !== rarityFilter) return;
+                
+                const cardsInRarity = setData.cards[rarity];
+                if (!Array.isArray(cardsInRarity)) {
+                    console.warn(`Set ${setId} rarity ${rarity} is not an array, skipping`);
+                    return;
+                }
+                
+                cardsInRarity.forEach(cardName => {
+                    if (searchTerm && !cardName.toLowerCase().includes(searchTerm)) return;
+                    
+                    try {
+                        const listings = this.gameEngine.marketEngine.getAvailableListings(setId, cardName);
+                        if (listings.length > 0) {
+                            const bestPrice = this.gameEngine.marketEngine.getBestListingPrice(setId, cardName, false);
+                            const foilPrice = this.gameEngine.marketEngine.getBestListingPrice(setId, cardName, true);
+                            
+                            availableCards.push({
+                                setId,
+                                cardName,
+                                rarity,
+                                bestPrice,
+                                foilPrice,
+                                totalListings: listings.length,
+                                regularListings: listings.filter(l => !l.isFoil).length,
+                                foilListings: listings.filter(l => l.isFoil).length
+                            });
+                        }
+                    } catch (error) {
+                        console.error(`Error getting listings for ${setId}/${cardName}:`, error);
+                    }
+                });
+            });
+        });
+        
+        // Sort by price (lowest first)
+        availableCards.sort((a, b) => (a.bestPrice || Infinity) - (b.bestPrice || Infinity));
+        
+        if (availableCards.length === 0) {
+            this.marketListings.innerHTML = '<div class="text-center text-gray-400 py-4">No cards available matching your criteria</div>';
+            return;
+        }
+        
+        availableCards.forEach(card => this.createMarketListingElement(card));
+    }
+
+    createMarketListingElement(card) {
+        const element = document.createElement('div');
+        element.className = `market-listing-item bg-gray-800 rounded p-3 cursor-pointer hover:bg-gray-700 transition-colors border-l-4 rarity-${card.rarity}`;
+        element.onclick = () => this.selectCardForPurchase(card);
+        
+        const isOnWishlist = this.gameEngine.marketEngine.state.wishlist.some(item => 
+            item.setId === card.setId && item.cardName === card.cardName
+        );
+        
+        element.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                        <span class="font-medium">${card.cardName}</span>
+                        ${isOnWishlist ? '<span class="text-yellow-400">⭐</span>' : ''}
+                        <span class="text-xs px-2 py-1 rounded rarity-${card.rarity} bg-opacity-20">${card.rarity}</span>
+                    </div>
+                    <div class="text-sm text-gray-400">${window.getAllSets()[card.setId].name}</div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        ${card.regularListings} regular, ${card.foilListings} foil listings
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="font-bold text-green-400">$${card.bestPrice?.toFixed(2) || 'N/A'}</div>
+                    ${card.foilPrice ? `<div class="text-sm text-yellow-400">Foil: $${card.foilPrice.toFixed(2)}</div>` : ''}
+                </div>
+            </div>
+        `;
+        
+        this.marketListings.appendChild(element);
+    }
+
+    selectCardForPurchase(card) {
+        this.selectedCard = card;
+        this.renderCardDetailsPanel();
+    }
+
+    renderCardDetailsPanel() {
+        if (!this.cardDetailsPanel || !this.selectedCard) return;
+        
+        const { setId, cardName } = this.selectedCard;
+        const regularListings = this.gameEngine.marketEngine.getAvailableListings(setId, cardName, false);
+        const foilListings = this.gameEngine.marketEngine.getAvailableListings(setId, cardName, true);
+        const currentPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, false);
+        
+        this.cardDetailsPanel.innerHTML = `
+            <div class="space-y-4">
+                <div class="border-b border-gray-600 pb-4">
+                    <h4 class="text-lg font-bold">${cardName}</h4>
+                    <p class="text-sm text-gray-400">${window.getAllSets()[setId].name}</p>
+                    <p class="text-sm">Market Price: $${currentPrice.toFixed(2)}</p>
+                </div>
+                
+                ${this.renderListingSection('Regular', regularListings, false)}
+                ${foilListings.length > 0 ? this.renderListingSection('Foil', foilListings, true) : ''}
+                
+                <div class="flex gap-2 pt-4 border-t border-gray-600">
+                    <button onclick="uiManager.addToWishlistFromDetails('${setId}', '${cardName}', false)" 
+                            class="bg-yellow-600 hover:bg-yellow-700 px-3 py-2 rounded text-sm flex-1">
+                        ⭐ Add to Wishlist
+                    </button>
+                    <button onclick="uiManager.showPriceChart('${setId}', '${cardName}')" 
+                            class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded text-sm">
+                        📈 Price Chart
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    renderListingSection(title, listings, isFoil) {
+        if (listings.length === 0) return '';
+        
+        const listingItems = listings.slice(0, 5).map((listing, index) => `
+            <div class="flex justify-between items-center p-2 bg-gray-700 rounded">
+                <div>
+                    <span class="font-medium">$${listing.price.toFixed(2)}</span>
+                    <span class="text-sm text-gray-400 ml-2">${listing.quantity}x available</span>
+                    <div class="text-xs text-gray-500">Seller: ${listing.sellerId}</div>
+                </div>
+                <button onclick="uiManager.purchaseListing('${this.selectedCard.setId}', '${this.selectedCard.cardName}', ${isFoil}, ${index})" 
+                        class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm">
+                    Buy
+                </button>
+            </div>
+        `).join('');
+        
+        return `
+            <div>
+                <h5 class="font-semibold mb-2">${title} Listings (${listings.length})</h5>
+                <div class="space-y-2 max-h-32 overflow-y-auto">
+                    ${listingItems}
+                </div>
+                ${listings.length > 5 ? `<div class="text-xs text-gray-500 mt-1">+${listings.length - 5} more listings</div>` : ''}
+            </div>
+        `;
+    }
+
+    renderWishlist() {
+        if (!this.wishlistDisplay) return;
+        
+        const wishlist = this.gameEngine.marketEngine.getWishlist();
+        
+        if (wishlist.length === 0) {
+            this.wishlistDisplay.innerHTML = '<div class="text-center text-gray-400 py-4">Your wishlist is empty</div>';
+            return;
+        }
+        
+        this.wishlistDisplay.innerHTML = '';
+        
+        wishlist.forEach((item, index) => {
+            const element = document.createElement('div');
+            element.className = `wishlist-item flex justify-between items-center p-2 border rounded ${item.isAvailable ? 'border-green-600 bg-green-900/20' : 'border-gray-600'}`;
+            
+            const priceDisplay = item.bestPrice 
+                ? `$${item.bestPrice.toFixed(2)}` 
+                : 'Not available';
+            
+            const priceClass = item.bestPrice && item.maxPrice && item.bestPrice <= item.maxPrice 
+                ? 'text-green-400' 
+                : 'text-gray-400';
+            
+            element.innerHTML = `
+                <div class="flex-1">
+                    <div class="font-medium">${item.cardName} ${item.isFoil ? '★' : ''}</div>
+                    <div class="text-sm text-gray-400">
+                        ${window.getAllSets()[item.setId].name} • 
+                        Max: ${item.maxPrice ? `$${item.maxPrice.toFixed(2)}` : 'Any price'}
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="${priceClass}">${priceDisplay}</div>
+                    ${item.isAvailable ? '<div class="text-xs text-green-400">Available!</div>' : ''}
+                </div>
+                <button onclick="uiManager.removeFromWishlist('${item.setId}', '${item.cardName}', ${item.isFoil})" 
+                        class="ml-2 text-red-400 hover:text-red-300">×</button>
+            `;
+            
+            this.wishlistDisplay.appendChild(element);
+        });
+    }
+
+    renderMarketActivity() {
+        if (!this.marketActivityFeed) return;
+        
+        const activity = this.gameEngine.marketEngine.getRecentMarketActivity(20);
+        
+        this.marketActivityFeed.innerHTML = '';
+        
+        activity.forEach(event => {
+            const element = document.createElement('div');
+            element.className = 'activity-item flex justify-between items-center py-1';
+            
+            const timeAgo = this.formatTimeAgo(event.timestamp);
+            const actionIcon = event.type === 'buy' ? '🛒' : event.type === 'list' ? '📝' : '⏰';
+            const actionText = event.type === 'buy' ? 'bought' : event.type === 'list' ? 'listed' : 'expired';
+            
+            element.innerHTML = `
+                <span class="text-xs">
+                    ${actionIcon} Someone ${actionText} ${event.quantity}x ${event.cardName} 
+                    ${event.isFoil ? '★' : ''} for $${event.price.toFixed(2)}
+                </span>
+                <span class="text-xs text-gray-500">${timeAgo}</span>
+            `;
+            
+            this.marketActivityFeed.appendChild(element);
+        });
+    }
+
+    // User Actions
+    purchaseListing(setId, cardName, isFoil, listingIndex) {
+        const result = this.gameEngine.marketEngine.purchaseCard(setId, cardName, isFoil, listingIndex);
+        
+        if (result.success) {
+            // Handle the purchase in the game engine
+            this.gameEngine.state.wallet -= result.cost;
+            this.gameEngine.state.totalSpent += result.cost;
+            
+            // Add cards to collection
+            if (!this.gameEngine.state.collection[setId]) {
+                this.gameEngine.state.collection[setId] = {};
+            }
+            if (!this.gameEngine.state.collection[setId][cardName]) {
+                this.gameEngine.state.collection[setId][cardName] = { count: 0, foilCount: 0 };
+            }
+            
+            this.gameEngine.state.collection[setId][cardName].count += result.quantity;
+            if (result.isFoil) {
+                this.gameEngine.state.collection[setId][cardName].foilCount += result.quantity;
+            }
+            
+            this.gameEngine.updateNetWorth();
+            this.gameEngine.saveState();
+            
+            this.showNotification(result.message, 'success');
+            this.renderCardDetailsPanel(); // Refresh the panel
+            this.renderWishlist(); // Update wishlist in case this was a wishlist item
+            this.updatePlayerStats(); // Update wallet display
+            this.renderPortfolio(); // Update portfolio
+        } else {
+            this.showNotification(result.message, 'error');
+        }
+    }
+
+    addToWishlistFromDetails(setId, cardName, isFoil) {
+        // Show the wishlist modal with pre-filled information
+        this.showAddToWishlistModal(setId, cardName, isFoil);
+    }
+
+    removeFromWishlist(setId, cardName, isFoil) {
+        const result = this.gameEngine.marketEngine.removeFromWishlist(setId, cardName, isFoil);
+        this.showNotification(result.message, result.success ? 'success' : 'error');
+        
+        if (result.success) {
+            this.renderWishlist();
+            this.renderMarketListings(); // Refresh to update wishlist indicators
+        }
+    }
+
+    showAddToWishlistModal(presetSetId = null, presetCardName = null, presetIsFoil = false) {
+        if (!this.wishlistModal) return;
+        
+        // Populate set selector
+        const setSelect = document.getElementById('wishlist-set-select');
+        if (setSelect) {
+            // Clear existing options except the first
+            while (setSelect.children.length > 1) {
+                setSelect.removeChild(setSelect.lastChild);
+            }
+            
+            const allSets = window.getAllSets();
+            Object.keys(allSets).forEach(setId => {
+                const option = document.createElement('option');
+                option.value = setId;
+                option.textContent = allSets[setId].name;
+                setSelect.appendChild(option);
+            });
+            
+            // Pre-select set if provided
+            if (presetSetId) {
+                setSelect.value = presetSetId;
+            }
+        }
+        
+        // Pre-fill card name if provided
+        if (presetCardName && this.wishlistCardInput) {
+            this.wishlistCardInput.value = presetCardName;
+        }
+        
+        // Pre-set foil checkbox if needed
+        if (presetIsFoil) {
+            const foilCheckbox = document.getElementById('wishlist-foil-checkbox');
+            if (foilCheckbox) {
+                foilCheckbox.checked = presetIsFoil;
+            }
+        }
+        
+        // Show the modal
+        this.wishlistModal.classList.remove('hidden');
+        
+        // Focus appropriately
+        if (presetCardName) {
+            // Focus on price input since card is pre-filled
+            const priceInput = document.getElementById('wishlist-price-input');
+            if (priceInput) {
+                setTimeout(() => priceInput.focus(), 100);
+            }
+        } else {
+            // Focus on card input
+            if (this.wishlistCardInput) {
+                setTimeout(() => this.wishlistCardInput.focus(), 100);
+            }
+        }
+    }
+
+    formatTimeAgo(timestamp) {
+        const now = Date.now();
+        const diff = now - timestamp;
+        const seconds = Math.floor(diff / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        
+        if (hours > 0) return `${hours}h ago`;
+        if (minutes > 0) return `${minutes}m ago`;
+        return `${seconds}s ago`;
     }
 
     // Cleanup method to prevent memory leaks
