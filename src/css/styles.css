@@ -34,7 +34,7 @@
     --text-muted: #008800;
     --accent-primary: #00ff00;
     --accent-secondary: #00aa00;
-    --accent-tertiary: #00dd00;
+    --accent-tertiary: #088d08;
     --border-primary: #003300;
     --border-secondary: #006600;
     --success: #00ff00;
@@ -70,7 +70,7 @@
 /* Windows 95 Theme */
 [data-theme="windows95"] {
     --bg-primary: #c0c0c0;
-    --bg-secondary: #c0c0c0;
+    --bg-secondary: #b3aeae;
     --bg-tertiary: #e0e0e0;
     --bg-quaternary: #d0d0d0;
     --text-primary: #000000;
@@ -91,8 +91,8 @@
 
 /* Light Mode Theme */
 [data-theme="light"] {
-    --bg-primary: #ffffff;
-    --bg-secondary: #f8fafc;
+    --bg-primary: #f0fdff;
+    --bg-secondary: #e3f1ff;
     --bg-tertiary: #e2e8f0;
     --bg-quaternary: #cbd5e1;
     --text-primary: #0f172a;
