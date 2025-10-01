@@ -768,7 +768,7 @@ class UIManager {
                     </div>
                 </div>
                 <div class="text-right mx-3">
-                    <div class="font-medium">$${card.totalValue.toFixed(2)}</div>
+                    <div class="font-medium">$${card.individualPrice.toFixed(2)}</div>
                     <div class="text-xs ${trendColor}">
                         ${trendIcon} ${card.trend.change > 0 ? '+' : ''}${card.trend.change.toFixed(1)}%
                     </div>
