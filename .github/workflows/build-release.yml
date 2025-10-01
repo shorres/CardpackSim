@@ -38,6 +38,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+          # macOS code signing (optional - requires Apple Developer account)
+          # CSC_LINK: ${{ secrets.CSC_LINK }}
+          # CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_ID_PASS: ${{ secrets.APPLE_ID_PASS }}
           
       - name: Upload Windows artifacts
         if: matrix.os == 'windows-latest'
@@ -58,6 +63,21 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
+          retention-days: 7
+          
+      - name: Generate macOS checksums
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd dist
+          shasum -a 256 *.dmg > checksums-macos.txt
+          cat checksums-macos.txt
+          
+      - name: Upload macOS checksums
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-checksums
+          path: dist/checksums-macos.txt
           retention-days: 7
           
       - name: Upload Linux artifacts
