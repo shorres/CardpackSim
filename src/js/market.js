@@ -44,7 +44,7 @@ class MarketEngine {
             sentimentChangeRate: 0.001, // How fast sentiment changes
             
             // Update frequency
-            priceUpdateInterval: 30000, // 30 seconds (increased frequency)
+            priceUpdateInterval: 60000, // 1 minute (increased frequency)
             historyRetentionDays: 7, // Keep 7 days for charts
             chartDataPoints: 200, // Max data points for charts (increased)
             
@@ -537,24 +537,45 @@ class MarketEngine {
         }
         
         const currentPrice = this.getCardPrice(setId, cardName, false);
-        const startPrice = history[0].price;
+        
+        // Ensure the chart shows the most up-to-date current price as the last point
+        const chartHistory = [...history];
+        const lastEntry = chartHistory[chartHistory.length - 1];
+        
+        // If the last historical entry is older than 5 minutes, add current price as final point
+        const now = Date.now();
+        if (!lastEntry || (now - lastEntry.timestamp) > (5 * 60 * 1000)) {
+            chartHistory.push({
+                timestamp: now,
+                price: currentPrice,
+                volume: 0
+            });
+        } else {
+            // Update the last entry to show current price
+            chartHistory[chartHistory.length - 1] = {
+                ...lastEntry,
+                price: currentPrice
+            };
+        }
+        
+        const startPrice = chartHistory[0].price;
         const change24h = currentPrice - startPrice;
         const changePercent = startPrice > 0 ? (change24h / startPrice) * 100 : 0;
         
-        const prices = history.map(entry => entry.price);
-        const minPrice = Math.min(...prices);
-        const maxPrice = Math.max(...prices);
+        const prices = chartHistory.map(entry => entry.price);
+        const minPrice = Math.min(...prices, currentPrice);
+        const maxPrice = Math.max(...prices, currentPrice);
         
         return {
-            labels: history.map(entry => new Date(entry.timestamp)),
+            labels: chartHistory.map(entry => new Date(entry.timestamp)),
             data: prices,
-            timestamps: history.map(entry => entry.timestamp),
+            timestamps: chartHistory.map(entry => entry.timestamp),
             minPrice,
             maxPrice,
             currentPrice,
             change24h,
             changePercent,
-            dataPoints: history.length
+            dataPoints: chartHistory.length
         };
     }
 
