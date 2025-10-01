@@ -1,6 +1,6 @@
 {
   "name": "tcg-pack-simulator",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A Trading Card Game Pack Opening Simulator built with Electron",
   "main": "main.js",
   "scripts": {
@@ -46,13 +46,12 @@
     ],
     "win": {
       "target": [
-        {
-          "target": "nsis"
-        },
+
         {
           "target": "portable"
         }
-      ]
+      ],
+      "artifactName": "${productName}.${ext}"
     },
     "mac": {
       "target": [
@@ -62,10 +61,12 @@
         {
           "target": "zip"
         }
-      ]
+      ],
+      "artifactName": "${productName}.${ext}"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "artifactName": "${productName}.${ext}"
     },
     "nsis": {
       "oneClick": false,
