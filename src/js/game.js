@@ -6,10 +6,10 @@ class GameEngine {
             collection: {},
             selectedSet: Object.keys(window.TCG_SETS)[0],
             // Economic state
-            wallet: 50.00, // Starting money
+            wallet: 20.00, // Starting money
             totalEarnings: 0,
             totalSpent: 0,
-            netWorth: 50.00,
+            netWorth: 20.00,
             achievements: [],
             currentTitle: "Rookie Trader",
             unlockedBanners: [],
@@ -17,7 +17,7 @@ class GameEngine {
             // Profile tracking
             salesCount: 0,
             highestSale: 0,
-            netWorthHistory: [{ timestamp: Date.now(), value: 50.00 }],
+            netWorthHistory: [{ timestamp: Date.now(), value: 20.00 }],
             selectedPortrait: "👤"
         };
         this.storageManager = new StorageManager();
@@ -50,10 +50,10 @@ class GameEngine {
             
             // Initialize economy fields for existing saves
             if (typeof this.state.wallet === 'undefined') {
-                this.state.wallet = 50.00;
+                this.state.wallet = 20.00;
                 this.state.totalEarnings = 0;
                 this.state.totalSpent = 0;
-                this.state.netWorth = 50.00;
+                this.state.netWorth = 20.00;
                 this.state.achievements = [];
                 this.state.currentTitle = "Rookie Trader";
                 this.state.unlockedBanners = [];
@@ -406,7 +406,7 @@ class GameEngine {
         // Start from 3 days ago
         for (let i = 72; i >= 0; i -= 6) { // Every 6 hours for 3 days
             const timestamp = now - (i * 60 * 60 * 1000); // i hours ago
-            const baseValue = 50 + (72 - i) * 2; // Gradual increase
+            const baseValue = 20 + (72 - i) * 2; // Gradual increase
             const variance = (Math.random() - 0.5) * 20; // Random variance
             const value = Math.max(10, baseValue + variance); // Ensure minimum value
             
@@ -447,10 +447,10 @@ class GameEngine {
             unopenedPacks: {},
             collection: {},
             selectedSet: Object.keys(window.getAllSets())[0],
-            wallet: 50.00,
+            wallet: 20.00,
             totalEarnings: 0,
             totalSpent: 0,
-            netWorth: 50.00,
+            netWorth: 20.00,
             achievements: [],
             currentTitle: "Rookie Trader",
             unlockedBanners: [],
