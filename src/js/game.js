@@ -333,6 +333,7 @@ class GameEngine {
                         regularPrice,
                         foilPrice,
                         totalValue: Math.round(cardTotalValue * 100) / 100,
+                        individualPrice: regularPrice, // Show individual card price instead of total
                         rarity: this.getCardRarity(setId, cardName),
                         trend: this.marketEngine.getCardTrend(setId, cardName)
                     });
