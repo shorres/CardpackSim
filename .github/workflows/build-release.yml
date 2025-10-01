@@ -8,6 +8,10 @@ on:
     types: [published]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -30,9 +34,10 @@ jobs:
         run: npm ci
         
       - name: Build application
-        run: npm run build
+        run: npm run build -- --publish=never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
           
       - name: Upload Windows artifacts
         if: matrix.os == 'windows-latest'

@@ -33,6 +33,7 @@
   "build": {
     "appId": "com.cardpacksim.tcgpacksimulator",
     "productName": "TCG Pack Simulator",
+    "publish": null,
     "directories": {
       "output": "dist"
     },
