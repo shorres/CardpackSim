@@ -196,7 +196,7 @@ class WeeklySetGenerator {
             totalCards: Object.values(cardCounts).reduce((a, b) => a + b, 0),
             packSize: 12,
             boosterBoxSize: 26, // Slightly smaller for weekly sets
-            packComposition: { common: 7, uncommon: 4, rare: 2 },
+            packComposition: { common: 7, uncommon: 3, rare: 2 },
             mythicChance: 1 / 6, // Better mythic rate for weekly sets
             foilChance: 1 / 4, // Better foil rate for weekly sets
             isWeekly: true,
