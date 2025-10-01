@@ -185,6 +185,11 @@ body {
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Title */
+.title{
+    color:var(--accent-primary)
+}
+
 /* Tab Navigation Styles */
 .tab-btn {
     transition: all 0.3s ease;
