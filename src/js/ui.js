@@ -920,7 +920,7 @@ class UIManager {
             const cardElement = document.createElement('div');
             cardElement.className = 'hot-card-item flex justify-between items-center p-2 rounded mb-2 transition-colors';
             
-            const eventBadge = card.event ? `<span class="bg-orange-500 text-xs px-1 rounded mr-1">${card.event}</span>` : '';
+            const eventBadge = card.event ? `<span class="hot-card-event text-xs px-1 rounded mr-1">Event: ${card.event}</span>` : '';
             
             cardElement.innerHTML = `
                 <div class="flex-1 cursor-pointer" data-set-id="${card.setId}" data-card-name="${card.cardName}">
