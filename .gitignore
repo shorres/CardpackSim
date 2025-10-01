@@ -6,6 +6,7 @@ context/
 
 # Misc
 test-weekly*
+suggest*
 
 # Build files
 dist/
