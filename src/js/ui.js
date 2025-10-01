@@ -758,9 +758,14 @@ class UIManager {
             const trendColor = card.trend.trend === 'rising' ? 'text-green-400' : 
                               card.trend.trend === 'falling' ? 'text-red-400' : 'text-gray-400';
             
+            // Get set info to show week number for weekly sets
+            const allSets = window.getAllSets();
+            const setData = allSets[card.setId];
+            const weekDisplay = setData && setData.isWeekly && setData.weekNumber ? ` (#${setData.weekNumber})` : '';
+            
             cardElement.innerHTML = `
                 <div class="flex-1 cursor-pointer chart-card-trigger" data-set-id="${card.setId}" data-card-name="${card.cardName}">
-                    <div class="font-medium text-sm">${card.cardName}</div>
+                    <div class="font-medium text-sm">${card.cardName}${weekDisplay}</div>
                     <div class="text-xs text-gray-400">
                         ${card.regularCount > 0 ? `${card.regularCount}x regular ` : ''}
                         ${card.foilCount > 0 ? `${card.foilCount}x foil ` : ''}
