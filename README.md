@@ -1,6 +1,6 @@
 # TCG Pack Simulator
 
-An immersive Trading Card Game pack opening simulator with dynamic market economics. Experience the thrill of opening packs while managing your collection as a trading portfolio.
+A TCG pack opening simulator with a dynamic market simulation. Experience the seratonin hit of opening packs while managing your collection as a trading portfolio. All without spending a cent.
 
 ## Screenshots
 
@@ -17,15 +17,13 @@ An immersive Trading Card Game pack opening simulator with dynamic market econom
 
 ## What It Does
 
-**CardpackSim** simulates the complete TCG experience from pack opening to market trading:
+**CardpackSim** simulates half of the TCG experience from pack opening to market trading:
 
-- 💰 **Dynamic Market System** - Buy packs with virtual currency and sell cards at fluctuating market prices  
-- 📈 **Economic Strategy** - Manage your wallet, track card values, and maximize profits from your collection
-- 🗓️ **Weekly Sets** - Limited-time premium sets with higher value cards and market demand
-- 📊 **Collection Tracking** - Monitor your inventory, collection progress, and portfolio value
-- 🏆 **Achievement System** - Earn rewards and unlock new content as you play
-
-Perfect for TCG enthusiasts who want to experience the excitement of pack opening and collection building without the real-world cost.
+- 💰 **Dynamic Market System** - Buy packs with fake money and sell cards at fluctuating market prices  
+- 📈 **Economic Strategy** - Min/Max to make sure you get your money's worth out of that box
+- 🗓️ **Weekly Sets** - New sets are generated each week to keep things kind of fresh
+- 📊 **Collection Tracking** - Admire your fake digital cardboard
+- 🏆 **Achievement System** - Earn titles
 
 ## Quick Start
 
