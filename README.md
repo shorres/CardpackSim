@@ -2,6 +2,19 @@
 
 An immersive Trading Card Game pack opening simulator with dynamic market economics. Experience the thrill of opening packs while managing your collection as a trading portfolio.
 
+## Screenshots
+
+<!-- Replace these placeholder paths with actual screenshots/GIFs -->
+<div align="center">
+  <img src="./assets/screenshots/pack-opening.gif" width="30%" alt="Pack Opening Animation" />
+  <img src="./assets/screenshots/collection-view.png" width="30%" alt="Collection View" />
+  <img src="./assets/screenshots/market-dashboard.gif" width="30%" alt="Market Dashboard" />
+</div>
+
+<div align="center">
+  <em>Interactive pack opening • Collection tracking • Dynamic market system</em>
+</div>
+
 ## What It Does
 
 **CardpackSim** simulates the complete TCG experience from pack opening to market trading:
