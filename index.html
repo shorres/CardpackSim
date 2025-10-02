@@ -486,16 +486,22 @@
     <!-- Buy Card Confirmation Modal -->
     <div id="buy-card-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="rounded-lg p-6 w-96 max-w-full mx-4" style="background-color: var(--bg-secondary); color: var(--text-primary);">
-            <h3 class="text-xl font-bold mb-4">Confirm Purchase</h3>
+            <h3 class="text-xl font-bold mb-4">Buy Card</h3>
             <div id="buy-card-info" class="mb-4">
                 <!-- Card info will be populated here -->
             </div>
-            <div id="buy-listing-info" class="mb-4 p-3 rounded text-sm" style="background-color: var(--bg-tertiary);">
-                <!-- Listing details will be shown here -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">Purchase Details</label>
+                <div id="buy-quantity-display" class="text-sm rounded-lg w-full p-2.5" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
+                    <!-- Quantity info will be populated here -->
+                </div>
+            </div>
+            <div id="buy-preview" class="mb-4 p-3 rounded text-sm" style="background-color: var(--bg-tertiary);">
+                <!-- Purchase preview will be shown here -->
             </div>
             <div class="flex gap-2">
                 <button id="confirm-buy-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--success); color: var(--text-primary);">
-                    Buy Now
+                    Buy
                 </button>
                 <button id="cancel-buy-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--bg-quaternary); color: var(--text-primary);">
                     Cancel

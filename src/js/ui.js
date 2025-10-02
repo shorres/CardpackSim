@@ -87,7 +87,8 @@ class UIManager {
         // Buy modal elements
         this.buyCardModal = document.getElementById('buy-card-modal');
         this.buyCardInfo = document.getElementById('buy-card-info');
-        this.buyListingInfo = document.getElementById('buy-listing-info');
+        this.buyQuantityDisplay = document.getElementById('buy-quantity-display');
+        this.buyPreview = document.getElementById('buy-preview');
         this.confirmBuyBtn = document.getElementById('confirm-buy-btn');
         this.cancelBuyBtn = document.getElementById('cancel-buy-btn');
         
@@ -1556,6 +1557,8 @@ class UIManager {
         const listing = listings[listingIndex];
         const rarity = this.gameEngine.getCardRarity(setId, cardName);
         const trend = this.gameEngine.marketEngine.getCardTrend(setId, cardName);
+        const regularPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, false);
+        const foilPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, true);
         
         // Store purchase details for confirmation
         this.pendingPurchase = { setId, cardName, isFoil, listingIndex, listing };
@@ -1564,14 +1567,38 @@ class UIManager {
         const currentWallet = this.gameEngine.state.wallet;
         const canAfford = currentWallet >= listing.price;
         
+        // Match the sell modal's card info structure
         this.buyCardInfo.innerHTML = `
             <div class="mb-3">
-                <h4 class="font-bold text-lg">${cardName} ${isFoil ? '★' : ''}</h4>
+                <h4 class="font-bold text-lg">${cardName}</h4>
                 <p class="text-sm text-gray-400 capitalize">${rarity} | ${trend.trend} ${trend.change > 0 ? '+' : ''}${trend.change.toFixed(1)}%</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <div class="text-gray-400">Regular Price</div>
+                    <div>$${regularPrice.toFixed(2)} each</div>
+                </div>
+                <div>
+                    <div class="text-gray-400">Foil Price</div>
+                    <div>$${foilPrice.toFixed(2)} each</div>
+                </div>
             </div>
         `;
         
-        this.buyListingInfo.innerHTML = `
+        // Show purchase details (similar to sell quantity input)
+        this.buyQuantityDisplay.innerHTML = `
+            <div class="flex justify-between items-center">
+                <span>Purchasing:</span>
+                <span class="font-medium">1x ${isFoil ? 'Foil ' : ''}${cardName}</span>
+            </div>
+            <div class="flex justify-between items-center mt-1 text-xs text-gray-400">
+                <span>From seller:</span>
+                <span>${listing.sellerId}</span>
+            </div>
+        `;
+        
+        // Match the sell modal's preview structure
+        this.buyPreview.innerHTML = `
             <div class="space-y-2">
                 <div class="flex justify-between">
                     <span class="text-gray-400">Price per card:</span>
@@ -1579,30 +1606,30 @@ class UIManager {
                 </div>
                 <div class="flex justify-between">
                     <span class="text-gray-400">Quantity:</span>
-                    <span>1 card</span>
+                    <span>1</span>
                 </div>
                 <div class="flex justify-between">
-                    <span class="text-gray-400">Seller:</span>
-                    <span class="text-xs">${listing.sellerId}</span>
+                    <span class="text-gray-400">Available in stock:</span>
+                    <span>${listing.quantity}x</span>
                 </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-400">Available:</span>
-                    <span>${listing.quantity}x in stock</span>
-                </div>
-                <hr style="border-color: var(--border-primary);">
-                <div class="flex justify-between text-lg font-bold">
+                <hr style="border-color: var(--border-primary); margin: 8px 0;">
+                <div class="flex justify-between font-bold">
                     <span>Total Cost:</span>
-                    <span ${!canAfford ? 'class="text-red-400"' : ''}>$${listing.price.toFixed(2)}</span>
+                    <span class="${!canAfford ? 'text-red-400' : 'text-green-400'}">$${listing.price.toFixed(2)}</span>
                 </div>
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-400">Your wallet:</span>
-                    <span ${!canAfford ? 'class="text-red-400"' : ''}>$${currentWallet.toFixed(2)}</span>
+                    <span class="${!canAfford ? 'text-red-400' : ''}">$${currentWallet.toFixed(2)}</span>
                 </div>
-                ${!canAfford ? '<div class="text-red-400 text-sm mt-2">⚠️ Insufficient funds</div>' : ''}
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-400">After purchase:</span>
+                    <span class="${!canAfford ? 'text-red-400' : ''}">$${(currentWallet - listing.price).toFixed(2)}</span>
+                </div>
+                ${!canAfford ? '<div class="text-red-400 text-sm mt-2 text-center">⚠️ Insufficient funds</div>' : ''}
             </div>
         `;
         
-        // Disable buy button if can't afford
+        // Disable buy button if can't afford (same as sell modal behavior)
         this.confirmBuyBtn.disabled = !canAfford;
         this.confirmBuyBtn.style.opacity = canAfford ? '1' : '0.5';
         this.confirmBuyBtn.style.cursor = canAfford ? 'pointer' : 'not-allowed';
