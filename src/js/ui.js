@@ -1242,10 +1242,23 @@ class UIManager {
 
     filterPortfolioCards(cards) {
         return cards.filter(card => {
-            // Search filter
-            if (this.portfolioFilters.search && 
-                !card.cardName.toLowerCase().includes(this.portfolioFilters.search)) {
-                return false;
+            // Search filter - enhanced to search in multiple fields
+            if (this.portfolioFilters.search) {
+                const searchTerm = this.portfolioFilters.search.toLowerCase();
+                const cardName = card.cardName.toLowerCase();
+                const rarity = card.rarity.toLowerCase();
+                
+                // Get set name for searching
+                const allSets = window.getAllSets();
+                const setData = allSets[card.setId];
+                const setName = setData ? setData.name.toLowerCase() : '';
+                
+                // Search in card name, rarity, and set name
+                const searchText = `${cardName} ${rarity} ${setName}`;
+                
+                if (!searchText.includes(searchTerm)) {
+                    return false;
+                }
             }
             
             // Rarity filter
@@ -2310,9 +2323,12 @@ class UIManager {
                 this.gameEngine.state.collection[setId][cardName] = { count: 0, foilCount: 0 };
             }
             
-            this.gameEngine.state.collection[setId][cardName].count += result.quantity;
+            // Fix: Only add to total count if it's a regular card
+            // Foil cards only increment foilCount, not total count
             if (result.isFoil) {
                 this.gameEngine.state.collection[setId][cardName].foilCount += result.quantity;
+            } else {
+                this.gameEngine.state.collection[setId][cardName].count += result.quantity;
             }
             
             this.gameEngine.updateNetWorth();
