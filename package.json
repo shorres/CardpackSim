@@ -1,6 +1,6 @@
 {
   "name": "tcg-pack-simulator",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A Trading Card Game Pack Opening Simulator built with Electron",
   "main": "main.js",
   "scripts": {
@@ -32,7 +32,7 @@
   },
   "build": {
     "appId": "com.cardpacksim.tcgpacksimulator",
-    "productName": "TCG Pack Simulator",
+    "productName": "TCG_Pack_Simulator",
     "publish": null,
     "directories": {
       "output": "dist"
