@@ -8,7 +8,13 @@ class MarketEngine {
             supplyData: {},
             demandEvents: [],
             lastPriceUpdate: Date.now(),
-            totalMarketValue: 0
+            totalMarketValue: 0,
+            
+            // Trading Market Extensions
+            wishlist: [], // [{ setId, cardName, maxPrice, isFoil, priority, addedAt }]
+            marketListings: {}, // { setId: { cardName: [{ price, quantity, isFoil, sellerId, listedAt, duration }] } }
+            marketActivity: [], // Recent trading activity
+            aiTraders: [] // AI trader instances
         };
         
         this.config = {
@@ -48,6 +54,20 @@ class MarketEngine {
             historyRetentionDays: 7, // Keep 7 days for charts
             chartDataPoints: 200, // Max data points for charts (increased)
             
+            // Trading Market Settings
+            maxListingsPerCard: 5, // Maximum concurrent listings for same card
+            listingFee: 0.03, // 3% fee affects AI trader pricing
+            priceVariance: 0.15, // ±15% variance from market price
+            wishlistNotificationThreshold: 1.10, // Notify if price within 110% of wishlist max
+            
+            // AI trader behaviors
+            traderTypes: [
+                { type: 'casual', listingChance: 0.3, priceMultiplier: 0.9, holdTime: 2 },
+                { type: 'flipper', listingChance: 0.6, priceMultiplier: 1.2, holdTime: 0.5 },
+                { type: 'collector', listingChance: 0.1, priceMultiplier: 1.5, holdTime: 7 },
+                { type: 'whale', listingChance: 0.05, priceMultiplier: 2.0, holdTime: 14 }
+            ],
+            
             // Price recording intervals (in minutes)
             recordingIntervals: {
                 shortTerm: 30,  // 30 minutes for 24h charts (48 points)
@@ -73,6 +93,9 @@ class MarketEngine {
         Object.keys(allSets).forEach(setId => {
             this.initializeSetPrices(setId, allSets[setId]);
         });
+        
+        // Initialize trading market
+        this.initializeMarketListings();
         
         // Start price update cycle
         this.startPriceUpdates();
@@ -108,15 +131,29 @@ class MarketEngine {
         }
         
         // Initialize prices for each rarity
+        if (!setData.cards) {
+            console.warn(`Set ${setId} has no cards structure, skipping price initialization`);
+            return;
+        }
+        
+        let totalInitialized = 0;
+        
         Object.keys(setData.cards).forEach(rarity => {
-            setData.cards[rarity].forEach(cardName => {
+            const cardsInRarity = setData.cards[rarity];
+            if (!Array.isArray(cardsInRarity)) {
+                console.warn(`Set ${setId} rarity ${rarity} is not an array during price initialization, skipping`);
+                return;
+            }
+            
+            cardsInRarity.forEach(cardName => {
                 if (!this.state.cardPrices[setId][cardName]) {
-                    const basePrice = this.generateBasePrice(rarity, setMultiplier);
+                    // Generate deterministic baseline price (will be same every time)
+                    const basePrice = this.generateBasePrice(rarity, setMultiplier, setId, cardName);
                     
                     this.state.cardPrices[setId][cardName] = {
                         currentPrice: basePrice,
-                        basePrice: basePrice,
-                        foilPrice: basePrice * this.generateFoilMultiplier(),
+                        basePrice: basePrice, // Store the stable baseline price
+                        foilPrice: basePrice * this.generateFoilMultiplier(setId, cardName),
                         lastChange: 0,
                         trend: 'stable' // 'rising', 'falling', 'stable'
                     };
@@ -128,14 +165,31 @@ class MarketEngine {
                         marketSupply: 0,
                         demandMultiplier: 1.0
                     };
+                    
+                    totalInitialized++;
+                } else {
+                    // Card already has pricing data - preserve existing baseline but ensure current price is valid
+                    const cardData = this.state.cardPrices[setId][cardName];
+                    if (!cardData.basePrice) {
+                        // Migration: Set baseline price for existing cards
+                        cardData.basePrice = this.generateBasePrice(rarity, setMultiplier, setId, cardName);
+                    }
                 }
             });
         });
+        
+        if (totalInitialized > 0) {
+            console.log(`Initialized ${totalInitialized} new cards for set ${setId}`);
+        }
     }
 
-    generateBasePrice(rarity, setMultiplier) {
+    generateBasePrice(rarity, setMultiplier, setId = '', cardName = '') {
         const range = this.config.basePriceRanges[rarity];
-        const randomFactor = Math.random();
+        
+        // Generate deterministic baseline price using card/set hash
+        // This ensures the same card always has the same baseline price
+        const seed = this.hashString(setId + cardName + rarity);
+        const randomFactor = this.seededRandom(seed);
         
         // Use power distribution to make lower prices more common
         const adjustedRandom = Math.pow(randomFactor, 1.5);
@@ -144,10 +198,35 @@ class MarketEngine {
         return Math.round(basePrice * setMultiplier * 100) / 100;
     }
 
-    generateFoilMultiplier() {
+    // Generate consistent hash from string (for deterministic pricing)
+    hashString(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return Math.abs(hash);
+    }
+
+    // Seeded random number generator (0-1) for consistent pricing
+    seededRandom(seed) {
+        const a = 1664525;
+        const c = 1013904223;
+        const m = Math.pow(2, 32);
+        seed = (a * seed + c) % m;
+        return seed / m;
+    }
+
+    generateFoilMultiplier(setId = '', cardName = '') {
         const min = this.config.foilMultiplier.min;
         const max = this.config.foilMultiplier.max;
-        return min + Math.random() * (max - min);
+        
+        // Generate deterministic foil multiplier
+        const seed = this.hashString(setId + cardName + 'foil');
+        const randomFactor = this.seededRandom(seed);
+        
+        return min + randomFactor * (max - min);
     }
 
     generateInitialPriceHistory(basePrice) {
@@ -195,6 +274,7 @@ class MarketEngine {
         this.processSupplyChanges();
         this.updateDemandEvents();
         this.applyPriceChanges();
+        this.updateMarketListings(); // Add trading market updates
         this.cleanupOldData();
         
         this.state.lastPriceUpdate = Date.now();
@@ -438,8 +518,29 @@ class MarketEngine {
     }
 
     getCardPrice(setId, cardName, isFoil = false) {
+        // Ensure pricing data exists - initialize if missing
+        if (!this.state.cardPrices[setId]) {
+            const allSets = window.getAllSets();
+            if (allSets[setId]) {
+                this.initializeSetPrices(setId, allSets[setId]);
+            }
+        }
+        
         if (!this.state.cardPrices[setId] || !this.state.cardPrices[setId][cardName]) {
-            return 0;
+            const allSets = window.getAllSets();
+            if (allSets[setId]) {
+                // Force re-initialization of this specific set
+                this.initializeSetPrices(setId, allSets[setId]);
+                
+                // Check again after re-initialization
+                if (!this.state.cardPrices[setId] || !this.state.cardPrices[setId][cardName]) {
+                    console.warn(`No price data found for ${setId}:${cardName} after re-initialization`);
+                    return 0;
+                }
+            } else {
+                console.warn(`Set ${setId} not found`);
+                return 0;
+            }
         }
         
         const cardData = this.state.cardPrices[setId][cardName];
@@ -644,7 +745,530 @@ class MarketEngine {
 
     setState(newState) {
         this.state = { ...newState };
-        this.startPriceUpdates();
+        
+        // Restart market systems if they were running
+        if (this.priceUpdateTimer) {
+            this.startPriceUpdates();
+        }
+    }
+    
+    // =============================================================================
+    // TRADING MARKET EXTENSIONS
+    // =============================================================================
+    
+    // Wishlist Management
+    addToWishlist(setId, cardName, maxPrice = null, isFoil = false, priority = 'medium') {
+        const existing = this.state.wishlist.find(item => 
+            item.setId === setId && item.cardName === cardName && item.isFoil === isFoil
+        );
+        
+        if (existing) {
+            existing.maxPrice = maxPrice;
+            existing.priority = priority;
+            return { success: true, message: 'Wishlist item updated' };
+        }
+        
+        this.state.wishlist.push({
+            setId,
+            cardName,
+            maxPrice,
+            isFoil,
+            priority,
+            addedAt: Date.now()
+        });
+        
+        this.checkWishlistAvailability(setId, cardName, isFoil);
+        return { success: true, message: 'Added to wishlist' };
+    }
+    
+    removeFromWishlist(setId, cardName, isFoil = false) {
+        this.ensureMarketState();
+        
+        const index = this.state.wishlist.findIndex(item => 
+            item.setId === setId && item.cardName === cardName && item.isFoil === isFoil
+        );
+        
+        if (index !== -1) {
+            this.state.wishlist.splice(index, 1);
+            return { success: true, message: 'Removed from wishlist' };
+        }
+        
+        return { success: false, message: 'Item not found in wishlist' };
+    }
+    
+    getWishlist() {
+        // Ensure complete market state exists
+        this.ensureMarketState();
+        
+        return this.state.wishlist.map(item => ({
+            ...item,
+            currentPrice: this.getCardPrice(item.setId, item.cardName, item.isFoil),
+            isAvailable: this.isCardAvailableForPurchase(item.setId, item.cardName, item.isFoil),
+            bestPrice: this.getBestListingPrice(item.setId, item.cardName, item.isFoil)
+        }));
+    }
+    
+    // Market Listings Management
+    initializeMarketListings() {
+        const allSets = window.getAllSets();
+        
+        Object.keys(allSets).forEach(setId => {
+            // Always ensure the set has a market listings structure
+            if (!this.state.marketListings[setId]) {
+                this.state.marketListings[setId] = {};
+            }
+            
+            const setData = allSets[setId];
+            if (!setData || !setData.cards) {
+                console.warn(`Set ${setId} has invalid structure during market initialization, skipping card generation`);
+                return; // Skip generating listings for this set, but structure is still created above
+            }
+            
+            Object.keys(setData.cards).forEach(rarity => {
+                const cardsInRarity = setData.cards[rarity];
+                if (!Array.isArray(cardsInRarity)) {
+                    console.warn(`Set ${setId} rarity ${rarity} is not an array during market initialization, skipping`);
+                    return;
+                }
+                
+                cardsInRarity.forEach(cardName => {
+                    this.generateListingsForCard(setId, cardName, rarity);
+                });
+            });
+        });
+    }
+    
+    generateListingsForCard(setId, cardName, rarity) {
+        // Ensure structure exists
+        this.ensureMarketStructure(setId, cardName);
+        
+        const currentListings = this.state.marketListings[setId][cardName];
+        const maxListings = this.config.maxListingsPerCard;
+        
+        // Remove expired listings
+        const now = Date.now();
+        this.state.marketListings[setId][cardName] = currentListings.filter(listing => 
+            (now - listing.listedAt) < listing.duration
+        );
+        
+        // Generate new listings if below max
+        const remainingSlots = maxListings - this.state.marketListings[setId][cardName].length;
+        
+        for (let i = 0; i < remainingSlots; i++) {
+            const probability = this.getListingProbability(rarity);
+            if (Math.random() < probability) {
+                this.createListing(setId, cardName, rarity);
+            }
+        }
+    }
+    
+    createListing(setId, cardName, rarity) {
+        // Enhanced AI trader behavior for more realistic pricing
+        const basePrice = this.getCardPrice(setId, cardName, false);
+        const trader = this.getRandomTrader();
+        const isFoil = Math.random() < 0.15; // 15% chance for foil listings
+        
+        // Calculate listing price with enhanced variance
+        const marketPrice = isFoil ? basePrice * 3 : basePrice;
+        
+        // More realistic price variance based on market conditions
+        const marketSentiment = this.state.marketSentiment || 1.0;
+        const baseVariance = (Math.random() - 0.5) * this.config.priceVariance * 2;
+        
+        // Add competitive pricing - some traders undercut, others premium price
+        const competitiveVariance = this.getCompetitivePricing(setId, cardName, trader.type);
+        
+        // Trader-specific pricing psychology
+        const traderPsychology = this.getTraderPricingPsychology(trader.type);
+        
+        const totalVariance = baseVariance + competitiveVariance + traderPsychology;
+        const listingPrice = Math.max(0.01, marketPrice * trader.priceMultiplier * marketSentiment * (1 + totalVariance));
+        
+        const listing = {
+            price: Math.round(listingPrice * 100) / 100,
+            quantity: this.getListingQuantity(rarity, trader.type),
+            isFoil,
+            sellerId: this.generateSellerId(trader.type),
+            sellerType: trader.type,
+            listedAt: Date.now(),
+            duration: trader.holdTime * 24 * 60 * 60 * 1000, // Convert days to ms
+            views: 0
+        };
+        
+        this.state.marketListings[setId][cardName].push(listing);
+        this.recordMarketActivity('list', setId, cardName, listing.price, listing.quantity, listing.isFoil);
+    }
+
+    // Enhanced pricing helper methods for more realistic AI trader behavior
+    getCompetitivePricing(setId, cardName, traderType) {
+        // Check existing listings to apply competitive pricing
+        const existingListings = this.getAvailableListings(setId, cardName);
+        if (!existingListings || existingListings.length === 0) {
+            return 0; // No competition, use base variance
+        }
+
+        const prices = existingListings.map(l => l.price);
+        const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+        const lowestPrice = Math.min(...prices);
+
+        // Different trader types have different competitive strategies
+        switch(traderType) {
+            case 'bargain_hunter':
+                // Always tries to undercut by 5-15%
+                return -0.05 - (Math.random() * 0.1);
+            case 'whale':
+                // Premium pricing, doesn't care about competition
+                return 0.1 + (Math.random() * 0.2);
+            case 'flipper':
+                // Opportunistic - either undercuts heavily or prices high
+                return Math.random() < 0.6 ? -0.1 - (Math.random() * 0.1) : 0.15 + (Math.random() * 0.15);
+            case 'casual':
+                // Just wants to sell, often underprices
+                return -0.02 - (Math.random() * 0.08);
+            default:
+                // Standard competitive behavior - slight undercut to compete
+                return -0.01 - (Math.random() * 0.05);
+        }
+    }
+
+    getTraderPricingPsychology(traderType) {
+        // Add psychological pricing patterns based on trader personality
+        switch(traderType) {
+            case 'whale':
+                // Confident premium pricing
+                return 0.05 + (Math.random() * 0.1);
+            case 'bargain_hunter':
+                // Always looking for deals, prices aggressively
+                return -0.08 - (Math.random() * 0.07);
+            case 'flipper':
+                // Volatile pricing based on market timing
+                return (Math.random() - 0.5) * 0.3;
+            case 'casual':
+                // Inconsistent pricing, often undervalues
+                return -0.05 + (Math.random() * 0.1);
+            default:
+                // Standard market participant
+                return (Math.random() - 0.5) * 0.1;
+        }
+    }
+    
+    getListingQuantity(rarity, traderType) {
+        const baseQuantities = {
+            common: { min: 4, max: 20 },
+            uncommon: { min: 2, max: 8 },
+            rare: { min: 1, max: 4 },
+            mythic: { min: 1, max: 2 }
+        };
+        
+        const range = baseQuantities[rarity] || baseQuantities.rare;
+        let quantity = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+        
+        // Adjust based on trader type
+        if (traderType === 'whale') quantity = Math.max(1, Math.floor(quantity * 0.5));
+        if (traderType === 'casual') quantity = Math.ceil(quantity * 1.5);
+        
+        return quantity;
+    }
+    
+    getRandomTrader() {
+        const weights = this.config.traderTypes.map(t => t.listingChance);
+        const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+        let random = Math.random() * totalWeight;
+        
+        for (let i = 0; i < this.config.traderTypes.length; i++) {
+            random -= weights[i];
+            if (random <= 0) {
+                return this.config.traderTypes[i];
+            }
+        }
+        
+        return this.config.traderTypes[0]; // Fallback
+    }
+    
+    generateSellerId(traderType) {
+        const prefixes = {
+            casual: ['Player', 'Trader', 'Gamer'],
+            flipper: ['QuickFlip', 'FastTrade', 'Market'],
+            collector: ['Collector', 'Vintage', 'Archive'],
+            whale: ['BigSpender', 'HighRoller', 'Premium']
+        };
+        
+        const prefix = prefixes[traderType][Math.floor(Math.random() * prefixes[traderType].length)];
+        const number = Math.floor(Math.random() * 9999) + 1;
+        return `${prefix}${number}`;
+    }
+    
+    getListingProbability(rarity) {
+        const probabilities = {
+            common: 0.8,
+            uncommon: 0.6,
+            rare: 0.3,
+            mythic: 0.1
+        };
+        return probabilities[rarity] || 0.3;
+    }
+    
+    // Purchase System
+    purchaseCard(setId, cardName, isFoil, listingIndex, quantityToBuy = 1) {
+        const listings = this.getAvailableListings(setId, cardName, isFoil);
+        
+        if (!listings || listingIndex >= listings.length) {
+            return { success: false, message: 'Listing not available' };
+        }
+        
+        const listing = listings[listingIndex];
+        const actualQuantity = Math.min(quantityToBuy, listing.quantity);
+        const cost = listing.price * actualQuantity;
+        
+        // Check if player has enough funds
+        if (window.gameEngine && window.gameEngine.state.wallet < cost) {
+            return { success: false, message: 'Insufficient funds' };
+        }
+        
+        // Update listing quantity or remove if depleted
+        const originalListings = this.state.marketListings[setId][cardName];
+        const actualIndex = originalListings.indexOf(listing);
+        if (actualIndex !== -1) {
+            if (listing.quantity <= actualQuantity) {
+                // Remove entire listing if we bought it all
+                originalListings.splice(actualIndex, 1);
+            } else {
+                // Reduce quantity
+                listing.quantity -= actualQuantity;
+            }
+        }
+        
+        // Record activity
+        this.recordMarketActivity('buy', setId, cardName, listing.price, actualQuantity, isFoil);
+        
+        // Check if this satisfies any wishlist items
+        this.checkWishlistFulfillment(setId, cardName, isFoil);
+        
+        return { 
+            success: true, 
+            message: `Purchased ${actualQuantity}x ${cardName} for $${cost.toFixed(2)}`,
+            cost,
+            quantity: actualQuantity,
+            isFoil: listing.isFoil
+        };
+    }
+    
+    // Utility method to ensure complete market state exists
+    ensureMarketState() {
+        if (!this.state) {
+            console.warn('Market engine state is undefined, reinitializing complete state...');
+            this.state = {
+                cardPrices: {},
+                marketSentiment: 1.0,
+                priceHistory: {},
+                supplyData: {},
+                demandEvents: [],
+                lastPriceUpdate: Date.now(),
+                totalMarketValue: 0,
+                wishlist: [],
+                marketListings: {},
+                marketActivity: [],
+                aiTraders: []
+            };
+        }
+        
+        // Ensure all required state properties exist
+        if (!this.state.marketListings) this.state.marketListings = {};
+        if (!this.state.wishlist) this.state.wishlist = [];
+        if (!this.state.marketActivity) this.state.marketActivity = [];
+        if (!this.state.cardPrices) this.state.cardPrices = {};
+        if (!this.state.priceHistory) this.state.priceHistory = {};
+        if (!this.state.supplyData) this.state.supplyData = {};
+        if (!this.state.demandEvents) this.state.demandEvents = [];
+        if (!this.state.aiTraders) this.state.aiTraders = [];
+        
+        return true;
+    }
+
+    // Utility method to ensure market structure exists
+    ensureMarketStructure(setId, cardName = null) {
+        // First ensure complete state
+        this.ensureMarketState();
+        
+        if (!this.state.marketListings[setId]) {
+            this.state.marketListings[setId] = {};
+        }
+        
+        if (cardName && !this.state.marketListings[setId][cardName]) {
+            this.state.marketListings[setId][cardName] = [];
+        }
+        
+        return true;
+    }
+    
+    // Market Data and Queries
+    getAvailableListings(setId, cardName, isFoil = null) {
+        // Ensure structure exists before accessing
+        if (!this.ensureMarketStructure(setId, cardName)) {
+            return [];
+        }
+        
+        return this.state.marketListings[setId][cardName]
+            .filter(listing => isFoil === null || listing.isFoil === isFoil)
+            .sort((a, b) => a.price - b.price); // Sort by price, cheapest first
+    }
+    
+    getBestListingPrice(setId, cardName, isFoil = false) {
+        const listings = this.getAvailableListings(setId, cardName, isFoil);
+        return listings.length > 0 ? listings[0].price : null;
+    }
+    
+    isCardAvailableForPurchase(setId, cardName, isFoil = false) {
+        return this.getAvailableListings(setId, cardName, isFoil).length > 0;
+    }
+    
+    getMarketDepth(setId, cardName) {
+        const regularListings = this.getAvailableListings(setId, cardName, false);
+        const foilListings = this.getAvailableListings(setId, cardName, true);
+        
+        return {
+            regular: {
+                listings: regularListings.length,
+                totalQuantity: regularListings.reduce((sum, l) => sum + l.quantity, 0),
+                priceRange: regularListings.length > 0 ? {
+                    min: regularListings[0].price,
+                    max: regularListings[regularListings.length - 1].price
+                } : null
+            },
+            foil: {
+                listings: foilListings.length,
+                totalQuantity: foilListings.reduce((sum, l) => sum + l.quantity, 0),
+                priceRange: foilListings.length > 0 ? {
+                    min: foilListings[0].price,
+                    max: foilListings[foilListings.length - 1].price
+                } : null
+            }
+        };
+    }
+    
+    // Market Activity and Events
+    recordMarketActivity(type, setId, cardName, price, quantity, isFoil) {
+        this.ensureMarketState();
+        
+        this.state.marketActivity.unshift({
+            type, // 'list', 'buy', 'expire'
+            setId,
+            cardName,
+            price,
+            quantity,
+            isFoil,
+            timestamp: Date.now()
+        });
+        
+        // Keep only recent activity (last 100 events)
+        this.state.marketActivity = this.state.marketActivity.slice(0, 100);
+    }
+    
+    getRecentMarketActivity(limit = 20) {
+        this.ensureMarketState();
+        return this.state.marketActivity.slice(0, limit);
+    }
+    
+    checkWishlistAvailability(setId, cardName, isFoil) {
+        const wishlistItem = this.state.wishlist.find(item => 
+            item.setId === setId && item.cardName === cardName && item.isFoil === isFoil
+        );
+        
+        if (!wishlistItem) return;
+        
+        const bestPrice = this.getBestListingPrice(setId, cardName, isFoil);
+        if (bestPrice && (!wishlistItem.maxPrice || bestPrice <= wishlistItem.maxPrice * this.config.wishlistNotificationThreshold)) {
+            this.triggerWishlistNotification(wishlistItem, bestPrice);
+        }
+    }
+    
+    checkWishlistFulfillment(setId, cardName, isFoil) {
+        const index = this.state.wishlist.findIndex(item => 
+            item.setId === setId && item.cardName === cardName && item.isFoil === isFoil
+        );
+        
+        if (index !== -1) {
+            const item = this.state.wishlist[index];
+            this.state.wishlist.splice(index, 1);
+            return { fulfilled: true, item };
+        }
+        
+        return { fulfilled: false };
+    }
+    
+    triggerWishlistNotification(wishlistItem, currentPrice) {
+        // Trigger UI notification
+        if (window.uiManager && window.uiManager.showNotification) {
+            const message = `💫 ${wishlistItem.cardName} is available for $${currentPrice.toFixed(2)}!`;
+            window.uiManager.showNotification(message, 'info', 5000);
+        }
+    }
+    
+    // Market Simulation Updates
+    updateMarketListings() {
+        const allSets = window.getAllSets();
+        
+        Object.keys(allSets).forEach(setId => {
+            const setData = allSets[setId];
+            if (!setData || !setData.cards) {
+                console.warn(`Set ${setId} has invalid structure during market update, skipping`);
+                return;
+            }
+            
+            Object.keys(setData.cards).forEach(rarity => {
+                const cardsInRarity = setData.cards[rarity];
+                if (!Array.isArray(cardsInRarity)) {
+                    console.warn(`Set ${setId} rarity ${rarity} is not an array during market update, skipping`);
+                    return;
+                }
+                
+                cardsInRarity.forEach(cardName => {
+                    this.generateListingsForCard(setId, cardName, rarity);
+                });
+            });
+        });
+        
+        // Check all wishlist items for new availability
+        this.state.wishlist.forEach(item => {
+            this.checkWishlistAvailability(item.setId, item.cardName, item.isFoil);
+        });
+        
+        // Simulate some AI purchases
+        this.simulateAIPurchases();
+    }
+    
+    simulateAIPurchases() {
+        const allListings = [];
+        
+        Object.keys(this.state.marketListings).forEach(setId => {
+            Object.keys(this.state.marketListings[setId]).forEach(cardName => {
+                this.state.marketListings[setId][cardName].forEach((listing, index) => {
+                    allListings.push({ setId, cardName, listing, listingArray: this.state.marketListings[setId][cardName], index });
+                });
+            });
+        });
+        
+        // Simulate some purchases (remove 1-3% of listings randomly)
+        const purchaseCount = Math.floor(allListings.length * (Math.random() * 0.02 + 0.01));
+        
+        for (let i = 0; i < purchaseCount && allListings.length > 0; i++) {
+            const randomIndex = Math.floor(Math.random() * allListings.length);
+            const { setId, cardName, listing, listingArray, index } = allListings[randomIndex];
+            
+            // Remove the listing
+            listingArray.splice(index, 1);
+            this.recordMarketActivity('buy', setId, cardName, listing.price, listing.quantity, listing.isFoil);
+            
+            // Remove from our local array
+            allListings.splice(randomIndex, 1);
+            
+            // Update indices for remaining listings from the same array
+            allListings.forEach(item => {
+                if (item.listingArray === listingArray && item.index > index) {
+                    item.index--;
+                }
+            });
+        }
     }
 
     destroy() {

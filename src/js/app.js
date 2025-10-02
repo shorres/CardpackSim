@@ -18,6 +18,10 @@ class TCGPackSimulator {
         // Initialize the UI manager
         this.uiManager = new UIManager(this.gameEngine);
         
+        // Make UI manager and game engine globally available
+        window.gameEngine = this.gameEngine;
+        window.uiManager = this.uiManager;
+        
         // Initial render
         this.uiManager.refreshUI();
         
@@ -29,8 +33,7 @@ class TCGPackSimulator {
 
     reset() {
         this.gameEngine.resetGame();
-        this.gameEngine.marketEngine.destroy();
-        this.gameEngine.marketEngine = new MarketEngine();
+        // Market engine is reset as part of game reset, no need to recreate
         this.uiManager.refreshUI();
     }
 

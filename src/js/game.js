@@ -42,6 +42,12 @@ class GameEngine {
         if (savedState) {
             this.state = { ...this.state, ...savedState };
             
+            // Load market state to preserve baseline prices
+            const savedMarketState = this.storageManager.loadMarketState();
+            if (savedMarketState) {
+                this.marketEngine.setState(savedMarketState);
+            }
+            
             // Ensure new sets are initialized even in loaded state
             Object.keys(allSets).forEach(setId => {
                 if (!this.state.unopenedPacks[setId]) this.state.unopenedPacks[setId] = 0;
@@ -166,9 +172,12 @@ class GameEngine {
             if (!collectionSet[card.name]) {
                 collectionSet[card.name] = { count: 0, foilCount: 0 };
             }
-            collectionSet[card.name].count++;
+            
+            // Fix: Only increment count for regular cards, foilCount for foil cards
             if (card.isFoil) {
                 collectionSet[card.name].foilCount++;
+            } else {
+                collectionSet[card.name].count++;
             }
         });
     }
@@ -320,7 +329,7 @@ class GameEngine {
                 const regularPrice = this.marketEngine.getCardPrice(setId, cardName, false);
                 const foilPrice = this.marketEngine.getCardPrice(setId, cardName, true);
                 
-                const regularValue = (cardData.count - cardData.foilCount) * regularPrice;
+                const regularValue = cardData.count * regularPrice;
                 const foilValue = cardData.foilCount * foilPrice;
                 const cardTotalValue = regularValue + foilValue;
                 
@@ -328,7 +337,7 @@ class GameEngine {
                     portfolio.push({
                         setId,
                         cardName,
-                        regularCount: cardData.count - cardData.foilCount,
+                        regularCount: cardData.count,
                         foilCount: cardData.foilCount,
                         regularPrice,
                         foilPrice,
