@@ -4,7 +4,7 @@ class GameEngine {
         this.state = {
             unopenedPacks: {},
             collection: {},
-            selectedSet: Object.keys(window.TCG_SETS)[0],
+            selectedSet: this.getDefaultSet(),
             // Economic state
             wallet: 20.00, // Starting money
             totalEarnings: 0,
@@ -27,9 +27,37 @@ class GameEngine {
         this.initializeState();
     }
 
+    getDefaultSet() {
+        try {
+            // Try to get all sets first
+            const allSets = window.getAllSets ? window.getAllSets() : window.TCG_SETS;
+            if (allSets && typeof allSets === 'object') {
+                const setKeys = Object.keys(allSets);
+                if (setKeys.length > 0) {
+                    return setKeys[0];
+                }
+            }
+            // Fallback to a hardcoded set if nothing else works
+            return 'base-set';
+        } catch (error) {
+            console.warn('Error getting default set:', error);
+            return 'base-set';
+        }
+    }
+
     initializeState() {
-        // Get all sets including weekly ones
-        const allSets = window.getAllSets();
+        // Get all sets including weekly ones with defensive checks
+        let allSets;
+        try {
+            allSets = window.getAllSets ? window.getAllSets() : window.TCG_SETS;
+            if (!allSets || typeof allSets !== 'object') {
+                console.warn('No sets available, using empty object');
+                allSets = {};
+            }
+        } catch (error) {
+            console.error('Error getting all sets:', error);
+            allSets = {};
+        }
         
         // Initialize state for all sets
         Object.keys(allSets).forEach(setId => {
@@ -456,7 +484,7 @@ class GameEngine {
         this.state = {
             unopenedPacks: {},
             collection: {},
-            selectedSet: Object.keys(window.getAllSets())[0],
+            selectedSet: this.getDefaultSet(),
             wallet: 20.00,
             totalEarnings: 0,
             totalSpent: 0,
@@ -464,8 +492,17 @@ class GameEngine {
             achievements: [],
             currentTitle: "Rookie Trader",
             unlockedBanners: [],
-            unlockedPortraits: []
+            unlockedPortraits: [],
+            // Profile tracking
+            salesCount: 0,
+            highestSale: 0,
+            netWorthHistory: [{ timestamp: Date.now(), value: 20.00 }],
+            selectedPortrait: "👤"
         };
+        
+        // Reset the market engine to initial state
+        this.marketEngine = new MarketEngine();
+        
         this.initializeState();
         this.storageManager.clearState();
     }
