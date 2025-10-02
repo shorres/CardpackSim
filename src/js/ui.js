@@ -2316,17 +2316,22 @@ class UIManager {
         const currentPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, false);
         
         this.cardDetailsPanel.innerHTML = `
-            <div class="space-y-4">
-                <div class="border-b border-gray-600 pb-4">
+            <div class="flex flex-col h-full">
+                <!-- Card header info (fixed) -->
+                <div class="border-b border-gray-600 pb-4 mb-4">
                     <h4 class="text-lg font-bold">${cardName}</h4>
                     <p class="text-sm text-gray-400">${window.getAllSets()[setId].name}</p>
                     <p class="text-sm">Market Price: $${currentPrice.toFixed(2)}</p>
                 </div>
                 
-                ${this.renderListingSection('Regular', regularListings, false)}
-                ${foilListings.length > 0 ? this.renderListingSection('Foil', foilListings, true) : ''}
+                <!-- Scrollable listings area with fixed height -->
+                <div class="flex-1 overflow-y-auto space-y-4 pr-2" style="max-height: calc(100vh - 300px);">
+                    ${this.renderScrollableListingSection('Regular', regularListings, false)}
+                    ${foilListings.length > 0 ? this.renderScrollableListingSection('Foil', foilListings, true) : ''}
+                </div>
                 
-                <div class="flex gap-2 pt-4 border-t border-gray-600">
+                <!-- Sticky buttons at bottom -->
+                <div class="flex gap-2 pt-4 border-t border-gray-600 mt-4">
                     <button onclick="uiManager.addToWishlistFromDetails('${setId}', '${cardName}', false)" 
                             class="bg-yellow-600 hover:bg-yellow-700 px-3 py-2 rounded text-sm flex-1">
                         ⭐ Add to Wishlist
@@ -2340,10 +2345,10 @@ class UIManager {
         `;
     }
 
-    renderListingSection(title, listings, isFoil) {
+    renderScrollableListingSection(title, listings, isFoil) {
         if (listings.length === 0) return '';
         
-        const listingItems = listings.slice(0, 5).map((listing, index) => `
+        const listingItems = listings.slice(0, 10).map((listing, index) => `
             <div class="flex justify-between items-center p-2 bg-gray-700 rounded">
                 <div>
                     <span class="font-medium">$${listing.price.toFixed(2)}</span>
@@ -2358,12 +2363,12 @@ class UIManager {
         `).join('');
         
         return `
-            <div>
+            <div class="mb-4">
                 <h5 class="font-semibold mb-2">${title} Listings (${listings.length})</h5>
                 <div class="space-y-2 max-h-32 overflow-y-auto">
                     ${listingItems}
                 </div>
-                ${listings.length > 5 ? `<div class="text-xs text-gray-500 mt-1">+${listings.length - 5} more listings</div>` : ''}
+                ${listings.length > 10 ? `<div class="text-xs text-gray-500 mt-1">+${listings.length - 10} more listings</div>` : ''}
             </div>
         `;
     }
