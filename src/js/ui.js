@@ -84,6 +84,13 @@ class UIManager {
         this.confirmSellBtn = document.getElementById('confirm-sell-btn');
         this.cancelSellBtn = document.getElementById('cancel-sell-btn');
         
+        // Buy modal elements
+        this.buyCardModal = document.getElementById('buy-card-modal');
+        this.buyCardInfo = document.getElementById('buy-card-info');
+        this.buyListingInfo = document.getElementById('buy-listing-info');
+        this.confirmBuyBtn = document.getElementById('confirm-buy-btn');
+        this.cancelBuyBtn = document.getElementById('cancel-buy-btn');
+        
         // Achievement notification
         this.achievementNotification = document.getElementById('achievement-notification');
         this.achievementText = document.getElementById('achievement-text');
@@ -611,6 +618,21 @@ class UIManager {
         this.sellCardModal.addEventListener('click', (e) => {
             if (e.target === this.sellCardModal) {
                 this.closeSellModal();
+            }
+        });
+        
+        // Buy modal event listeners
+        this.cancelBuyBtn.addEventListener('click', () => {
+            this.closeBuyModal();
+        });
+        
+        this.confirmBuyBtn.addEventListener('click', () => {
+            this.confirmPurchase();
+        });
+        
+        this.buyCardModal.addEventListener('click', (e) => {
+            if (e.target === this.buyCardModal) {
+                this.closeBuyModal();
             }
         });
 
@@ -1521,6 +1543,90 @@ class UIManager {
         }
     }
 
+    // Buy Modal Methods
+
+    openBuyModal(setId, cardName, isFoil, listingIndex) {
+        const listings = this.gameEngine.marketEngine.getAvailableListings(setId, cardName, isFoil);
+        
+        if (!listings || listingIndex >= listings.length) {
+            this.showNotification('Listing not available', 'error');
+            return;
+        }
+        
+        const listing = listings[listingIndex];
+        const rarity = this.gameEngine.getCardRarity(setId, cardName);
+        const trend = this.gameEngine.marketEngine.getCardTrend(setId, cardName);
+        
+        // Store purchase details for confirmation
+        this.pendingPurchase = { setId, cardName, isFoil, listingIndex, listing };
+        
+        // Check if player has enough funds
+        const currentWallet = this.gameEngine.state.wallet;
+        const canAfford = currentWallet >= listing.price;
+        
+        this.buyCardInfo.innerHTML = `
+            <div class="mb-3">
+                <h4 class="font-bold text-lg">${cardName} ${isFoil ? '★' : ''}</h4>
+                <p class="text-sm text-gray-400 capitalize">${rarity} | ${trend.trend} ${trend.change > 0 ? '+' : ''}${trend.change.toFixed(1)}%</p>
+            </div>
+        `;
+        
+        this.buyListingInfo.innerHTML = `
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Price per card:</span>
+                    <span class="font-medium">$${listing.price.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Quantity:</span>
+                    <span>1 card</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Seller:</span>
+                    <span class="text-xs">${listing.sellerId}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Available:</span>
+                    <span>${listing.quantity}x in stock</span>
+                </div>
+                <hr style="border-color: var(--border-primary);">
+                <div class="flex justify-between text-lg font-bold">
+                    <span>Total Cost:</span>
+                    <span ${!canAfford ? 'class="text-red-400"' : ''}>$${listing.price.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-400">Your wallet:</span>
+                    <span ${!canAfford ? 'class="text-red-400"' : ''}>$${currentWallet.toFixed(2)}</span>
+                </div>
+                ${!canAfford ? '<div class="text-red-400 text-sm mt-2">⚠️ Insufficient funds</div>' : ''}
+            </div>
+        `;
+        
+        // Disable buy button if can't afford
+        this.confirmBuyBtn.disabled = !canAfford;
+        this.confirmBuyBtn.style.opacity = canAfford ? '1' : '0.5';
+        this.confirmBuyBtn.style.cursor = canAfford ? 'pointer' : 'not-allowed';
+        
+        this.buyCardModal.classList.remove('hidden');
+    }
+
+    closeBuyModal() {
+        this.buyCardModal.classList.add('hidden');
+        this.pendingPurchase = null;
+    }
+
+    confirmPurchase() {
+        if (!this.pendingPurchase) return;
+        
+        const { setId, cardName, isFoil, listingIndex } = this.pendingPurchase;
+        
+        // Execute the purchase
+        this.purchaseListing(setId, cardName, isFoil, listingIndex);
+        
+        // Close the modal
+        this.closeBuyModal();
+    }
+
     showAchievementNotification(achievement) {
         this.achievementText.textContent = `${achievement.title}${achievement.reward > 0 ? ` (+$${achievement.reward})` : ''}`;
         this.achievementNotification.classList.remove('hidden');
@@ -2217,7 +2323,7 @@ class UIManager {
                     <span class="text-sm text-gray-400 ml-2">${listing.quantity}x available</span>
                     <div class="text-xs text-gray-500">Seller: ${listing.sellerId}</div>
                 </div>
-                <button onclick="uiManager.purchaseListing('${this.selectedCard.setId}', '${this.selectedCard.cardName}', ${isFoil}, ${index})" 
+                <button onclick="uiManager.openBuyModal('${this.selectedCard.setId}', '${this.selectedCard.cardName}', ${isFoil}, ${index})" 
                         class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm">
                     Buy 1 for $${listing.price.toFixed(2)}
                 </button>
