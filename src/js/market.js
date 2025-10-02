@@ -136,6 +136,8 @@ class MarketEngine {
             return;
         }
         
+        let totalInitialized = 0;
+        
         Object.keys(setData.cards).forEach(rarity => {
             const cardsInRarity = setData.cards[rarity];
             if (!Array.isArray(cardsInRarity)) {
@@ -145,12 +147,13 @@ class MarketEngine {
             
             cardsInRarity.forEach(cardName => {
                 if (!this.state.cardPrices[setId][cardName]) {
-                    const basePrice = this.generateBasePrice(rarity, setMultiplier);
+                    // Generate deterministic baseline price (will be same every time)
+                    const basePrice = this.generateBasePrice(rarity, setMultiplier, setId, cardName);
                     
                     this.state.cardPrices[setId][cardName] = {
                         currentPrice: basePrice,
-                        basePrice: basePrice,
-                        foilPrice: basePrice * this.generateFoilMultiplier(),
+                        basePrice: basePrice, // Store the stable baseline price
+                        foilPrice: basePrice * this.generateFoilMultiplier(setId, cardName),
                         lastChange: 0,
                         trend: 'stable' // 'rising', 'falling', 'stable'
                     };
@@ -162,14 +165,31 @@ class MarketEngine {
                         marketSupply: 0,
                         demandMultiplier: 1.0
                     };
+                    
+                    totalInitialized++;
+                } else {
+                    // Card already has pricing data - preserve existing baseline but ensure current price is valid
+                    const cardData = this.state.cardPrices[setId][cardName];
+                    if (!cardData.basePrice) {
+                        // Migration: Set baseline price for existing cards
+                        cardData.basePrice = this.generateBasePrice(rarity, setMultiplier, setId, cardName);
+                    }
                 }
             });
         });
+        
+        if (totalInitialized > 0) {
+            console.log(`Initialized ${totalInitialized} new cards for set ${setId}`);
+        }
     }
 
-    generateBasePrice(rarity, setMultiplier) {
+    generateBasePrice(rarity, setMultiplier, setId = '', cardName = '') {
         const range = this.config.basePriceRanges[rarity];
-        const randomFactor = Math.random();
+        
+        // Generate deterministic baseline price using card/set hash
+        // This ensures the same card always has the same baseline price
+        const seed = this.hashString(setId + cardName + rarity);
+        const randomFactor = this.seededRandom(seed);
         
         // Use power distribution to make lower prices more common
         const adjustedRandom = Math.pow(randomFactor, 1.5);
@@ -178,10 +198,35 @@ class MarketEngine {
         return Math.round(basePrice * setMultiplier * 100) / 100;
     }
 
-    generateFoilMultiplier() {
+    // Generate consistent hash from string (for deterministic pricing)
+    hashString(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return Math.abs(hash);
+    }
+
+    // Seeded random number generator (0-1) for consistent pricing
+    seededRandom(seed) {
+        const a = 1664525;
+        const c = 1013904223;
+        const m = Math.pow(2, 32);
+        seed = (a * seed + c) % m;
+        return seed / m;
+    }
+
+    generateFoilMultiplier(setId = '', cardName = '') {
         const min = this.config.foilMultiplier.min;
         const max = this.config.foilMultiplier.max;
-        return min + Math.random() * (max - min);
+        
+        // Generate deterministic foil multiplier
+        const seed = this.hashString(setId + cardName + 'foil');
+        const randomFactor = this.seededRandom(seed);
+        
+        return min + randomFactor * (max - min);
     }
 
     generateInitialPriceHistory(basePrice) {
@@ -473,8 +518,29 @@ class MarketEngine {
     }
 
     getCardPrice(setId, cardName, isFoil = false) {
+        // Ensure pricing data exists - initialize if missing
+        if (!this.state.cardPrices[setId]) {
+            const allSets = window.getAllSets();
+            if (allSets[setId]) {
+                this.initializeSetPrices(setId, allSets[setId]);
+            }
+        }
+        
         if (!this.state.cardPrices[setId] || !this.state.cardPrices[setId][cardName]) {
-            return 0;
+            const allSets = window.getAllSets();
+            if (allSets[setId]) {
+                // Force re-initialization of this specific set
+                this.initializeSetPrices(setId, allSets[setId]);
+                
+                // Check again after re-initialization
+                if (!this.state.cardPrices[setId] || !this.state.cardPrices[setId][cardName]) {
+                    console.warn(`No price data found for ${setId}:${cardName} after re-initialization`);
+                    return 0;
+                }
+            } else {
+                console.warn(`Set ${setId} not found`);
+                return 0;
+            }
         }
         
         const cardData = this.state.cardPrices[setId][cardName];
