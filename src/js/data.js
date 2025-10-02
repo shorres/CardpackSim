@@ -180,7 +180,7 @@ class WeeklySetGenerator {
         };
 
         // Generate different amounts for each rarity
-        const cardCounts = { common: 30, uncommon: 20, rare: 15, mythic: 8 };
+        const cardCounts = { common: 50, uncommon: 40, rare: 25, mythic: 12 };
 
         for (const rarity in cardCounts) {
             for (let i = 0; i < cardCounts[rarity]; i++) {
