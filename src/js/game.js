@@ -248,8 +248,9 @@ class GameEngine {
 
         allCardsInSet.forEach(cardInfo => {
             const cardData = collectionSet[cardInfo.name];
-            const count = cardData ? cardData.count : 0;
-            if (count > 0) collectedCount++;
+            // Fix: Count cards where player has ANY version (regular OR foil)
+            const totalOwned = cardData ? (cardData.count + cardData.foilCount) : 0;
+            if (totalOwned > 0) collectedCount++;
         });
         
         const totalSetCards = allCardsInSet.length;

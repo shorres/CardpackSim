@@ -1081,7 +1081,9 @@ class UIManager {
     createCollectionCardElement(name, rarity, isFoil, count, foilCount, setId = null) {
         const element = document.createElement('div');
         const foilClass = isFoil ? 'foil' : '';
-        const ownedClass = count === 0 ? 'opacity-40' : '';
+        // Fix: Check if player has ANY version of the card (regular OR foil)
+        const totalOwned = count + foilCount;
+        const ownedClass = totalOwned === 0 ? 'opacity-40' : '';
         element.className = `card-face relative border-4 rounded-lg p-2 h-40 flex flex-col justify-between shadow-md rarity-${rarity} ${foilClass} ${ownedClass} cursor-pointer hover:transform hover:scale-105 transition-transform`;
         
         let countDisplay = `
@@ -1090,8 +1092,8 @@ class UIManager {
             </div>
         `;
         
-        // Add sell button if player owns the card
-        if (count > 0) {
+        // Fix: Add sell button if player owns ANY version of the card (regular OR foil)
+        if (totalOwned > 0) {
             countDisplay += `
                 <div class="absolute bottom-1 right-1">
                     <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-2 py-1 rounded sell-card-btn" 
@@ -1416,7 +1418,9 @@ class UIManager {
         const collectionSet = this.gameEngine.state.collection[setId];
         const cardData = collectionSet[cardName];
         
-        if (!cardData || cardData.count === 0) {
+        // Fix: Check if player has ANY version of the card (regular OR foil)
+        const totalOwned = cardData ? (cardData.count + cardData.foilCount) : 0;
+        if (!cardData || totalOwned === 0) {
             this.showNotification("You don't own this card", 'error');
             return;
         }
