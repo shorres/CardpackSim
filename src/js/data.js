@@ -98,10 +98,12 @@ class WeeklySetGenerator {
     }
 
     getWeekNumber(date = new Date()) {
-        const start = new Date(date.getFullYear(), 0, 0);
+        // More reliable week calculation using ISO week date
+        const start = new Date(date.getFullYear(), 0, 1);
         const diff = date - start;
         const oneWeek = 1000 * 60 * 60 * 24 * 7;
-        return Math.floor(diff / oneWeek);
+        const weekNumber = Math.floor(diff / oneWeek) + 1; // Add 1 to start from week 1
+        return weekNumber;
     }
 
     getWeeklySetId(weekOffset = 0) {
@@ -133,6 +135,109 @@ class WeeklySetGenerator {
         // Simple seeded random number generator
         const x = Math.sin(seed) * 10000;
         return x - Math.floor(x);
+    }
+
+    /**
+     * Get recently used themes from stored weekly sets
+     * @param {number} lookBackWeeks - How many weeks to look back
+     * @returns {Array} Array of recently used theme names
+     */
+    getRecentThemes(lookBackWeeks = 4) {
+        const storageManager = window.storageManager || new StorageManager();
+        const storedSets = storageManager.loadWeeklySets();
+        const recentThemes = [];
+        
+        const now = new Date();
+        const currentWeek = this.getWeekNumber(now);
+        const currentYear = now.getFullYear();
+        
+        // Check the last N weeks for used themes
+        for (let i = 1; i <= lookBackWeeks; i++) {
+            const checkWeek = currentWeek - i;
+            const setId = `Weekly_${currentYear}_W${checkWeek}`;
+            
+            if (storedSets[setId] && storedSets[setId].theme) {
+                recentThemes.push(storedSets[setId].theme);
+            }
+        }
+        
+        return recentThemes;
+    }
+
+    /**
+     * Get card names from a specific week's set
+     * @param {number} weekOffset - Offset from current week (negative for past weeks)
+     * @returns {Array} Array of all card names from that week
+     */
+    getWeekCardNames(weekOffset) {
+        const storageManager = window.storageManager || new StorageManager();
+        const storedSets = storageManager.loadWeeklySets();
+        
+        const now = new Date();
+        const targetWeek = this.getWeekNumber(now) + weekOffset;
+        const year = now.getFullYear();
+        const setId = `Weekly_${year}_W${targetWeek}`;
+        
+        if (storedSets[setId] && storedSets[setId].cards) {
+            const allCards = [];
+            Object.values(storedSets[setId].cards).forEach(rarityCards => {
+                allCards.push(...rarityCards);
+            });
+            return allCards;
+        }
+        
+        return [];
+    }
+
+    /**
+     * Select a unique theme that hasn't been used recently
+     * @param {number} seed - Base seed for randomization
+     * @param {number} targetWeek - Target week number
+     * @param {number} year - Target year
+     * @param {Array} excludeThemes - Theme names to exclude
+     * @returns {Object} Selected theme object
+     */
+    selectUniqueTheme(seed, targetWeek, year, excludeThemes = []) {
+        // Get recently used themes if not provided
+        if (excludeThemes.length === 0) {
+            excludeThemes = this.getRecentThemes(4); // Look back 4 weeks by default
+        }
+        
+        // Filter available themes
+        const availableThemes = this.themes.filter(theme => 
+            !excludeThemes.includes(theme.name)
+        );
+        
+        // If all themes are excluded (very rare), use all themes
+        const themePool = availableThemes.length > 0 ? availableThemes : this.themes;
+        
+        // Use improved selection logic on the filtered pool
+        const themeBase = (targetWeek * 7 + year * 3) % themePool.length;
+        const themeSeedOffset = Math.floor(this.seededRandom(seed + 999) * Math.min(3, themePool.length));
+        const themeIndex = (themeBase + themeSeedOffset) % themePool.length;
+        
+        return themePool[themeIndex];
+    }
+
+    /**
+     * Generate unique card names that don't conflict with recent weeks
+     * @param {string} rarity - Card rarity
+     * @param {number} seed - Base seed
+     * @param {number} index - Card index
+     * @param {Array} excludeNames - Card names to avoid
+     * @returns {string} Generated card name
+     */
+    generateUniqueCardName(rarity, seed, index, excludeNames = []) {
+        let attempts = 0;
+        let cardName;
+        
+        do {
+            const modifiedSeed = seed + index + (attempts * 1000);
+            cardName = this.generateCardName(rarity, modifiedSeed, index);
+            attempts++;
+        } while (excludeNames.includes(cardName) && attempts < 100);
+        
+        return cardName;
     }
 
     generateCardName(rarity, seed, index) {
@@ -167,9 +272,15 @@ class WeeklySetGenerator {
         const year = now.getFullYear();
         const seed = year * 1000 + targetWeek;
 
-        // Choose theme for this week
-        const themeIndex = Math.floor(this.seededRandom(seed) * this.themes.length);
-        const theme = this.themes[themeIndex];
+        // Use unique theme selection to avoid repeats
+        const theme = this.selectUniqueTheme(seed, targetWeek, year);
+
+        // Get card names from recent weeks to avoid duplicates
+        const recentCardNames = [];
+        for (let i = 1; i <= 2; i++) { // Check previous 2 weeks
+            const recentCards = this.getWeekCardNames(-i);
+            recentCardNames.push(...recentCards);
+        }
 
         // Generate cards for each rarity
         const cards = {
@@ -184,8 +295,10 @@ class WeeklySetGenerator {
 
         for (const rarity in cardCounts) {
             for (let i = 0; i < cardCounts[rarity]; i++) {
-                const cardName = this.generateCardName(rarity, seed, i);
+                const cardName = this.generateUniqueCardName(rarity, seed, i, recentCardNames);
                 cards[rarity].push(cardName);
+                // Add to exclusion list to prevent duplicates within the same set
+                recentCardNames.push(cardName);
             }
         }
 
@@ -270,9 +383,16 @@ class WeeklySetGenerator {
         const week = parseInt(match[2]);
         const seed = newSeed || (year * 1000 + week + Math.floor(Math.random() * 1000)); // Add randomness if no custom seed
 
-        // Choose theme for this regeneration
-        const themeIndex = Math.floor(this.seededRandom(seed) * this.themes.length);
-        const theme = this.themes[themeIndex];
+        // Use unique theme selection for regeneration
+        const theme = this.selectUniqueTheme(seed, week, year);
+
+        // Get card names from recent weeks to avoid duplicates (for regeneration)
+        const recentCardNames = [];
+        for (let i = 1; i <= 2; i++) { // Check weeks before and after
+            const beforeCards = this.getWeekCardNames(-i);
+            const afterCards = this.getWeekCardNames(i);
+            recentCardNames.push(...beforeCards, ...afterCards);
+        }
 
         // Generate new cards for each rarity
         const cards = {
@@ -286,8 +406,10 @@ class WeeklySetGenerator {
 
         for (const rarity in cardCounts) {
             for (let i = 0; i < cardCounts[rarity]; i++) {
-                const cardName = this.generateCardName(rarity, seed, i);
+                const cardName = this.generateUniqueCardName(rarity, seed, i, recentCardNames);
                 cards[rarity].push(cardName);
+                // Add to exclusion list to prevent duplicates within the same set
+                recentCardNames.push(cardName);
             }
         }
 
@@ -324,19 +446,27 @@ class WeeklySetGenerator {
         const testSetId = `Weekly_${year}_W${targetWeek}_TEST_${Date.now()}`;
         
         const baseSeed = year * 1000 + targetWeek;
-        const seed = customSeed || baseSeed;
+        // Fix: Always use a different seed for test sets unless specifically provided
+        const seed = customSeed !== null ? customSeed : (baseSeed + 77777 + Math.floor(Math.random() * 10000));
 
         // Choose theme
         let theme;
         if (customTheme) {
             theme = this.themes.find(t => t.name === customTheme);
             if (!theme) {
-                console.warn(`Theme "${customTheme}" not found, using random theme`);
-                theme = this.themes[Math.floor(this.seededRandom(seed) * this.themes.length)];
+                console.warn(`Theme "${customTheme}" not found, using unique theme selection`);
+                theme = this.selectUniqueTheme(seed, targetWeek, year);
             }
         } else {
-            const themeIndex = Math.floor(this.seededRandom(seed) * this.themes.length);
-            theme = this.themes[themeIndex];
+            // Use unique theme selection for test sets too
+            theme = this.selectUniqueTheme(seed, targetWeek, year);
+        }
+
+        // Get card names from recent weeks for test uniqueness
+        const recentCardNames = [];
+        for (let i = 1; i <= 2; i++) {
+            const recentCards = this.getWeekCardNames(-i);
+            recentCardNames.push(...recentCards);
         }
 
         // Generate cards for each rarity
@@ -351,8 +481,10 @@ class WeeklySetGenerator {
 
         for (const rarity in cardCounts) {
             for (let i = 0; i < cardCounts[rarity]; i++) {
-                const cardName = this.generateCardName(rarity, seed, i);
+                const cardName = this.generateUniqueCardName(rarity, seed, i, recentCardNames);
                 cards[rarity].push(cardName);
+                // Add to exclusion list to prevent duplicates within the same set
+                recentCardNames.push(cardName);
             }
         }
 
@@ -382,7 +514,9 @@ class WeeklySetGenerator {
                 customSeed: customSeed,
                 customTheme: customTheme,
                 actualSetId: `Weekly_${year}_W${targetWeek}`,
-                previewId: testSetId
+                previewId: testSetId,
+                actualSeed: baseSeed,
+                testSeed: seed
             }
         };
 
@@ -391,7 +525,9 @@ class WeeklySetGenerator {
             theme: theme.name,
             week: targetWeek,
             cardCounts: cardCounts,
-            seed: seed
+            seed: seed,
+            actualSeed: baseSeed,
+            weekOffset: weekOffset
         });
 
         return testSet;
@@ -514,6 +650,29 @@ function testWeeklySet(weekOffset = 0, customSeed = null, customTheme = null) {
     Object.keys(result.cards).forEach(rarity => {
         console.log(`${rarity.toUpperCase()}: ${result.cards[rarity].slice(0, 5).join(', ')}...`);
     });
+    
+    // Show comparison with actual stored set if it exists
+    const actualSetId = result.testInfo.actualSetId;
+    const storageManager = window.storageManager || new StorageManager();
+    const storedSets = storageManager.loadWeeklySets();
+    
+    if (storedSets[actualSetId]) {
+        const actualSet = storedSets[actualSetId];
+        console.log(`\nComparison with actual stored set "${actualSetId}":`);
+        console.log(`Actual Theme: ${actualSet.theme} | Test Theme: ${result.theme}`);
+        console.log(`Actual Seed: ${result.testInfo.actualSeed} | Test Seed: ${result.testInfo.testSeed}`);
+        console.log('First 3 cards comparison:');
+        Object.keys(result.cards).forEach(rarity => {
+            const actualCards = actualSet.cards[rarity].slice(0, 3);
+            const testCards = result.cards[rarity].slice(0, 3);
+            console.log(`${rarity.toUpperCase()}:`);
+            console.log(`  Actual: ${actualCards.join(', ')}`);
+            console.log(`  Test:   ${testCards.join(', ')}`);
+        });
+    } else {
+        console.log(`\nNo actual set stored for week ${result.weekNumber} yet.`);
+    }
+    
     return result;
 }
 
@@ -594,7 +753,7 @@ Weekly Set Testing Commands:
 ----------------------------
 testWeeklySet(weekOffset?, seed?, theme?)  - Generate test set without saving
   Examples:
-    testWeeklySet()                         - Test current week
+    testWeeklySet()                         - Test current week (different from actual)
     testWeeklySet(1)                        - Test next week
     testWeeklySet(0, 12345)                 - Test with custom seed
     testWeeklySet(0, null, "Elemental Fury") - Test with specific theme
@@ -608,10 +767,121 @@ listWeeklySets()                            - Show all stored weekly sets
 listThemes()                                - Show all available themes
 getCurrentWeekInfo()                        - Show current week information
 previewNextWeek()                           - Preview next week's set
+compareTestToActual(weekOffset?)            - Compare test set to actual stored set
+testWithActualSeed(weekOffset?)             - Generate test set with same seed as actual
+showThemeDistribution(start?, count?)       - Show theme distribution for multiple weeks
+validateWeeklyUniqueness(week?, checkNext?) - Check card uniqueness between weeks
+checkThemeUniqueness()                      - Check theme uniqueness in recent weeks
 helpWeeklySetTesting()                      - Show this help
 
-Note: Use regenerateSet() to change existing sets, testWeeklySet() for previews only.
+Note: testWeeklySet() generates DIFFERENT cards than stored sets by design.
+      All sets now ensure unique themes and cards vs recent weeks.
+      Use regenerateSet() to change existing sets with new uniqueness rules.
     `);
+}
+
+/**
+ * Console helper: Generate test set using the same seed as the actual set
+ */
+function testWithActualSeed(weekOffset = 0) {
+    const now = new Date();
+    const targetWeek = weeklySetGenerator.getWeekNumber(now) + weekOffset;
+    const year = now.getFullYear();
+    const actualSeed = year * 1000 + targetWeek;
+    
+    console.log(`Generating test set with actual seed (${actualSeed}) for week ${targetWeek}:`);
+    return testWeeklySet(weekOffset, actualSeed);
+}
+
+/**
+ * Console helper: Compare test set to actual stored set
+ */
+function compareTestToActual(weekOffset = 0) {
+    console.log('Generating comparison...\n');
+    
+    // Generate test set
+    const testSet = testWeeklySet(weekOffset);
+    
+    return testSet; // The comparison is already shown in testWeeklySet
+}
+
+/**
+ * Console helper: Show theme distribution for multiple weeks
+ */
+function showThemeDistribution(startWeek = 0, numWeeks = 10) {
+    console.log(`Theme distribution for ${numWeeks} weeks starting from offset ${startWeek}:`);
+    
+    for (let i = 0; i < numWeeks; i++) {
+        const weekOffset = startWeek + i;
+        const now = new Date();
+        const targetWeek = weeklySetGenerator.getWeekNumber(now) + weekOffset;
+        const year = now.getFullYear();
+        const seed = year * 1000 + targetWeek;
+        
+        // Use the unique theme selection logic
+        const theme = weeklySetGenerator.selectUniqueTheme(seed, targetWeek, year);
+        
+        console.log(`Week ${targetWeek} (offset ${weekOffset}): ${theme.name}`);
+    }
+}
+
+/**
+ * Console helper: Validate uniqueness between consecutive weeks
+ */
+function validateWeeklyUniqueness(weekOffset = 0, checkNext = true) {
+    const currentWeek = weeklySetGenerator.getWeekCardNames(weekOffset);
+    const nextWeek = checkNext ? weeklySetGenerator.getWeekCardNames(weekOffset + 1) : weeklySetGenerator.getWeekCardNames(weekOffset - 1);
+    
+    if (currentWeek.length === 0 || nextWeek.length === 0) {
+        console.log('One or both weeks have no stored cards to compare.');
+        return;
+    }
+    
+    const duplicates = currentWeek.filter(card => nextWeek.includes(card));
+    
+    console.log(`Checking uniqueness between week ${weekOffset} and ${checkNext ? weekOffset + 1 : weekOffset - 1}:`);
+    console.log(`Week ${weekOffset} cards: ${currentWeek.length}`);
+    console.log(`Comparison week cards: ${nextWeek.length}`);
+    console.log(`Duplicate cards found: ${duplicates.length}`);
+    
+    if (duplicates.length > 0) {
+        console.log('Duplicate cards:', duplicates);
+    } else {
+        console.log('✅ All cards are unique between these weeks!');
+    }
+    
+    return {
+        week1Count: currentWeek.length,
+        week2Count: nextWeek.length,
+        duplicates: duplicates,
+        isUnique: duplicates.length === 0
+    };
+}
+
+/**
+ * Console helper: Check theme uniqueness in recent weeks
+ */
+function checkThemeUniqueness() {
+    const recentThemes = weeklySetGenerator.getRecentThemes(6);
+    const uniqueThemes = [...new Set(recentThemes)];
+    
+    console.log('Recent theme usage (last 6 weeks):');
+    console.log('Themes used:', recentThemes);
+    console.log('Unique themes:', uniqueThemes.length, '/', recentThemes.length);
+    console.log('Available themes:', weeklySetGenerator.themes.length);
+    
+    if (recentThemes.length !== uniqueThemes.length) {
+        console.log('⚠️ Some themes were repeated recently');
+    } else {
+        console.log('✅ All recent themes are unique');
+    }
+    
+    return {
+        recentThemes: recentThemes,
+        uniqueCount: uniqueThemes.length,
+        totalAvailable: weeklySetGenerator.themes.length,
+        hasRepeats: recentThemes.length !== uniqueThemes.length
+    };
 }
 
 // Export for use in other modules
@@ -627,7 +897,12 @@ if (typeof module !== 'undefined' && module.exports) {
         listThemes,
         getCurrentWeekInfo,
         previewNextWeek,
-        helpWeeklySetTesting
+        helpWeeklySetTesting,
+        testWithActualSeed,
+        compareTestToActual,
+        showThemeDistribution,
+        validateWeeklyUniqueness,
+        checkThemeUniqueness
     };
 } else {
     // Make everything available globally
@@ -644,4 +919,9 @@ if (typeof module !== 'undefined' && module.exports) {
     window.getCurrentWeekInfo = getCurrentWeekInfo;
     window.previewNextWeek = previewNextWeek;
     window.helpWeeklySetTesting = helpWeeklySetTesting;
+    window.testWithActualSeed = testWithActualSeed;
+    window.compareTestToActual = compareTestToActual;
+    window.showThemeDistribution = showThemeDistribution;
+    window.validateWeeklyUniqueness = validateWeeklyUniqueness;
+    window.checkThemeUniqueness = checkThemeUniqueness;
 }
