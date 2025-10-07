@@ -239,6 +239,171 @@ class WeeklySetGenerator {
         
         return endOfWeek.getTime() - now.getTime();
     }
+
+    // TESTING AND REGENERATION METHODS
+
+    /**
+     * Regenerates an existing weekly set with new random cards while preserving lifecycle data
+     * @param {string} setId - The ID of the set to regenerate 
+     * @param {number} newSeed - Optional custom seed for different randomization
+     * @returns {Object} The regenerated set data
+     */
+    regenerateWeeklySet(setId, newSeed = null) {
+        // Load existing set data to preserve lifecycle information
+        const storageManager = window.storageManager || new StorageManager();
+        const storedSets = storageManager.loadWeeklySets();
+        const existingSet = storedSets[setId];
+        
+        if (!existingSet || !existingSet.isWeekly) {
+            console.error(`Cannot regenerate set ${setId}: set not found or not a weekly set`);
+            return null;
+        }
+
+        // Extract week and year from setId (format: Weekly_YYYY_WWW)
+        const match = setId.match(/Weekly_(\d+)_W(\d+)/);
+        if (!match) {
+            console.error(`Invalid weekly set ID format: ${setId}`);
+            return null;
+        }
+
+        const year = parseInt(match[1]);
+        const week = parseInt(match[2]);
+        const seed = newSeed || (year * 1000 + week + Math.floor(Math.random() * 1000)); // Add randomness if no custom seed
+
+        // Choose theme for this regeneration
+        const themeIndex = Math.floor(this.seededRandom(seed) * this.themes.length);
+        const theme = this.themes[themeIndex];
+
+        // Generate new cards for each rarity
+        const cards = {
+            common: [],
+            uncommon: [],
+            rare: [],
+            mythic: []
+        };
+
+        const cardCounts = { common: 50, uncommon: 40, rare: 28, mythic: 10 };
+
+        for (const rarity in cardCounts) {
+            for (let i = 0; i < cardCounts[rarity]; i++) {
+                const cardName = this.generateCardName(rarity, seed, i);
+                cards[rarity].push(cardName);
+            }
+        }
+
+        // Create regenerated set data, preserving original lifecycle data
+        const regeneratedSet = {
+            ...existingSet,
+            name: `${theme.name} (#${week})`,
+            theme: theme.name,
+            cards: cards,
+            regenerated: true,
+            regeneratedDate: Date.now(),
+            originalSeed: existingSet.seed || (year * 1000 + week),
+            newSeed: seed
+        };
+
+        // Save the regenerated set
+        storageManager.saveWeeklySet(setId, regeneratedSet);
+        console.log(`Regenerated weekly set ${setId} with new theme: ${theme.name}`);
+        
+        return regeneratedSet;
+    }
+
+    /**
+     * Generates a test weekly set without affecting storage or game state
+     * @param {number} weekOffset - Offset from current week (0 = current, 1 = next, -1 = previous)
+     * @param {number} customSeed - Optional custom seed for specific randomization
+     * @param {string} customTheme - Optional specific theme name to use
+     * @returns {Object} The test set data with preview information
+     */
+    testGenerateWeeklySet(weekOffset = 0, customSeed = null, customTheme = null) {
+        const now = new Date();
+        const targetWeek = this.getWeekNumber(now) + weekOffset;
+        const year = now.getFullYear();
+        const testSetId = `Weekly_${year}_W${targetWeek}_TEST_${Date.now()}`;
+        
+        const baseSeed = year * 1000 + targetWeek;
+        const seed = customSeed || baseSeed;
+
+        // Choose theme
+        let theme;
+        if (customTheme) {
+            theme = this.themes.find(t => t.name === customTheme);
+            if (!theme) {
+                console.warn(`Theme "${customTheme}" not found, using random theme`);
+                theme = this.themes[Math.floor(this.seededRandom(seed) * this.themes.length)];
+            }
+        } else {
+            const themeIndex = Math.floor(this.seededRandom(seed) * this.themes.length);
+            theme = this.themes[themeIndex];
+        }
+
+        // Generate cards for each rarity
+        const cards = {
+            common: [],
+            uncommon: [],
+            rare: [],
+            mythic: []
+        };
+
+        const cardCounts = { common: 50, uncommon: 40, rare: 28, mythic: 10 };
+
+        for (const rarity in cardCounts) {
+            for (let i = 0; i < cardCounts[rarity]; i++) {
+                const cardName = this.generateCardName(rarity, seed, i);
+                cards[rarity].push(cardName);
+            }
+        }
+
+        const { startOfWeek, endOfWeek } = this.getWeeklySetDates();
+
+        const testSet = {
+            name: `${theme.name} (#${targetWeek}) [TEST PREVIEW]`,
+            totalCards: Object.values(cardCounts).reduce((a, b) => a + b, 0),
+            packSize: 12,
+            boosterBoxSize: 26,
+            packComposition: { common: 7, uncommon: 3, rare: 2 },
+            mythicChance: 1 / 6,
+            foilChance: 1 / 4,
+            isWeekly: true,
+            isTestSet: true,
+            theme: theme.name,
+            weekNumber: targetWeek,
+            year: year,
+            seed: seed,
+            lifecycle: 'preview',
+            startDate: startOfWeek,
+            endDate: endOfWeek,
+            cards: cards,
+            testInfo: {
+                generated: new Date().toISOString(),
+                weekOffset: weekOffset,
+                customSeed: customSeed,
+                customTheme: customTheme,
+                actualSetId: `Weekly_${year}_W${targetWeek}`,
+                previewId: testSetId
+            }
+        };
+
+        console.log(`Generated test set preview:`, {
+            id: testSetId,
+            theme: theme.name,
+            week: targetWeek,
+            cardCounts: cardCounts,
+            seed: seed
+        });
+
+        return testSet;
+    }
+
+    /**
+     * Get available themes for testing
+     * @returns {Array} List of available theme names
+     */
+    getAvailableThemes() {
+        return this.themes.map(theme => theme.name);
+    }
 }
 
 // Create global instance
@@ -251,22 +416,33 @@ function getAllSets() {
     // Get storage manager instance
     const storageManager = window.storageManager || new StorageManager();
     
-    // Add current weekly set and ensure it's stored
-    const currentWeeklySet = weeklySetGenerator.getCurrentWeeklySet();
+    // Load all stored weekly sets first
+    const storedWeeklySets = storageManager.loadWeeklySets();
+    
+    // Get current weekly set info
     const currentWeeklyId = weeklySetGenerator.getWeeklySetId();
     
-    // Check if current weekly set is already stored
-    const storedWeeklySets = storageManager.loadWeeklySets();
+    // Check if current weekly set needs to be created and stored
     if (!storedWeeklySets[currentWeeklyId]) {
+        // Generate and store the new weekly set
+        const currentWeeklySet = weeklySetGenerator.getCurrentWeeklySet();
         storageManager.saveWeeklySet(currentWeeklyId, currentWeeklySet);
+        
+        // Reload stored sets to get the updated data
+        const updatedStoredSets = storageManager.loadWeeklySets();
+        Object.keys(updatedStoredSets).forEach(setId => {
+            const setData = updatedStoredSets[setId];
+            const updatedSetData = updateSetLifecycle(setData, storageManager, setId);
+            allSets[setId] = updatedSetData;
+        });
+    } else {
+        // Add all stored weekly sets with updated lifecycle status
+        Object.keys(storedWeeklySets).forEach(setId => {
+            const setData = storedWeeklySets[setId];
+            const updatedSetData = updateSetLifecycle(setData, storageManager, setId);
+            allSets[setId] = updatedSetData;
+        });
     }
-    
-    // Add all stored weekly sets with updated lifecycle status
-    Object.keys(storedWeeklySets).forEach(setId => {
-        const setData = storedWeeklySets[setId];
-        const updatedSetData = updateSetLifecycle(setData, storageManager, setId);
-        allSets[setId] = updatedSetData;
-    });
     
     return allSets;
 }
@@ -276,13 +452,28 @@ function updateSetLifecycle(setData, storageManager, setId) {
     const now = Date.now();
     let currentLifecycle = setData.lifecycle;
     
-    // Check if lifecycle should change
-    if (now > setData.rotateDate && currentLifecycle !== 'legacy') {
-        currentLifecycle = 'legacy';
-        storageManager.updateSetLifecycle(setId, 'legacy');
-    } else if (now > setData.featuredUntil && currentLifecycle === 'featured') {
-        currentLifecycle = 'standard';
-        storageManager.updateSetLifecycle(setId, 'standard');
+    // Get the current week's set ID to determine if this should be featured
+    const currentWeeklyId = weeklySetGenerator.getWeeklySetId();
+    
+    // Only the current week's set should be featured
+    if (setId === currentWeeklyId) {
+        // Current week's set should always be featured
+        if (currentLifecycle !== 'featured') {
+            currentLifecycle = 'featured';
+            storageManager.updateSetLifecycle(setId, 'featured');
+        }
+    } else {
+        // All other weekly sets should not be featured
+        if (currentLifecycle === 'featured') {
+            currentLifecycle = 'standard';
+            storageManager.updateSetLifecycle(setId, 'standard');
+        }
+        
+        // Check if it should transition to legacy (after 30 days)
+        if (now > setData.rotateDate && currentLifecycle !== 'legacy') {
+            currentLifecycle = 'legacy';
+            storageManager.updateSetLifecycle(setId, 'legacy');
+        }
     }
     
     // Return set data with updated lifecycle and pricing modifiers
@@ -309,12 +500,148 @@ function getLifecyclePriceMultiplier(lifecycle) {
     }
 }
 
+// TESTING AND DEVELOPMENT HELPER FUNCTIONS
+// These functions are available in the browser console for testing
+
+/**
+ * Console helper: Test generate a weekly set without affecting game state
+ * Usage: testWeeklySet() or testWeeklySet(1, 12345, "Elemental Fury")
+ */
+function testWeeklySet(weekOffset = 0, customSeed = null, customTheme = null) {
+    const result = weeklySetGenerator.testGenerateWeeklySet(weekOffset, customSeed, customTheme);
+    console.log('Test Set Generated:', result);
+    console.log('Sample Cards by Rarity:');
+    Object.keys(result.cards).forEach(rarity => {
+        console.log(`${rarity.toUpperCase()}: ${result.cards[rarity].slice(0, 5).join(', ')}...`);
+    });
+    return result;
+}
+
+/**
+ * Console helper: Regenerate an existing weekly set
+ * Usage: regenerateSet("Weekly_2025_W40") or regenerateSet("Weekly_2025_W40", 99999)
+ */
+function regenerateSet(setId, newSeed = null) {
+    const result = weeklySetGenerator.regenerateWeeklySet(setId, newSeed);
+    if (result) {
+        console.log('Set Regenerated:', result);
+        console.log('New Sample Cards:');
+        Object.keys(result.cards).forEach(rarity => {
+            console.log(`${rarity.toUpperCase()}: ${result.cards[rarity].slice(0, 3).join(', ')}...`);
+        });
+        
+        // Refresh the UI if game engine exists
+        if (window.gameEngine && window.uiManager) {
+            window.uiManager.populateSetSelectors();
+            window.uiManager.renderCollection();
+        }
+    }
+    return result;
+}
+
+/**
+ * Console helper: List all available weekly sets
+ */
+function listWeeklySets() {
+    const storageManager = window.storageManager || new StorageManager();
+    const weeklySets = storageManager.loadWeeklySets();
+    
+    console.log('All Weekly Sets:');
+    Object.keys(weeklySets).forEach(setId => {
+        const set = weeklySets[setId];
+        console.log(`${setId}: ${set.name} (${set.lifecycle}) - ${set.theme}`);
+    });
+    
+    return weeklySets;
+}
+
+/**
+ * Console helper: List all available themes
+ */
+function listThemes() {
+    const themes = weeklySetGenerator.getAvailableThemes();
+    console.log('Available Themes:', themes);
+    return themes;
+}
+
+/**
+ * Console helper: Get current week info
+ */
+function getCurrentWeekInfo() {
+    const info = {
+        currentWeekId: weeklySetGenerator.getWeeklySetId(),
+        weekNumber: weeklySetGenerator.getWeekNumber(),
+        timeUntilNext: weeklySetGenerator.getTimeUntilNextWeek(),
+        daysUntilNext: Math.ceil(weeklySetGenerator.getTimeUntilNextWeek() / (1000 * 60 * 60 * 24))
+    };
+    console.log('Current Week Info:', info);
+    return info;
+}
+
+/**
+ * Console helper: Preview next week's set
+ */
+function previewNextWeek() {
+    return testWeeklySet(1);
+}
+
+/**
+ * Console helper: Show help for testing functions
+ */
+function helpWeeklySetTesting() {
+    console.log(`
+Weekly Set Testing Commands:
+----------------------------
+testWeeklySet(weekOffset?, seed?, theme?)  - Generate test set without saving
+  Examples:
+    testWeeklySet()                         - Test current week
+    testWeeklySet(1)                        - Test next week
+    testWeeklySet(0, 12345)                 - Test with custom seed
+    testWeeklySet(0, null, "Elemental Fury") - Test with specific theme
+
+regenerateSet(setId, newSeed?)              - Regenerate existing set
+  Examples:
+    regenerateSet("Weekly_2025_W40")        - Regenerate with random new cards
+    regenerateSet("Weekly_2025_W40", 99999) - Regenerate with specific seed
+
+listWeeklySets()                            - Show all stored weekly sets
+listThemes()                                - Show all available themes
+getCurrentWeekInfo()                        - Show current week information
+previewNextWeek()                           - Preview next week's set
+helpWeeklySetTesting()                      - Show this help
+
+Note: Use regenerateSet() to change existing sets, testWeeklySet() for previews only.
+    `);
+}
+
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { TCG_SETS, WeeklySetGenerator, weeklySetGenerator, getAllSets };
+    module.exports = { 
+        TCG_SETS, 
+        WeeklySetGenerator, 
+        weeklySetGenerator, 
+        getAllSets,
+        testWeeklySet,
+        regenerateSet,
+        listWeeklySets,
+        listThemes,
+        getCurrentWeekInfo,
+        previewNextWeek,
+        helpWeeklySetTesting
+    };
 } else {
+    // Make everything available globally
     window.TCG_SETS = TCG_SETS;
     window.WeeklySetGenerator = WeeklySetGenerator;
     window.weeklySetGenerator = weeklySetGenerator;
     window.getAllSets = getAllSets;
+    
+    // Testing helper functions
+    window.testWeeklySet = testWeeklySet;
+    window.regenerateSet = regenerateSet;
+    window.listWeeklySets = listWeeklySets;
+    window.listThemes = listThemes;
+    window.getCurrentWeekInfo = getCurrentWeekInfo;
+    window.previewNextWeek = previewNextWeek;
+    window.helpWeeklySetTesting = helpWeeklySetTesting;
 }
