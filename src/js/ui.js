@@ -1048,12 +1048,23 @@ class UIManager {
         this.collectionProgress.textContent = `${progress.collected} / ${progress.total} (${progress.percentage}%)`;
     }
 
-    createCardFaceHTML(name, rarity) {
+    createCardFaceHTML(name, rarity, enableSmartOptimization = false) {
         // Generate glyph art for this card (with fallback if not loaded)
         let artHTML = '';
         if (window.glyphArtGenerator) {
-            const artData = window.glyphArtGenerator.generateArt(name, rarity);
-            artHTML = window.glyphArtGenerator.renderArtHTML(artData);
+            if (enableSmartOptimization) {
+                // Use smart screenshot optimization for collection views
+                artHTML = window.glyphArtGenerator.generateScreenshotWhenNeeded(name, rarity, 300, 200);
+                if (typeof artHTML === 'object' && artHTML.then) {
+                    // Handle promise - use DOM version while screenshot processes
+                    const artData = window.glyphArtGenerator.generateArt(name, rarity);
+                    artHTML = window.glyphArtGenerator.renderArtHTML(artData);
+                }
+            } else {
+                // Use regular DOM rendering for pack opening and single cards
+                const artData = window.glyphArtGenerator.generateArt(name, rarity);
+                artHTML = window.glyphArtGenerator.renderArtHTML(artData);
+            }
         } else {
             // Fallback placeholder
             artHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: rgba(255,255,255,0.3); font-size: 2em;">✨</div>';
@@ -1068,7 +1079,7 @@ class UIManager {
                 border-radius: 6px;
                 overflow: hidden;
                 background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
-            ">
+            " data-card-rarity="${rarity}">
                 ${artHTML}
             </div>
             <div class="card-text-area">
@@ -1105,7 +1116,11 @@ class UIManager {
             `;
         }
 
-        element.innerHTML = this.createCardFaceHTML(name, rarity) + countDisplay;
+        element.innerHTML = this.createCardFaceHTML(name, rarity, true) + countDisplay; // Enable optimization for collection
+        
+        // Add data attributes for screenshot optimization
+        element.setAttribute('data-card-name', name);
+        element.setAttribute('data-card-rarity', rarity);
         
         // Add event listener for sell button
         const sellBtn = element.querySelector('.sell-card-btn');

@@ -25,6 +25,9 @@ class TCGPackSimulator {
         // Initial render
         this.uiManager.refreshUI();
         
+        // Set up conservative cache management for glyph art optimization
+        this.setupPerformanceOptimizations();
+        
         // Set up Electron IPC listeners for new game functionality
         this.setupElectronListeners();
         
@@ -35,6 +38,34 @@ class TCGPackSimulator {
         this.gameEngine.resetGame();
         // Market engine is reset as part of game reset, no need to recreate
         this.uiManager.refreshUI();
+    }
+
+    setupPerformanceOptimizations() {
+        // Conservative cache management for collection views only
+        if (window.glyphArtGenerator) {
+            // Clear cache on tab changes to prevent memory buildup
+            const originalMethod = this.uiManager.switchTab;
+            if (originalMethod) {
+                this.uiManager.switchTab = (tabName) => {
+                    if (tabName !== 'collection') {
+                        window.glyphArtGenerator.clearPerformanceCache();
+                    }
+                    return originalMethod.call(this.uiManager, tabName);
+                };
+            }
+            
+            // Clean up cache on page unload
+            window.addEventListener('beforeunload', () => {
+                window.glyphArtGenerator.clearPerformanceCache();
+            });
+            
+            // Conservative memory management - clean every 2 minutes
+            setInterval(() => {
+                if (window.glyphArtGenerator.getCacheStats().imageCache > 30) {
+                    window.glyphArtGenerator.manageCacheSize(30);
+                }
+            }, 120000); // 2 minutes
+        }
     }
 
     setupElectronListeners() {
