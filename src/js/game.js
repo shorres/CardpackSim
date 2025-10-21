@@ -18,7 +18,15 @@ class GameEngine {
             salesCount: 0,
             highestSale: 0,
             netWorthHistory: [{ timestamp: Date.now(), value: 20.00 }],
-            selectedPortrait: "👤"
+            selectedPortrait: "👤",
+            // Card lock settings
+            cardLockSettings: {
+                keepOne: false,
+                keepFoils: false,
+                keepOneFoil: false,
+                keepMythics: false,
+                keepRares: false
+            }
         };
         this.storageManager = new StorageManager();
         // Make storage manager globally available for getAllSets function
@@ -290,17 +298,83 @@ class GameEngine {
         return this.state.netWorth;
     }
 
+    // Helper method to calculate available quantity for sale considering locks
+    getAvailableQuantityForSale(setId, cardName, isFoil) {
+        const collectionSet = this.state.collection[setId];
+        if (!collectionSet || !collectionSet[cardName]) {
+            return 0;
+        }
+        
+        const cardData = collectionSet[cardName];
+        const rarity = this.getCardRarity(setId, cardName);
+        const settings = this.state.cardLockSettings;
+        
+        let availableQuantity;
+        let lockedQuantity = 0;
+        
+        if (isFoil) {
+            availableQuantity = cardData.foilCount;
+            
+            // Calculate locked foil cards
+            if (settings.keepFoils) {
+                lockedQuantity = availableQuantity; // Lock all foils
+            } else if (settings.keepOneFoil && availableQuantity > 0) {
+                lockedQuantity = 1; // Lock one foil
+            }
+            
+            // Check rarity-based locks for foils
+            if (settings.keepMythics && rarity === 'mythic') {
+                lockedQuantity = Math.max(lockedQuantity, availableQuantity);
+            }
+            if (settings.keepRares && rarity === 'rare') {
+                lockedQuantity = Math.max(lockedQuantity, availableQuantity);
+            }
+        } else {
+            availableQuantity = cardData.count;
+            
+            // Calculate locked regular cards
+            if (settings.keepOne && availableQuantity > 0) {
+                lockedQuantity = 1; // Lock one regular card
+            }
+            
+            // Check rarity-based locks for regular cards
+            if (settings.keepMythics && rarity === 'mythic') {
+                lockedQuantity = Math.max(lockedQuantity, availableQuantity);
+            }
+            if (settings.keepRares && rarity === 'rare') {
+                lockedQuantity = Math.max(lockedQuantity, availableQuantity);
+            }
+        }
+        
+        return Math.max(0, availableQuantity - lockedQuantity);
+    }
+
     sellCard(setId, cardName, quantity, isFoil = false) {
         const collectionSet = this.state.collection[setId];
         if (!collectionSet || !collectionSet[cardName]) {
             return { success: false, message: "Card not found in collection" };
         }
         
-        const cardData = collectionSet[cardName];
-        const availableQuantity = isFoil ? cardData.foilCount : (cardData.count - cardData.foilCount);
+        const availableQuantity = this.getAvailableQuantityForSale(setId, cardName, isFoil);
         
         if (quantity > availableQuantity) {
-            return { success: false, message: `Not enough cards. You have ${availableQuantity} available.` };
+            const rarity = this.getCardRarity(setId, cardName);
+            const cardType = isFoil ? 'foil' : 'regular';
+            let lockReason = '';
+            
+            if (availableQuantity === 0) {
+                if (this.state.cardLockSettings.keepFoils && isFoil) {
+                    lockReason = ' (all foils are locked)';
+                } else if (this.state.cardLockSettings.keepOne && !isFoil) {
+                    lockReason = ' (keeping 1 of each card)';
+                } else if (this.state.cardLockSettings.keepMythics && rarity === 'mythic') {
+                    lockReason = ' (all mythics are locked)';
+                } else if (this.state.cardLockSettings.keepRares && rarity === 'rare') {
+                    lockReason = ' (all rares are locked)';
+                }
+            }
+            
+            return { success: false, message: `Not enough ${cardType} cards available for sale. You have ${availableQuantity} available${lockReason}.` };
         }
         
         const salePrice = this.marketEngine.getCardPrice(setId, cardName, isFoil);
@@ -309,6 +383,9 @@ class GameEngine {
         // Apply trading fee (5% for instant sales)
         const fee = Math.round(totalValue * 0.05 * 100) / 100;
         const netValue = Math.round((totalValue - fee) * 100) / 100;
+        
+        // Get card data for updating collection
+        const cardData = collectionSet[cardName];
         
         // Update collection
         if (isFoil) {
