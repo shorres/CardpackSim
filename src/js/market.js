@@ -47,7 +47,7 @@ class MarketEngine {
             maxPriceChange: 0.15, // 15% max change per update
             volatilityRange: 0.05, // ±5% random volatility
             demandEventChance: 0.02, // 2% chance per card per update
-            sentimentChangeRate: 0.001, // How fast sentiment changes
+            sentimentChangeRate: 0.01, // How fast sentiment changes
             
             // Update frequency
             priceUpdateInterval: 60000, // 1 minute (increased frequency)
