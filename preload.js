@@ -26,5 +26,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   newGameCancelled: () => {
     ipcRenderer.send('new-game-cancelled');
+  },
+
+  // Simple version checking
+  getAppVersion: () => {
+    return ipcRenderer.invoke('get-app-version');
   }
 });

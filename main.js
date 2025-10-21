@@ -143,6 +143,11 @@ ipcMain.on('new-game-cancelled', () => {
   console.log('New game cancelled by user');
 });
 
+// Simple version checking for update notifications
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
+});
+
 // This method will be called when Electron has finished initialization
 app.whenReady().then(createWindow);
 

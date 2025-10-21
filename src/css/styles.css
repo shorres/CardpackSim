@@ -1324,3 +1324,44 @@ canvas {
 .autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
     background: var(--border-primary);
 }
+
+/* Update Notification Banner */
+.update-banner {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.update-banner a:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.update-banner button:hover {
+    transform: translateY(-1px);
+}
+
+/* Responsive update banner */
+@media (max-width: 768px) {
+    .update-banner div[style*="display: flex"] {
+        flex-direction: column !important;
+        gap: 10px !important;
+    }
+    
+    .update-banner div[style*="display: flex"] > div:last-child {
+        flex-direction: row !important;
+        justify-content: center !important;
+    }
+}

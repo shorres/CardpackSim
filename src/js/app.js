@@ -3,6 +3,7 @@ class TCGPackSimulator {
     constructor() {
         this.gameEngine = null;
         this.uiManager = null;
+        this.updater = null;
     }
 
     initialize() {
@@ -30,6 +31,9 @@ class TCGPackSimulator {
         
         // Set up Electron IPC listeners for new game functionality
         this.setupElectronListeners();
+        
+        // Initialize simple update checker
+        this.setupSimpleUpdater();
         
         console.log('TCG Pack Simulator with Market System initialized successfully!');
     }
@@ -80,6 +84,24 @@ class TCGPackSimulator {
             window.electronAPI.onResetGame(() => {
                 this.reset();
             });
+        }
+    }
+
+    setupSimpleUpdater() {
+        // Initialize simple update checker if available
+        if (window.SimpleUpdater) {
+            this.updater = new SimpleUpdater();
+            this.updater.initialize();
+            
+            // Make it globally available for debugging
+            window.simpleUpdater = this.updater;
+            
+            // Add debug commands for testing
+            if (typeof window !== 'undefined') {
+                window.checkForUpdates = () => this.updater.manualCheck();
+                window.resetDismissedUpdates = () => this.updater.resetDismissed();
+                window.getUpdaterStatus = () => this.updater.getStatus();
+            }
         }
     }
 
