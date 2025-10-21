@@ -103,6 +103,23 @@ class UIManager {
         this.networthTimeframeBtns = null; // Will be initialized when modal opens
         this.currentNetworthTimeframe = 24; // Default to 24 hours
         
+        // Collection filter elements
+        this.collectionSearch = document.getElementById('collection-search');
+        this.collectionSort = document.getElementById('collection-sort');
+        this.collectionFilter = document.getElementById('collection-filter');
+        this.collectionLockSettingsBtn = document.getElementById('collection-lock-settings');
+        
+        // Lock settings modal elements
+        this.lockSettingsModal = document.getElementById('lock-settings-modal');
+        this.closeLockSettingsBtn = document.getElementById('close-lock-settings-btn');
+        this.cancelLockSettingsBtn = document.getElementById('cancel-lock-settings-btn');
+        this.saveLockSettingsBtn = document.getElementById('save-lock-settings-btn');
+        this.lockKeepOne = document.getElementById('lock-keep-one');
+        this.lockKeepFoils = document.getElementById('lock-keep-foils');
+        this.lockKeepOneFoil = document.getElementById('lock-keep-one-foil');
+        this.lockKeepMythics = document.getElementById('lock-keep-mythics');
+        this.lockKeepRares = document.getElementById('lock-keep-rares');
+        
         this.currentSellCard = null;
         this.currentTab = 'packs'; // Default tab
         this.currentChart = null;
@@ -110,6 +127,11 @@ class UIManager {
         this.portfolioFilters = {
             search: '',
             sort: 'value-desc',
+            filter: 'all'
+        };
+        this.collectionFilters = {
+            search: '',
+            sort: 'rarity-asc',
             filter: 'all'
         };
 
@@ -600,6 +622,45 @@ class UIManager {
             this.renderPortfolio();
         });
 
+        // Collection filter/search/sort listeners
+        this.collectionSearch.addEventListener('input', (e) => {
+            this.collectionFilters.search = e.target.value.toLowerCase();
+            this.renderCollection();
+        });
+        
+        this.collectionSort.addEventListener('change', (e) => {
+            this.collectionFilters.sort = e.target.value;
+            this.renderCollection();
+        });
+        
+        this.collectionFilter.addEventListener('change', (e) => {
+            this.collectionFilters.filter = e.target.value;
+            this.renderCollection();
+        });
+
+        // Lock settings modal listeners
+        this.collectionLockSettingsBtn.addEventListener('click', () => {
+            this.openLockSettingsModal();
+        });
+        
+        this.closeLockSettingsBtn.addEventListener('click', () => {
+            this.closeLockSettingsModal();
+        });
+        
+        this.cancelLockSettingsBtn.addEventListener('click', () => {
+            this.closeLockSettingsModal();
+        });
+        
+        this.saveLockSettingsBtn.addEventListener('click', () => {
+            this.saveLockSettings();
+        });
+        
+        this.lockSettingsModal.addEventListener('click', (e) => {
+            if (e.target === this.lockSettingsModal) {
+                this.closeLockSettingsModal();
+            }
+        });
+
         // Price chart modal listeners
         this.closeChartBtn.addEventListener('click', () => this.closePriceChart());
         this.priceChartModal.addEventListener('click', (e) => {
@@ -1036,12 +1097,44 @@ class UIManager {
         const progress = this.gameEngine.getCollectionProgress(selectedSetId);
         const collectionSet = this.gameEngine.state.collection[selectedSetId];
 
-        progress.allCards.forEach(cardInfo => {
-            const cardData = collectionSet[cardInfo.name];
-            const count = cardData ? cardData.count : 0;
-            const foilCount = cardData ? cardData.foilCount : 0;
+        // Prepare card data with additional information needed for filtering/sorting
+        let cardData = progress.allCards.map(cardInfo => {
+            const data = collectionSet[cardInfo.name];
+            const count = data ? data.count : 0;
+            const foilCount = data ? data.foilCount : 0;
+            const totalOwned = count + foilCount;
+            const regularPrice = this.gameEngine.marketEngine.getCardPrice(selectedSetId, cardInfo.name, false);
+            const foilPrice = this.gameEngine.marketEngine.getCardPrice(selectedSetId, cardInfo.name, true);
+            const totalValue = (count * regularPrice) + (foilCount * foilPrice);
+            const isLocked = this.isCardLocked(selectedSetId, cardInfo.name, count, foilCount, cardInfo.rarity);
             
-            const cardElement = this.createCollectionCardElement(cardInfo.name, cardInfo.rarity, foilCount > 0, count, foilCount, selectedSetId);
+            return {
+                ...cardInfo,
+                count,
+                foilCount,
+                totalOwned,
+                totalValue,
+                isLocked
+            };
+        });
+
+        // Apply filters
+        cardData = this.filterCollectionCards(cardData);
+        
+        // Apply sorting
+        cardData = this.sortCollectionCards(cardData);
+
+        // Render filtered and sorted cards
+        cardData.forEach(card => {
+            const cardElement = this.createCollectionCardElement(
+                card.name, 
+                card.rarity, 
+                card.foilCount > 0, 
+                card.count, 
+                card.foilCount, 
+                selectedSetId,
+                card.isLocked
+            );
             this.collectionDisplay.appendChild(cardElement);
         });
         
@@ -1089,19 +1182,29 @@ class UIManager {
         `;
     }
 
-    createCollectionCardElement(name, rarity, isFoil, count, foilCount, setId = null) {
+    createCollectionCardElement(name, rarity, isFoil, count, foilCount, setId = null, isLocked = false) {
         const element = document.createElement('div');
         const foilClass = isFoil ? 'foil' : '';
         // Fix: Check if player has ANY version of the card (regular OR foil)
         const totalOwned = count + foilCount;
         const ownedClass = totalOwned === 0 ? 'opacity-40' : '';
-        element.className = `card-face relative border-4 rounded-lg p-2 h-40 flex flex-col justify-between shadow-md rarity-${rarity} ${foilClass} ${ownedClass} cursor-pointer hover:transform hover:scale-105 transition-transform`;
+        const lockedClass = isLocked ? 'ring-2 ring-yellow-400' : '';
+        element.className = `card-face relative border-4 rounded-lg p-2 h-40 flex flex-col justify-between shadow-md rarity-${rarity} ${foilClass} ${ownedClass} ${lockedClass} cursor-pointer hover:transform hover:scale-105 transition-transform`;
         
         let countDisplay = `
             <div class="absolute top-1 right-1 bg-gray-900 text-white text-xs font-bold rounded-full px-2 py-1">
                 ${isFoil ? `<span class="text-yellow-400">★${foilCount}</span> / ` : ''} ${count}x
             </div>
         `;
+        
+        // Add lock indicator if card is locked
+        if (isLocked) {
+            countDisplay += `
+                <div class="absolute top-1 left-1 bg-yellow-600 text-white text-xs font-bold rounded-full px-2 py-1">
+                    🔒
+                </div>
+            `;
+        }
         
         // Fix: Add sell button if player owns ANY version of the card (regular OR foil)
         if (totalOwned > 0) {
@@ -1350,6 +1453,90 @@ class UIManager {
         });
     }
 
+    filterCollectionCards(cards) {
+        return cards.filter(card => {
+            // Search filter
+            if (this.collectionFilters.search) {
+                const searchTerm = this.collectionFilters.search.toLowerCase();
+                const cardName = card.name.toLowerCase();
+                const rarity = card.rarity.toLowerCase();
+                
+                // Search in card name and rarity
+                const searchText = `${cardName} ${rarity}`;
+                
+                if (!searchText.includes(searchTerm)) {
+                    return false;
+                }
+            }
+            
+            // Filter by type
+            if (this.collectionFilters.filter !== 'all') {
+                switch (this.collectionFilters.filter) {
+                    case 'owned':
+                        if (card.totalOwned === 0) return false;
+                        break;
+                    case 'missing':
+                        if (card.totalOwned > 0) return false;
+                        break;
+                    case 'common':
+                    case 'uncommon':
+                    case 'rare':
+                    case 'mythic':
+                        if (card.rarity !== this.collectionFilters.filter) return false;
+                        break;
+                    case 'foil':
+                        if (card.foilCount === 0) return false;
+                        break;
+                    case 'locked':
+                        if (!card.isLocked) return false;
+                        break;
+                }
+            }
+            
+            return true;
+        });
+    }
+
+    sortCollectionCards(cards) {
+        return cards.sort((a, b) => {
+            switch (this.collectionFilters.sort) {
+                case 'name-asc':
+                    return a.name.localeCompare(b.name);
+                case 'name-desc':
+                    return b.name.localeCompare(a.name);
+                case 'rarity-desc':
+                    const rarityOrder = { mythic: 4, rare: 3, uncommon: 2, common: 1 };
+                    return (rarityOrder[b.rarity] || 0) - (rarityOrder[a.rarity] || 0);
+                case 'rarity-asc':
+                    const rarityOrderAsc = { mythic: 4, rare: 3, uncommon: 2, common: 1 };
+                    return (rarityOrderAsc[a.rarity] || 0) - (rarityOrderAsc[b.rarity] || 0);
+                case 'count-desc':
+                    return b.totalOwned - a.totalOwned;
+                case 'count-asc':
+                    return a.totalOwned - b.totalOwned;
+                case 'value-desc':
+                    return b.totalValue - a.totalValue;
+                case 'value-asc':
+                    return a.totalValue - b.totalValue;
+                default:
+                    return 0;
+            }
+        });
+    }
+
+    isCardLocked(setId, cardName, count, foilCount, rarity) {
+        const settings = this.gameEngine.state.cardLockSettings;
+        
+        // Check if any lock setting would protect this card
+        if (settings.keepOne && count > 0) return true;
+        if (settings.keepFoils && foilCount > 0) return true;
+        if (settings.keepOneFoil && foilCount > 0) return true;
+        if (settings.keepMythics && rarity === 'mythic') return true;
+        if (settings.keepRares && rarity === 'rare') return true;
+        
+        return false;
+    }
+
     renderMarketSummary() {
         const summary = this.gameEngine.marketEngine.getMarketSummary();
         
@@ -1447,32 +1634,42 @@ class UIManager {
         const foilPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, true);
         const trend = this.gameEngine.marketEngine.getCardTrend(setId, cardName);
         
-        const regularCount = cardData.count - cardData.foilCount;
+        const regularCount = cardData.count;
         const foilCount = cardData.foilCount;
+        
+        // Get available quantities considering locks
+        const availableRegular = this.gameEngine.getAvailableQuantityForSale(setId, cardName, false);
+        const availableFoil = this.gameEngine.getAvailableQuantityForSale(setId, cardName, true);
+        
+        // Check if card is locked
+        const isLocked = this.isCardLocked(setId, cardName, regularCount, foilCount, rarity);
         
         this.sellCardInfo.innerHTML = `
             <div class="mb-3">
-                <h4 class="font-bold text-lg">${cardName}</h4>
+                <h4 class="font-bold text-lg">${cardName} ${isLocked ? '🔒' : ''}</h4>
                 <p class="text-sm text-gray-400 capitalize">${rarity} | ${trend.trend} ${trend.change > 0 ? '+' : ''}${trend.change.toFixed(1)}%</p>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
                 <div>
                     <div class="text-gray-400">Regular Copies</div>
-                    <div>${regularCount} @ $${regularPrice.toFixed(2)} each</div>
+                    <div>${regularCount} owned | ${availableRegular} sellable @ $${regularPrice.toFixed(2)} each</div>
+                    ${regularCount > availableRegular ? '<div class="text-yellow-400 text-xs">🔒 Some cards are locked</div>' : ''}
                 </div>
                 <div>
                     <div class="text-gray-400">Foil Copies</div>
-                    <div>${foilCount} @ $${foilPrice.toFixed(2)} each</div>
+                    <div>${foilCount} owned | ${availableFoil} sellable @ $${foilPrice.toFixed(2)} each</div>
+                    ${foilCount > availableFoil ? '<div class="text-yellow-400 text-xs">🔒 Some cards are locked</div>' : ''}
                 </div>
             </div>
         `;
         
-        this.sellQuantity.max = cardData.count;
-        this.sellQuantity.value = 1;
+        // Set max sellable quantity (will be updated in updateSalePreview based on foil checkbox)
+        this.sellQuantity.max = Math.max(availableRegular, 1);
+        this.sellQuantity.value = Math.min(1, availableRegular);
         this.sellFoilOnly.checked = false;
         
-        // Disable foil checkbox if no foils
-        this.sellFoilOnly.disabled = foilCount === 0;
+        // Disable foil checkbox if no foils available for sale
+        this.sellFoilOnly.disabled = availableFoil === 0;
         
         this.updateSalePreview();
         this.sellCardModal.classList.remove('hidden');
@@ -1490,14 +1687,17 @@ class UIManager {
         const isFoil = this.sellFoilOnly.checked;
         const { setId, cardName } = this.currentSellCard;
         
-        const collectionSet = this.gameEngine.state.collection[setId];
-        const cardData = collectionSet[cardName];
-        const availableQuantity = isFoil ? cardData.foilCount : (cardData.count - cardData.foilCount);
+        // Get available quantity considering locks
+        const availableQuantity = this.gameEngine.getAvailableQuantityForSale(setId, cardName, isFoil);
+        
+        // Update max quantity for the input
+        this.sellQuantity.max = Math.max(availableQuantity, 1);
         
         if (quantity > availableQuantity) {
             this.salePreview.innerHTML = `
                 <div class="text-red-400">
-                    ❌ Not enough cards! You have ${availableQuantity} ${isFoil ? 'foil' : 'regular'} copies.
+                    ❌ Not enough ${isFoil ? 'foil' : 'regular'} cards available for sale! You have ${availableQuantity} sellable copies.
+                    ${availableQuantity === 0 ? '<br><small>🔒 All copies are locked by your protection settings.</small>' : ''}
                 </div>
             `;
             this.confirmSellBtn.disabled = true;
@@ -1719,6 +1919,45 @@ class UIManager {
             this.netWorthChart.destroy();
             this.netWorthChart = null;
         }
+    }
+
+    // Lock Settings Modal Methods
+    
+    openLockSettingsModal() {
+        const settings = this.gameEngine.state.cardLockSettings;
+        
+        // Populate current settings
+        this.lockKeepOne.checked = settings.keepOne;
+        this.lockKeepFoils.checked = settings.keepFoils;
+        this.lockKeepOneFoil.checked = settings.keepOneFoil;
+        this.lockKeepMythics.checked = settings.keepMythics;
+        this.lockKeepRares.checked = settings.keepRares;
+        
+        this.lockSettingsModal.classList.remove('hidden');
+    }
+
+    closeLockSettingsModal() {
+        this.lockSettingsModal.classList.add('hidden');
+    }
+
+    saveLockSettings() {
+        // Update game state with new settings
+        this.gameEngine.state.cardLockSettings = {
+            keepOne: this.lockKeepOne.checked,
+            keepFoils: this.lockKeepFoils.checked,
+            keepOneFoil: this.lockKeepOneFoil.checked,
+            keepMythics: this.lockKeepMythics.checked,
+            keepRares: this.lockKeepRares.checked
+        };
+        
+        // Save to localStorage
+        this.gameEngine.saveState();
+        
+        // Refresh collection to show updated lock states
+        this.renderCollection();
+        
+        this.showNotification('Lock settings saved!', 'success');
+        this.closeLockSettingsModal();
     }
 
     populateProfileModal() {

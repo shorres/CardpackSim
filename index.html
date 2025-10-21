@@ -124,6 +124,34 @@
                              <div id="collection-progress" class="text-sm"></div>
                         </div>
                     </div>
+                    
+                    <!-- Collection Controls -->
+                    <div class="mb-4 flex flex-wrap gap-2">
+                        <input type="text" id="collection-search" placeholder="Search cards..." 
+                               class="text-sm rounded-lg px-3 py-2 flex-1 min-w-[200px]" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
+                        <select id="collection-sort" class="text-sm rounded-lg px-3 py-2" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
+                            <option value="rarity-asc">Rarity (Common First)</option>
+                            <option value="rarity-desc">Rarity (Rare First)</option>
+                            <option value="name-asc">Name (A-Z)</option>
+                            <option value="name-desc">Name (Z-A)</option>
+                            <option value="count-desc">Most Owned</option>
+                            <option value="count-asc">Least Owned</option>
+                            <option value="value-desc">Highest Value</option>
+                            <option value="value-asc">Lowest Value</option>
+                        </select>
+                        <select id="collection-filter" class="text-sm rounded-lg px-3 py-2" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
+                            <option value="all">All Cards</option>
+                            <option value="owned">Owned Only</option>
+                            <option value="missing">Missing Only</option>
+                            <option value="common">Commons Only</option>
+                            <option value="uncommon">Uncommons Only</option>
+                            <option value="rare">Rares Only</option>
+                            <option value="mythic">Mythics Only</option>
+                            <option value="foil">Has Foils</option>
+                            <option value="locked">Locked Cards</option>
+                        </select>
+                        <button id="collection-lock-settings" class="text-sm rounded-lg px-3 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium">🔒 Lock Settings</button>
+                    </div>
                     <div id="collection-display" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-4 max-h-[600px] overflow-y-auto p-4 rounded-lg" style="background-color: var(--bg-primary); opacity: 0.8;">
                         <!-- User's collection will be displayed here -->
                     </div>
@@ -505,6 +533,66 @@
                 </button>
                 <button id="cancel-buy-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--bg-quaternary); color: var(--text-primary);">
                     Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card Lock Settings Modal -->
+    <div id="lock-settings-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="max-w-md w-full mx-4 rounded-lg shadow-xl" style="background-color: var(--bg-secondary); color: var(--text-primary);">
+            <div class="flex justify-between items-center p-6 border-b" style="border-color: var(--border-primary);">
+                <h2 class="text-xl font-semibold">🔒 Card Lock Settings</h2>
+                <button id="close-lock-settings-btn" class="text-gray-400 hover:text-white">&times;</button>
+            </div>
+            
+            <div class="p-6">
+                <p class="text-sm text-gray-400 mb-4">Configure automatic protection for your cards to prevent accidental sales.</p>
+                
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="lock-keep-one" class="mr-2">
+                            <span>Keep 1 of each card</span>
+                        </label>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="lock-keep-foils" class="mr-2">
+                            <span>Keep all foil cards</span>
+                        </label>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="lock-keep-one-foil" class="mr-2">
+                            <span>Keep 1 foil of each card</span>
+                        </label>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="lock-keep-mythics" class="mr-2">
+                            <span>Keep all mythic cards</span>
+                        </label>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="lock-keep-rares" class="mr-2">
+                            <span>Keep all rare cards</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 p-6 border-t" style="border-color: var(--border-primary);">
+                <button id="cancel-lock-settings-btn" class="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">
+                    Cancel
+                </button>
+                <button id="save-lock-settings-btn" class="flex-1 bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded">
+                    Save Settings
                 </button>
             </div>
         </div>
