@@ -34,8 +34,6 @@ class TCGPackSimulator {
         
         // Initialize simple update checker
         this.setupSimpleUpdater();
-        
-        console.log('TCG Pack Simulator with Market System initialized successfully!');
     }
 
     reset() {

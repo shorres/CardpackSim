@@ -53,17 +53,6 @@
       ],
       "artifactName": "${productName}.${ext}"
     },
-    "mac": {
-      "target": [
-        {
-          "target": "dmg"
-        },
-        {
-          "target": "zip"
-        }
-      ],
-      "artifactName": "${productName}.${ext}"
-    },
     "linux": {
       "target": "AppImage",
       "artifactName": "${productName}.${ext}"
