@@ -85,6 +85,58 @@ class WeeklySetGenerator {
             "Key", "Lantern", "Mirror", "Necklace", "Opal", "Pendant", "Quiver", "Relic", "Stone", "Talisman"
         ];
 
+        // Theme-specific word pools for more thematic card names
+        this.themeWordPools = {
+            "Elemental Fury": {
+                adjectives: ["Blazing", "Molten", "Frozen", "Stormy", "Volcanic", "Glacial", "Lightning", "Tempest", "Scorching", "Crystalline"],
+                creatures: ["Phoenix", "Dragon", "Elemental", "Salamander", "Frost Giant", "Storm Spirit", "Magma Beast", "Ice Wraith", "Thunder Bird", "Flame Sprite"],
+                spells: ["Inferno", "Blizzard", "Hurricane", "Eruption", "Avalanche", "Tornado", "Firestorm", "Frostbolt", "Lightning", "Meteor"],
+                artifacts: ["Ember", "Crystal", "Prism", "Furnace", "Glacier", "Conduit", "Core", "Shard", "Vortex", "Nexus"]
+            },
+            "Shadow Realm": {
+                adjectives: ["Dark", "Cursed", "Haunted", "Spectral", "Malevolent", "Sinister", "Wrathful", "Dreadful", "Ominous", "Nightmarish"],
+                creatures: ["Wraith", "Shade", "Banshee", "Lich", "Revenant", "Shadow", "Demon", "Specter", "Ghoul", "Necromancer"],
+                spells: ["Curse", "Hex", "Blight", "Drain", "Doom", "Decay", "Plague", "Wither", "Terror", "Soul Burn"],
+                artifacts: ["Grimoire", "Skull", "Bone", "Phylactery", "Chalice", "Crypt", "Tome", "Coffin", "Scythe", "Crown"]
+            },
+            "Divine Light": {
+                adjectives: ["Holy", "Sacred", "Blessed", "Divine", "Radiant", "Celestial", "Pure", "Sanctified", "Hallowed", "Luminous"],
+                creatures: ["Angel", "Seraph", "Paladin", "Priest", "Guardian", "Herald", "Saint", "Crusader", "Champion", "Avatar"],
+                spells: ["Blessing", "Heal", "Purify", "Sanctuary", "Ward", "Grace", "Prayer", "Miracle", "Light", "Salvation"],
+                artifacts: ["Halo", "Wings", "Chalice", "Cross", "Shrine", "Altar", "Relic", "Scripture", "Mace", "Shield"]
+            },
+            "Wild Hunt": {
+                adjectives: ["Primal", "Savage", "Feral", "Wild", "Untamed", "Bestial", "Primitive", "Tribal", "Ancient", "Natural"],
+                creatures: ["Wolf", "Bear", "Eagle", "Stag", "Panther", "Hawk", "Boar", "Tiger", "Elk", "Lynx"],
+                spells: ["Hunt", "Track", "Pounce", "Howl", "Roar", "Charge", "Stalk", "Ambush", "Pack", "Territory"],
+                artifacts: ["Claw", "Fang", "Hide", "Antler", "Feather", "Tusk", "Pelt", "Bone", "Totem", "Trophy"]
+            },
+            "Arcane Mysteries": {
+                adjectives: ["Arcane", "Mystic", "Enigmatic", "Esoteric", "Cryptic", "Ancient", "Forbidden", "Hidden", "Secret", "Profound"],
+                creatures: ["Wizard", "Sage", "Oracle", "Seer", "Magus", "Scholar", "Artificer", "Mystic", "Adept", "Diviner"],
+                spells: ["Divination", "Enchantment", "Illusion", "Transmutation", "Conjuration", "Evocation", "Scrying", "Ritual", "Incantation", "Invocation"],
+                artifacts: ["Tome", "Scroll", "Wand", "Staff", "Orb", "Crystal", "Rune", "Codex", "Tablet", "Lens"]
+            },
+            "Mechanical Marvel": {
+                adjectives: ["Mechanical", "Clockwork", "Steam", "Gear", "Bronze", "Steel", "Automated", "Powered", "Engineered", "Constructed"],
+                creatures: ["Golem", "Automaton", "Construct", "Machine", "Engine", "Drone", "Mech", "Robot", "Gear", "Clockwork"],
+                spells: ["Repair", "Upgrade", "Power", "Malfunction", "Override", "Activate", "Calibrate", "Engineer", "Assembly", "Process"],
+                artifacts: ["Gear", "Engine", "Boiler", "Piston", "Turbine", "Dynamo", "Coil", "Spring", "Valve", "Module"]
+            },
+            "Warrior's Code": {
+                adjectives: ["Valiant", "Honor", "Mighty", "Noble", "Fierce", "Stalwart", "Brave", "Heroic", "Veteran", "Elite"],
+                creatures: ["Knight", "Warrior", "Soldier", "Champion", "Gladiator", "Commander", "Captain", "Berserker", "Guardian", "Sentinel"],
+                spells: ["Strike", "Charge", "Rally", "Challenge", "Duel", "March", "Formation", "Tactics", "Victory", "Honor"],
+                artifacts: ["Sword", "Shield", "Armor", "Banner", "Helm", "Gauntlet", "Blade", "Spear", "Axe", "Mace"]
+            },
+            "Temporal Nexus": {
+                adjectives: ["Temporal", "Timeless", "Chronos", "Eternal", "Ancient", "Future", "Past", "Timeworn", "Epochal", "Infinite"],
+                creatures: ["Timekeeper", "Chronarch", "Time Lord", "Temporal", "Epoch", "Paradox", "Continuum", "Dimension", "Aeon", "Chrono"],
+                spells: ["Rewind", "Accelerate", "Pause", "Shift", "Loop", "Distort", "Echo", "Ripple", "Flux", "Convergence"],
+                artifacts: ["Clock", "Hourglass", "Chronometer", "Sundial", "Metronome", "Pendulum", "Timepiece", "Gear", "Spring", "Dial"]
+            }
+        };
+
         this.themes = [
             { name: "Elemental Fury", focus: "fire_water_earth_air" },
             { name: "Shadow Realm", focus: "darkness_death_undead" },
@@ -225,41 +277,92 @@ class WeeklySetGenerator {
      * @param {number} seed - Base seed
      * @param {number} index - Card index
      * @param {Array} excludeNames - Card names to avoid
+     * @param {string} theme - Theme name for thematic card generation
      * @returns {string} Generated card name
      */
-    generateUniqueCardName(rarity, seed, index, excludeNames = []) {
+    generateUniqueCardName(rarity, seed, index, excludeNames = [], theme = null) {
         let attempts = 0;
         let cardName;
         
         do {
             const modifiedSeed = seed + index + (attempts * 1000);
-            cardName = this.generateCardName(rarity, modifiedSeed, index);
+            cardName = this.generateCardName(rarity, modifiedSeed, index, theme);
             attempts++;
         } while (excludeNames.includes(cardName) && attempts < 100);
         
         return cardName;
     }
 
-    generateCardName(rarity, seed, index) {
-        const rarityAdjectives = this.cardNameGenerators[rarity];
-        const adjIndex = Math.floor(this.seededRandom(seed + index) * rarityAdjectives.length);
-        const adjective = rarityAdjectives[adjIndex];
-
-        const typeRoll = this.seededRandom(seed + index + 1000);
-        let noun;
+    generateCardName(rarity, seed, index, theme = null) {
+        // 60% chance to use theme-specific words if theme is provided
+        const useThematic = theme && this.themeWordPools[theme] && this.seededRandom(seed + index + 5000) < 0.6;
         
-        if (typeRoll < 0.4) {
-            // Creature
-            const nounIndex = Math.floor(this.seededRandom(seed + index + 2000) * this.creatureTypes.length);
-            noun = this.creatureTypes[nounIndex];
-        } else if (typeRoll < 0.7) {
-            // Spell
-            const nounIndex = Math.floor(this.seededRandom(seed + index + 3000) * this.spellTypes.length);
-            noun = this.spellTypes[nounIndex];
+        let adjective, noun;
+        
+        if (useThematic) {
+            // Use theme-specific adjectives with 70% chance, fallback to rarity adjectives
+            const themePool = this.themeWordPools[theme];
+            const useThemeAdj = this.seededRandom(seed + index + 6000) < 0.7;
+            
+            if (useThemeAdj && themePool.adjectives.length > 0) {
+                const adjIndex = Math.floor(this.seededRandom(seed + index + 7000) * themePool.adjectives.length);
+                adjective = themePool.adjectives[adjIndex];
+            } else {
+                const rarityAdjectives = this.cardNameGenerators[rarity];
+                const adjIndex = Math.floor(this.seededRandom(seed + index) * rarityAdjectives.length);
+                adjective = rarityAdjectives[adjIndex];
+            }
+            
+            // Determine type and use theme-specific nouns
+            const typeRoll = this.seededRandom(seed + index + 1000);
+            
+            if (typeRoll < 0.4 && themePool.creatures.length > 0) {
+                // Creature - use theme creatures
+                const nounIndex = Math.floor(this.seededRandom(seed + index + 2000) * themePool.creatures.length);
+                noun = themePool.creatures[nounIndex];
+            } else if (typeRoll < 0.7 && themePool.spells.length > 0) {
+                // Spell - use theme spells
+                const nounIndex = Math.floor(this.seededRandom(seed + index + 3000) * themePool.spells.length);
+                noun = themePool.spells[nounIndex];
+            } else if (themePool.artifacts.length > 0) {
+                // Artifact - use theme artifacts
+                const nounIndex = Math.floor(this.seededRandom(seed + index + 4000) * themePool.artifacts.length);
+                noun = themePool.artifacts[nounIndex];
+            } else {
+                // Fallback to generic types if theme pool is empty
+                const fallbackTypeRoll = this.seededRandom(seed + index + 1000);
+                if (fallbackTypeRoll < 0.4) {
+                    const nounIndex = Math.floor(this.seededRandom(seed + index + 2000) * this.creatureTypes.length);
+                    noun = this.creatureTypes[nounIndex];
+                } else if (fallbackTypeRoll < 0.7) {
+                    const nounIndex = Math.floor(this.seededRandom(seed + index + 3000) * this.spellTypes.length);
+                    noun = this.spellTypes[nounIndex];
+                } else {
+                    const nounIndex = Math.floor(this.seededRandom(seed + index + 4000) * this.artifactTypes.length);
+                    noun = this.artifactTypes[nounIndex];
+                }
+            }
         } else {
-            // Artifact
-            const nounIndex = Math.floor(this.seededRandom(seed + index + 4000) * this.artifactTypes.length);
-            noun = this.artifactTypes[nounIndex];
+            // Use original generic generation
+            const rarityAdjectives = this.cardNameGenerators[rarity];
+            const adjIndex = Math.floor(this.seededRandom(seed + index) * rarityAdjectives.length);
+            adjective = rarityAdjectives[adjIndex];
+
+            const typeRoll = this.seededRandom(seed + index + 1000);
+            
+            if (typeRoll < 0.4) {
+                // Creature
+                const nounIndex = Math.floor(this.seededRandom(seed + index + 2000) * this.creatureTypes.length);
+                noun = this.creatureTypes[nounIndex];
+            } else if (typeRoll < 0.7) {
+                // Spell
+                const nounIndex = Math.floor(this.seededRandom(seed + index + 3000) * this.spellTypes.length);
+                noun = this.spellTypes[nounIndex];
+            } else {
+                // Artifact
+                const nounIndex = Math.floor(this.seededRandom(seed + index + 4000) * this.artifactTypes.length);
+                noun = this.artifactTypes[nounIndex];
+            }
         }
 
         return `${adjective} ${noun}`;
@@ -295,7 +398,7 @@ class WeeklySetGenerator {
 
         for (const rarity in cardCounts) {
             for (let i = 0; i < cardCounts[rarity]; i++) {
-                const cardName = this.generateUniqueCardName(rarity, seed, i, recentCardNames);
+                const cardName = this.generateUniqueCardName(rarity, seed, i, recentCardNames, theme.name);
                 cards[rarity].push(cardName);
                 // Add to exclusion list to prevent duplicates within the same set
                 recentCardNames.push(cardName);
@@ -406,7 +509,7 @@ class WeeklySetGenerator {
 
         for (const rarity in cardCounts) {
             for (let i = 0; i < cardCounts[rarity]; i++) {
-                const cardName = this.generateUniqueCardName(rarity, seed, i, recentCardNames);
+                const cardName = this.generateUniqueCardName(rarity, seed, i, recentCardNames, theme.name);
                 cards[rarity].push(cardName);
                 // Add to exclusion list to prevent duplicates within the same set
                 recentCardNames.push(cardName);
@@ -481,7 +584,7 @@ class WeeklySetGenerator {
 
         for (const rarity in cardCounts) {
             for (let i = 0; i < cardCounts[rarity]; i++) {
-                const cardName = this.generateUniqueCardName(rarity, seed, i, recentCardNames);
+                const cardName = this.generateUniqueCardName(rarity, seed, i, recentCardNames, theme.name);
                 cards[rarity].push(cardName);
                 // Add to exclusion list to prevent duplicates within the same set
                 recentCardNames.push(cardName);
@@ -772,12 +875,120 @@ testWithActualSeed(weekOffset?)             - Generate test set with same seed a
 showThemeDistribution(start?, count?)       - Show theme distribution for multiple weeks
 validateWeeklyUniqueness(week?, checkNext?) - Check card uniqueness between weeks
 checkThemeUniqueness()                      - Check theme uniqueness in recent weeks
+testThemedCards(theme?, count?)             - Test themed card generation for a specific theme
+analyzeThematicDistribution(setId?)         - Analyze how thematic a generated set is
 helpWeeklySetTesting()                      - Show this help
 
 Note: testWeeklySet() generates DIFFERENT cards than stored sets by design.
       All sets now ensure unique themes and cards vs recent weeks.
       Use regenerateSet() to change existing sets with new uniqueness rules.
+      Cards are now ~60% themed, 40% generic for variety within theme.
     `);
+}
+
+/**
+ * Console helper: Test themed card generation for a specific theme
+ * Usage: testThemedCards("Elemental Fury", 20)
+ */
+function testThemedCards(themeName = "Elemental Fury", count = 10) {
+    if (!weeklySetGenerator.themeWordPools[themeName]) {
+        console.log('Available themes:', Object.keys(weeklySetGenerator.themeWordPools));
+        return;
+    }
+    
+    console.log(`Testing themed card generation for "${themeName}":`);
+    console.log('Sample cards:');
+    
+    let themedCount = 0;
+    const cards = [];
+    
+    for (let i = 0; i < count; i++) {
+        const seed = Date.now() + i * 1000;
+        const card = weeklySetGenerator.generateCardName('common', seed, i, themeName);
+        cards.push(card);
+        
+        // Check if card uses theme-specific words
+        const themePool = weeklySetGenerator.themeWordPools[themeName];
+        const isThemed = 
+            themePool.adjectives.some(adj => card.includes(adj)) ||
+            themePool.creatures.some(creature => card.includes(creature)) ||
+            themePool.spells.some(spell => card.includes(spell)) ||
+            themePool.artifacts.some(artifact => card.includes(artifact));
+        
+        if (isThemed) themedCount++;
+        console.log(`  ${card}${isThemed ? ' [THEMED]' : ' [GENERIC]'}`);
+    }
+    
+    console.log(`\nThematic distribution: ${themedCount}/${count} (${Math.round(themedCount/count*100)}%) cards use theme words`);
+    console.log('Expected: ~60% themed, 40% generic for variety');
+    
+    return { cards, themedCount, totalCount: count, themePercentage: themedCount/count };
+}
+
+/**
+ * Console helper: Analyze how thematic a generated set is
+ * Usage: analyzeThematicDistribution() or analyzeThematicDistribution("Weekly_2025_W40")
+ */
+function analyzeThematicDistribution(setId = null) {
+    let setData;
+    
+    if (setId) {
+        const storageManager = window.storageManager || new StorageManager();
+        const storedSets = storageManager.loadWeeklySets();
+        setData = storedSets[setId];
+        if (!setData) {
+            console.log(`Set "${setId}" not found`);
+            return;
+        }
+    } else {
+        // Generate a test set for current week
+        setData = weeklySetGenerator.testGenerateWeeklySet();
+    }
+    
+    if (!setData.theme || !weeklySetGenerator.themeWordPools[setData.theme]) {
+        console.log('Set has no theme or theme not found in word pools');
+        return;
+    }
+    
+    const themePool = weeklySetGenerator.themeWordPools[setData.theme];
+    const results = {};
+    let totalCards = 0;
+    let totalThemed = 0;
+    
+    console.log(`Analyzing thematic distribution for "${setData.name}" (Theme: ${setData.theme}):`);
+    
+    Object.keys(setData.cards).forEach(rarity => {
+        const cards = setData.cards[rarity];
+        let themedCount = 0;
+        
+        cards.forEach(card => {
+            const isThemed = 
+                themePool.adjectives.some(adj => card.includes(adj)) ||
+                themePool.creatures.some(creature => card.includes(creature)) ||
+                themePool.spells.some(spell => card.includes(spell)) ||
+                themePool.artifacts.some(artifact => card.includes(artifact));
+            
+            if (isThemed) themedCount++;
+        });
+        
+        const percentage = Math.round(themedCount / cards.length * 100);
+        results[rarity] = { themed: themedCount, total: cards.length, percentage };
+        totalCards += cards.length;
+        totalThemed += themedCount;
+        
+        console.log(`  ${rarity.toUpperCase()}: ${themedCount}/${cards.length} (${percentage}%) themed`);
+    });
+    
+    const overallPercentage = Math.round(totalThemed / totalCards * 100);
+    console.log(`\nOVERALL: ${totalThemed}/${totalCards} (${overallPercentage}%) cards use theme-specific words`);
+    console.log('Target: ~60% themed for good thematic coherence with variety');
+    
+    return {
+        setName: setData.name,
+        theme: setData.theme,
+        byRarity: results,
+        overall: { themed: totalThemed, total: totalCards, percentage: overallPercentage }
+    };
 }
 
 /**
@@ -902,7 +1113,9 @@ if (typeof module !== 'undefined' && module.exports) {
         compareTestToActual,
         showThemeDistribution,
         validateWeeklyUniqueness,
-        checkThemeUniqueness
+        checkThemeUniqueness,
+        testThemedCards,
+        analyzeThematicDistribution
     };
 } else {
     // Make everything available globally
@@ -924,4 +1137,6 @@ if (typeof module !== 'undefined' && module.exports) {
     window.showThemeDistribution = showThemeDistribution;
     window.validateWeeklyUniqueness = validateWeeklyUniqueness;
     window.checkThemeUniqueness = checkThemeUniqueness;
+    window.testThemedCards = testThemedCards;
+    window.analyzeThematicDistribution = analyzeThematicDistribution;
 }
