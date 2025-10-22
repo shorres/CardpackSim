@@ -499,14 +499,49 @@
     <!-- Sell Card Modal -->
     <div id="sell-card-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="rounded-lg p-6 w-96 max-w-full mx-4" style="background-color: var(--bg-secondary); color: var(--text-primary);">
-            <h3 class="text-xl font-bold mb-4">Sell Card</h3>
+            <h3 class="text-xl font-bold mb-4">💰 Sell Card</h3>
             <div id="sell-card-info" class="mb-4">
                 <!-- Card info will be populated here -->
             </div>
+            
+            <!-- Sell Type Selection -->
             <div class="mb-4">
-                <label for="sell-quantity" class="block text-sm font-medium mb-2">Quantity to Sell</label>
+                <label class="block text-sm font-medium mb-2">Sell Method</label>
+                <div class="space-y-2">
+                    <label class="flex items-center p-3 rounded cursor-pointer" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary);">
+                        <input type="radio" name="sell-type" value="instant" id="sell-instant" class="mr-3" checked>
+                        <div class="flex-1">
+                            <div class="font-medium">⚡ Sell Instantly</div>
+                            <div class="text-xs text-gray-400">Sell immediately for current market price</div>
+                        </div>
+                    </label>
+                    <label class="flex items-center p-3 rounded cursor-pointer" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary);">
+                        <input type="radio" name="sell-type" value="listing" id="sell-listing" class="mr-3">
+                        <div class="flex-1">
+                            <div class="font-medium">📦 Create Listing</div>
+                            <div class="text-xs text-gray-400">Set custom price and wait for buyers</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label for="sell-quantity" class="block text-sm font-medium mb-2">Quantity</label>
                 <input type="number" id="sell-quantity" min="1" value="1" class="text-sm rounded-lg w-full p-2.5" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
             </div>
+            
+            <!-- Custom Price Field (hidden by default) -->
+            <div id="custom-price-section" class="mb-4 hidden">
+                <label for="sell-custom-price" class="block text-sm font-medium mb-2">List Price (per card)</label>
+                <div class="relative">
+                    <span class="absolute left-3 top-2.5 text-sm">$</span>
+                    <input type="number" id="sell-custom-price" step="0.01" min="0.01" max="999.99" class="text-sm rounded-lg w-full p-2.5 pl-8" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);" placeholder="0.00">
+                </div>
+                <div id="price-guidance" class="text-xs text-gray-400 mt-1">
+                    <!-- Price guidance will be shown here -->
+                </div>
+            </div>
+            
             <div class="mb-4">
                 <label class="flex items-center">
                     <input type="checkbox" id="sell-foil-only" class="mr-2">
@@ -614,46 +649,7 @@
         </div>
     </div>
 
-    <!-- Create Player Listing Modal -->
-    <div id="create-listing-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="rounded-lg p-6 w-96 max-w-full mx-4" style="background-color: var(--bg-secondary); color: var(--text-primary);">
-            <h3 class="text-xl font-bold mb-4">📦 Create Listing</h3>
-            <div id="listing-card-info" class="mb-4">
-                <!-- Card info will be populated here -->
-            </div>
-            <div class="mb-4">
-                <label for="listing-quantity" class="block text-sm font-medium mb-2">Quantity to List</label>
-                <input type="number" id="listing-quantity" min="1" value="1" class="text-sm rounded-lg w-full p-2.5" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
-            </div>
-            <div class="mb-4">
-                <label for="listing-price" class="block text-sm font-medium mb-2">List Price (per card)</label>
-                <div class="relative">
-                    <span class="absolute left-3 top-2.5 text-sm">$</span>
-                    <input type="number" id="listing-price" step="0.01" min="0.01" max="999.99" class="text-sm rounded-lg w-full p-2.5 pl-8" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);" placeholder="0.00">
-                </div>
-                <div id="price-guidance" class="text-xs text-gray-400 mt-1">
-                    <!-- Price guidance will be shown here -->
-                </div>
-            </div>
-            <div class="mb-4">
-                <label class="flex items-center">
-                    <input type="checkbox" id="listing-foil-only" class="mr-2">
-                    <span class="text-sm">List foil version only</span>
-                </label>
-            </div>
-            <div id="listing-preview" class="mb-4 p-3 rounded text-sm" style="background-color: var(--bg-tertiary);">
-                <!-- Listing preview will be shown here -->
-            </div>
-            <div class="flex gap-2">
-                <button id="confirm-listing-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--success); color: var(--text-primary);">
-                    Create Listing
-                </button>
-                <button id="cancel-listing-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--bg-quaternary); color: var(--text-primary);">
-                    Cancel
-                </button>
-            </div>
-        </div>
-    </div>
+
 
     <!-- Achievement Notification -->
     <div id="achievement-notification" class="fixed top-4 right-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg p-4 shadow-lg hidden z-50 animate-bounce">
