@@ -18,7 +18,7 @@ jobs:
     
     strategy:
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest]
     
     steps:
       - name: Checkout code
@@ -55,31 +55,6 @@ jobs:
             dist/*.zip
           retention-days: 7
           
-      - name: Upload macOS artifacts
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-build
-          path: |
-            dist/*.dmg
-            dist/*.zip
-          retention-days: 7
-          
-      - name: Generate macOS checksums
-        if: matrix.os == 'macos-latest'
-        run: |
-          cd dist
-          shasum -a 256 *.dmg > checksums-macos.txt
-          cat checksums-macos.txt
-          
-      - name: Upload macOS checksums
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-checksums
-          path: dist/checksums-macos.txt
-          retention-days: 7
-          
       - name: Upload Linux artifacts
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
@@ -109,7 +84,6 @@ jobs:
         with:
           files: |
             ./artifacts/windows-build/*
-            ./artifacts/macos-build/*
             ./artifacts/linux-build/*
           draft: false
           prerelease: false
