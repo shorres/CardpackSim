@@ -31,5 +31,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Simple version checking
   getAppVersion: () => {
     return ipcRenderer.invoke('get-app-version');
+  },
+
+  // Platform info for updates
+  getPlatform: () => {
+    return ipcRenderer.invoke('get-platform');
+  },
+
+  // Update functionality
+  downloadUpdate: (downloadUrl) => {
+    return ipcRenderer.invoke('download-update', downloadUrl);
+  },
+
+  installAndRestart: (downloadPath) => {
+    return ipcRenderer.invoke('install-and-restart', downloadPath);
+  },
+
+  restartApp: () => {
+    return ipcRenderer.invoke('restart-app');
+  },
+
+  // Listen for download progress
+  onDownloadProgress: (callback) => {
+    ipcRenderer.on('download-progress', (event, progress) => {
+      callback(progress);
+    });
   }
 });

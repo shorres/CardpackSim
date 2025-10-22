@@ -1,5 +1,7 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const https = require('https');
 
 // Keep a global reference of the window object
 let mainWindow;
@@ -146,6 +148,156 @@ ipcMain.on('new-game-cancelled', () => {
 // Simple version checking for update notifications
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();
+});
+
+// Get platform information
+ipcMain.handle('get-platform', () => {
+  return process.platform;
+});
+
+// Download update handler
+ipcMain.handle('download-update', async (event, downloadUrl) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const fileName = path.basename(downloadUrl);
+      const downloadPath = path.join(app.getPath('downloads'), fileName);
+      
+      console.log(`Downloading update from: ${downloadUrl}`);
+      console.log(`Saving to: ${downloadPath}`);
+      
+      const file = fs.createWriteStream(downloadPath);
+      
+      https.get(downloadUrl, (response) => {
+        // Handle redirects
+        if (response.statusCode === 302 || response.statusCode === 301) {
+          https.get(response.headers.location, (redirectResponse) => {
+            const totalSize = parseInt(redirectResponse.headers['content-length'], 10);
+            let downloadedSize = 0;
+            
+            redirectResponse.pipe(file);
+            
+            redirectResponse.on('data', (chunk) => {
+              downloadedSize += chunk.length;
+              if (totalSize > 0) {
+                const progress = Math.round((downloadedSize / totalSize) * 100);
+                event.sender.send('download-progress', progress);
+              }
+            });
+            
+            file.on('finish', () => {
+              file.close();
+              console.log(`Download completed: ${downloadPath}`);
+              
+              // Show the downloaded file in explorer
+              shell.showItemInFolder(downloadPath);
+              
+              // Show dialog to user
+              dialog.showMessageBox(mainWindow, {
+                type: 'info',
+                title: 'Update Downloaded',
+                message: 'Update has been downloaded successfully!',
+                detail: `The installer has been saved to your Downloads folder.\n\nWould you like to run the installer now? This will close the current application.`,
+                buttons: ['Run Installer', 'Later']
+              }).then((result) => {
+                if (result.response === 0) {
+                  // User wants to run installer
+                  shell.openPath(downloadPath).then(() => {
+                    app.quit();
+                  });
+                }
+              });
+              
+              resolve(downloadPath);
+            });
+            
+            file.on('error', (err) => {
+              fs.unlink(downloadPath, () => {}); // Delete partial file
+              console.error('Download error:', err);
+              reject(err);
+            });
+          }).on('error', (err) => {
+            console.error('Redirect request error:', err);
+            reject(err);
+          });
+        } else {
+          const totalSize = parseInt(response.headers['content-length'], 10);
+          let downloadedSize = 0;
+          
+          response.pipe(file);
+          
+          response.on('data', (chunk) => {
+            downloadedSize += chunk.length;
+            if (totalSize > 0) {
+              const progress = Math.round((downloadedSize / totalSize) * 100);
+              event.sender.send('download-progress', progress);
+            }
+          });
+          
+          file.on('finish', () => {
+            file.close();
+            console.log(`Download completed: ${downloadPath}`);
+            
+            // Show the downloaded file in explorer
+            shell.showItemInFolder(downloadPath);
+            
+            // Show dialog to user
+            dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'Update Downloaded',
+              message: 'Update has been downloaded successfully!',
+              detail: `The installer has been saved to your Downloads folder.\n\nWould you like to run the installer now? This will close the current application.`,
+              buttons: ['Run Installer', 'Later']
+            }).then((result) => {
+              if (result.response === 0) {
+                // User wants to run installer
+                shell.openPath(downloadPath).then(() => {
+                  app.quit();
+                });
+              }
+            });
+            
+            resolve(downloadPath);
+          });
+          
+          file.on('error', (err) => {
+            fs.unlink(downloadPath, () => {}); // Delete partial file
+            console.error('Download error:', err);
+            reject(err);
+          });
+        }
+      }).on('error', (err) => {
+        console.error('Download request error:', err);
+        reject(err);
+      });
+    } catch (error) {
+      console.error('Download setup error:', error);
+      reject(error);
+    }
+  });
+});
+
+// Install and restart handler
+ipcMain.handle('install-and-restart', async (event, downloadPath) => {
+  try {
+    console.log(`Installing update from: ${downloadPath}`);
+    
+    // Run the installer
+    await shell.openPath(downloadPath);
+    
+    // Quit the current app
+    app.quit();
+    
+    return true;
+  } catch (error) {
+    console.error('Installation error:', error);
+    throw error;
+  }
+});
+
+// Restart app handler
+ipcMain.handle('restart-app', () => {
+  app.relaunch();
+  app.exit();
 });
 
 // This method will be called when Electron has finished initialization
