@@ -47,6 +47,7 @@ class UIManager {
         this.portfolioSearch = document.getElementById('portfolio-search');
         this.portfolioSort = document.getElementById('portfolio-sort');
         this.portfolioFilter = document.getElementById('portfolio-filter');
+        this.hideLockedToggle = document.getElementById('hide-locked-toggle');
         this.marketSummary = document.getElementById('market-summary');
         this.hotCardsList = document.getElementById('hot-cards-list');
         
@@ -164,7 +165,8 @@ class UIManager {
         this.portfolioFilters = {
             search: '',
             sort: 'value-desc',
-            filter: 'all'
+            filter: 'all',
+            hideLockedCards: false
         };
         this.collectionFilters = {
             search: '',
@@ -669,6 +671,13 @@ class UIManager {
         
         this.portfolioFilter.addEventListener('change', (e) => {
             this.portfolioFilters.filter = e.target.value;
+            this.renderPortfolio();
+        });
+
+        // Hide locked cards toggle
+        this.hideLockedToggle.addEventListener('click', (e) => {
+            this.portfolioFilters.hideLockedCards = !this.portfolioFilters.hideLockedCards;
+            this.updateHideLockedToggleAppearance();
             this.renderPortfolio();
         });
 
@@ -1396,7 +1405,26 @@ class UIManager {
         }
     }
 
+    updateHideLockedToggleAppearance() {
+        if (this.portfolioFilters.hideLockedCards) {
+            this.hideLockedToggle.style.backgroundColor = '#10b981'; // Green when active
+            this.hideLockedToggle.style.borderColor = '#10b981';
+            this.hideLockedToggle.style.color = 'white';
+            this.hideLockedToggle.textContent = 'Show All';
+            this.hideLockedToggle.title = 'Currently hiding locked cards. Click to show all cards.';
+        } else {
+            this.hideLockedToggle.style.backgroundColor = 'var(--bg-tertiary)';
+            this.hideLockedToggle.style.borderColor = 'var(--border-primary)';
+            this.hideLockedToggle.style.color = 'var(--text-primary)';
+            this.hideLockedToggle.textContent = 'Hide Locked';
+            this.hideLockedToggle.title = 'Hide cards that are completely locked and cannot be sold';
+        }
+    }
+
     renderPortfolio() {
+        // Update toggle appearance
+        this.updateHideLockedToggleAppearance();
+        
         const portfolio = this.gameEngine.getPortfolioSummary();
         
         //this.portfolioValue.textContent = portfolio.totalValue.toFixed(2);
@@ -1506,6 +1534,13 @@ class UIManager {
                 }
             }
             
+            // Hide locked cards filter
+            if (this.portfolioFilters.hideLockedCards) {
+                const availableRegular = this.gameEngine.getAvailableQuantityForSale(card.setId, card.cardName, false);
+                const availableFoil = this.gameEngine.getAvailableQuantityForSale(card.setId, card.cardName, true);
+                if (availableRegular === 0 && availableFoil === 0) return false;
+            }
+
             // Rarity filter
             if (this.portfolioFilters.filter !== 'all') {
                 switch (this.portfolioFilters.filter) {
