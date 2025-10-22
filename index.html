@@ -158,14 +158,6 @@
                         style="background-color: var(--bg-primary); opacity: 0.8;">
                         <!-- User's collection will be displayed here -->
                     </div>
-                                        <!-- Sell All Button -->
-                    <div class="mt-4 text-center">
-                        <button id="sell-all-btn"
-                            class="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-lg text-lg transition-colors"
-                            style="background-color: #dc2626 !important; box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);">
-                            ☢️ SELL ALL ☢️
-                        </button>
-                    </div>
                     </section>
                     </div>
 
@@ -207,6 +199,11 @@
                                     <option value="rising">Rising Prices</option>
                                     <option value="falling">Falling Prices</option>
                                 </select>
+                                <button id="sell-all-btn"
+                            class="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-lg text-lg transition-colors"
+                            style="background-color: #dc2626 !important; box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);">
+                            ☢️ SELL ALL ☢️
+                        </button>
                             </div>
                             
                             <div id="portfolio-display" class="flex-1 max-h-[465px] overflow-y-auto bg-gray-900/50 rounded-lg p-4">
@@ -669,6 +666,89 @@
             <div>
                 <div class="font-bold">Achievement Unlocked!</div>
                 <div id="achievement-text" class="text-sm"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sell All Confirmation Modals -->
+    <!-- First Confirmation Modal -->
+    <div id="sell-all-confirm-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50" style="backdrop-filter: blur(4px);">
+        <div class="bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-2xl border border-red-500" style="background-color: var(--bg-secondary); border-color: #dc2626;">
+            <div class="text-center mb-6">
+                <div class="text-3xl mb-2">☢️</div>
+                <h3 class="text-xl font-bold text-red-400 mb-4">NUCLEAR WARNING</h3>
+                <div class="text-center space-y-3" style="color: var(--text-primary);">
+                    <p class="font-semibold">Are you absolutely sure you want to SELL ALL cards in your entire portfolio?</p>
+                    <p class="text-red-300">This will permanently remove ALL cards that are not locked from ALL sets in your collection!</p>
+                    <p class="font-bold text-red-400">You cannot undo this action!</p>
+                </div>
+            </div>
+            <div class="flex gap-3 justify-center">
+                <button id="sell-all-cancel-btn" class="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors">
+                    Cancel
+                </button>
+                <button id="sell-all-confirm-btn" class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors" style="background-color: #dc2626 !important;">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Second Confirmation Modal -->
+    <div id="sell-all-second-confirm-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50" style="backdrop-filter: blur(4px);">
+        <div class="bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-2xl border border-yellow-500" style="background-color: var(--bg-secondary); border-color: #f59e0b;">
+            <div class="text-center mb-6">
+                <div class="text-3xl mb-2">🤔</div>
+                <h3 class="text-xl font-bold text-yellow-400 mb-4">Wait, are you SURE you're sure?</h3>
+                <div class="text-center space-y-3" style="color: var(--text-primary);">
+                    <p>This seems like a pretty drastic decision...</p>
+                    <p>Maybe take a moment to think about it?</p>
+                    <p class="font-semibold">Really sell your ENTIRE portfolio?</p>
+                </div>
+            </div>
+            <div class="flex gap-3 justify-center">
+                <button id="sell-all-second-cancel-btn" class="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors">
+                    Cancel
+                </button>
+                <button id="sell-all-second-confirm-btn" class="px-6 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium transition-colors" style="background-color: #f59e0b !important;">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sell All Success Modal -->
+    <div id="sell-all-success-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50" style="backdrop-filter: blur(4px);">
+        <div class="bg-gray-800 rounded-lg p-6 max-w-lg mx-4 shadow-2xl border border-green-500" style="background-color: var(--bg-secondary); border-color: #10b981;">
+            <div class="text-center mb-6">
+                <div class="text-4xl mb-2">💰</div>
+                <h3 class="text-2xl font-bold text-green-400 mb-4">PORTFOLIO LIQUIDATED!</h3>
+                <div class="text-center space-y-2" style="color: var(--text-primary);">
+                    <p id="success-message" class="font-semibold"></p>
+                    <div class="bg-gray-900/50 rounded-lg p-4 mt-4 text-left space-y-1" style="background-color: var(--bg-tertiary);">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Gross Value:</span>
+                            <span id="success-gross" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Trading Fee:</span>
+                            <span id="success-fee" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between border-t border-gray-600 pt-1">
+                            <span class="text-green-400 font-semibold">Net Proceeds:</span>
+                            <span id="success-net" class="font-semibold text-green-400"></span>
+                        </div>
+                        <div class="flex justify-between border-t border-gray-600 pt-1">
+                            <span class="text-blue-400 font-semibold">New Wallet Balance:</span>
+                            <span id="success-wallet" class="font-semibold text-blue-400"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-center">
+                <button id="sell-all-success-ok-btn" class="px-8 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors" style="background-color: #10b981 !important;">
+                    OK
+                </button>
             </div>
         </div>
     </div>
