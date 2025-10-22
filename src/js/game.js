@@ -712,6 +712,11 @@ class GameEngine {
         const marketState = this.marketEngine.getState();
         this.storageManager.saveState(this.state);
         this.storageManager.saveMarketState(marketState);
+        
+        // Track analytics on session save
+        if (window.analytics && typeof analytics.trackUser === 'function') {
+            analytics.trackUser(this.state.netWorth, this.state.currentTitle);
+        }
     }
 
     resetGame() {
@@ -741,6 +746,16 @@ class GameEngine {
         this.storageManager.clearState();
     }
 }
+
+// Periodic analytics tracking (every 30 minutes)
+setInterval(() => {
+    if (window.analytics && window.gameEngine && typeof analytics.trackUser === 'function') {
+        analytics.trackUser(
+            window.gameEngine.state.netWorth, 
+            window.gameEngine.state.currentTitle
+        );
+    }
+}, 30 * 60 * 1000);
 
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
