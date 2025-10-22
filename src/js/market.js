@@ -80,7 +80,7 @@ class MarketEngine {
                     type: 'bargain_hunter',
                     maxPriceThreshold: 0.85, // Will pay up to 85% of market price
                     demandMultiplier: 1.0, // Normal response to demand events
-                    buyChance: 0.4, // 40% chance to buy when conditions met
+                    buyChance: 0.7,
                     rarityPreference: ['common', 'uncommon', 'rare'], // Prefers lower rarities
                     description: 'Looks for deals below market price'
                 },
@@ -88,7 +88,7 @@ class MarketEngine {
                     type: 'speculator',
                     maxPriceThreshold: 1.3, // Will pay up to 130% of market price
                     demandMultiplier: 2.5, // Strong response to demand events
-                    buyChance: 0.25, // 25% base chance, increases with demand (reduced)
+                    buyChance: 0.5,
                     rarityPreference: ['rare', 'mythic'], // Focuses on valuable cards
                     description: 'Buys cards during demand spikes'
                 },
@@ -96,7 +96,7 @@ class MarketEngine {
                     type: 'collector_buyer',
                     maxPriceThreshold: 1.8, // Will pay premium for collection completion
                     demandMultiplier: 0.5, // Less influenced by demand events
-                    buyChance: 0.2, // 20% chance, but evaluates all listings
+                    buyChance: 0.5,
                     rarityPreference: ['mythic', 'rare'], // Collector priorities
                     description: 'Pays premium for specific cards'
                 },
@@ -104,16 +104,16 @@ class MarketEngine {
                     type: 'flipper_buyer',
                     maxPriceThreshold: 0.9, // Buys below market to resell
                     demandMultiplier: 1.8, // Strong demand awareness for flipping
-                    buyChance: 0.5, // Active when good deals available (reduced)
-                    rarityPreference: ['uncommon', 'rare'], // Best flip potential
+                    buyChance: 0.5,
+                    rarityPreference: ['uncommon', 'rare', 'mythic'], // Best flip potential
                     description: 'Buys to resell at higher prices'
                 },
                 {
                     type: 'casual_buyer',
                     maxPriceThreshold: 1.1, // Will pay up to 110% for convenience
                     demandMultiplier: 0.8, // Some awareness of trends
-                    buyChance: 0.3, // 30% chance
-                    rarityPreference: ['common', 'uncommon'], // Casual preferences
+                    buyChance: 0.5, // 30% chance
+                    rarityPreference: ['common', 'uncommon', 'rare', 'mythic'], // Casual preferences
                     description: 'Regular player looking for cards'
                 }
             ],
@@ -121,13 +121,13 @@ class MarketEngine {
             // Player listing purchase simulation
             buyerSimulation: {
                 evaluationInterval: 30000, // Check listings every 30 seconds
-                maxPurchasesPerCycle: 2, // Max purchases per evaluation cycle
+                maxPurchasesPerCycle: 10, // Max purchases per evaluation cycle
                 demandEventBonus: 0.3, // Additional buy chance during demand events
                 rarityPurchaseRates: {
                     common: 0.8,    // Common cards sell well
                     uncommon: 0.6,  // Uncommon cards moderate demand
-                    rare: 0.4,      // Rare cards lower demand
-                    mythic: 0.2     // Mythic cards very selective demand
+                    rare: 0.6,      // Rare cards lower demand
+                    mythic: 0.5     // Mythic cards very selective demand
                 }
             },
             
@@ -971,7 +971,6 @@ class MarketEngine {
             sellerType: trader.type,
             listedAt: Date.now(),
             duration: trader.holdTime * 24 * 60 * 60 * 1000, // Convert days to ms
-            views: 0
         };
         
         this.state.marketListings[setId][cardName].push(listing);
@@ -1390,7 +1389,6 @@ class MarketEngine {
             quantity: quantity,
             isFoil: isFoil,
             listedAt: Date.now(),
-            views: 0,
             isPlayerListing: true
         };
         
