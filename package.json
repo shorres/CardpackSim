@@ -1,6 +1,6 @@
 {
   "name": "tcg-pack-simulator",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "A Trading Card Game Pack Opening Simulator built with Electron",
   "main": "main.js",
   "scripts": {

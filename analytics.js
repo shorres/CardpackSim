@@ -59,3 +59,4 @@ function getCurrentTitle() {
 
 // Global analytics instance
 const analytics = new GoogleSheetsAnalytics();
+window.analytics = analytics;
