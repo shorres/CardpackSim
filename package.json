@@ -11,7 +11,7 @@
     "prebuild": "npm run clean",
     "build": "electron-builder",
     "build-win": "npm run force-clean && electron-builder --win",
-    "build-mac": "npm run force-clean && electron-builder --mac", 
+    "build-mac": "npm run force-clean && electron-builder --mac",
     "build-linux": "npm run force-clean && electron-builder --linux",
     "build-safe": "npm run clean && timeout 3 && electron-builder",
     "dist": "npm run build"
@@ -26,7 +26,7 @@
   "author": "shorres",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^28.0.0",
+    "electron": "^38.3.0",
     "electron-builder": "^24.9.1",
     "rimraf": "^5.0.0"
   },
@@ -46,7 +46,6 @@
     ],
     "win": {
       "target": [
-
         {
           "target": "portable"
         }
