@@ -80,54 +80,49 @@ class MarketEngine {
                     type: 'bargain_hunter',
                     maxPriceThreshold: 0.85, // Will pay up to 85% of market price
                     demandMultiplier: 1.0, // Normal response to demand events
-                    buyChance: 0.7,
-                    rarityPreference: ['common', 'uncommon', 'rare'], // Prefers lower rarities
+                    buyChance: 0.8, // Aggressive on deals regardless of rarity
                     description: 'Looks for deals below market price'
                 },
                 {
                     type: 'speculator',
                     maxPriceThreshold: 1.3, // Will pay up to 130% of market price
                     demandMultiplier: 2.5, // Strong response to demand events
-                    buyChance: 0.5,
-                    rarityPreference: ['rare', 'mythic'], // Focuses on valuable cards
+                    buyChance: 0.7, // Focuses on market trends and demand
                     description: 'Buys cards during demand spikes'
                 },
                 {
                     type: 'collector_buyer',
                     maxPriceThreshold: 1.8, // Will pay premium for collection completion
                     demandMultiplier: 0.5, // Less influenced by demand events
-                    buyChance: 0.5,
-                    rarityPreference: ['mythic', 'rare'], // Collector priorities
+                    buyChance: 0.6, // Pays premium for specific needs
                     description: 'Pays premium for specific cards'
                 },
                 {
                     type: 'flipper_buyer',
                     maxPriceThreshold: 0.9, // Buys below market to resell
                     demandMultiplier: 1.8, // Strong demand awareness for flipping
-                    buyChance: 0.5,
-                    rarityPreference: ['uncommon', 'rare', 'mythic'], // Best flip potential
+                    buyChance: 0.7, // Active trader looking for profit opportunities
                     description: 'Buys to resell at higher prices'
                 },
                 {
                     type: 'casual_buyer',
                     maxPriceThreshold: 1.1, // Will pay up to 110% for convenience
                     demandMultiplier: 0.8, // Some awareness of trends
-                    buyChance: 0.5, // 30% chance
-                    rarityPreference: ['common', 'uncommon', 'rare', 'mythic'], // Casual preferences
+                    buyChance: 0.6, // General player demand for all cards
                     description: 'Regular player looking for cards'
                 }
             ],
             
             // Player listing purchase simulation
             buyerSimulation: {
-                evaluationInterval: 30000, // Check listings every 30 seconds
-                maxPurchasesPerCycle: 10, // Max purchases per evaluation cycle
-                demandEventBonus: 0.3, // Additional buy chance during demand events
+                evaluationInterval: 20000, // Check listings every 20 seconds (more frequent)
+                maxPurchasesPerCycle: 25, // Increased to handle more active buyers
+                demandEventBonus: 0.4, // Increased from 0.3 - stronger demand events
                 rarityPurchaseRates: {
-                    common: 0.8,    // Common cards sell well
-                    uncommon: 0.6,  // Uncommon cards moderate demand
-                    rare: 0.6,      // Rare cards lower demand
-                    mythic: 0.5     // Mythic cards very selective demand
+                    common: 0.9,    // Commons move fast due to volume/utility
+                    uncommon: 0.8,  // Uncommons in good demand 
+                    rare: 0.85,     // Rares are highly sought after
+                    mythic: 0.8     // Mythics are premium but desired
                 }
             },
             
@@ -809,19 +804,21 @@ class MarketEngine {
     setState(newState) {
         // Preserve initialized AI buyers when restoring state
         const preservedAIBuyers = this.state?.aiBuyers || [];
-        console.log('🔄 setState called, preserving', preservedAIBuyers.length, 'AI buyers');
+        const savedAIBuyers = newState.aiBuyers || [];
+        console.log('🔄 setState called, preserving', preservedAIBuyers.length, 'AI buyers, saved state has', savedAIBuyers.length);
         
         this.state = { ...newState };
         
-        // Restore AI buyers if they were initialized
-        if (preservedAIBuyers.length > 0) {
-            this.state.aiBuyers = preservedAIBuyers;
-            console.log('✅ Preserved', preservedAIBuyers.length, 'AI buyers during setState');
-        } else if (newState.aiBuyers && newState.aiBuyers.length > 0) {
-            console.log('✅ Using AI buyers from saved state:', newState.aiBuyers.length);
+        // Check if we need to reinitialize buyers (outdated configuration)
+        const expectedBuyerCount = 18; // 4+4+2+2+6 based on our current config
+        const existingBuyers = preservedAIBuyers.length > 0 ? preservedAIBuyers : savedAIBuyers;
+        
+        if (existingBuyers.length > 0 && existingBuyers.length >= expectedBuyerCount) {
+            this.state.aiBuyers = existingBuyers;
+            console.log('✅ Preserved', existingBuyers.length, 'AI buyers during setState');
         } else {
-            console.log('⚠️ No AI buyers to preserve, will need to initialize');
-            // Initialize AI buyers if none exist
+            console.log('⚠️ AI buyer count outdated or missing (found:', existingBuyers.length, 'expected:', expectedBuyerCount, ') - reinitializing');
+            // Initialize AI buyers with current configuration
             this.initializeAIBuyers();
         }
         
@@ -1565,21 +1562,46 @@ class MarketEngine {
         
         try {
             // Create AI buyers based on configured types
-            this.state.aiBuyers = this.config.buyerTypes.map(buyerConfig => ({
-                ...buyerConfig,
-                id: this.generateBuyerId(buyerConfig.type),
-                lastPurchaseTime: 0,
-                totalPurchases: 0,
-                totalSpent: 0
-            }));
+            this.state.aiBuyers = [];
             
-            console.log('Initialized', this.state.aiBuyers.length, 'AI buyers:', this.state.aiBuyers.map(b => b.id));
+            this.config.buyerTypes.forEach(buyerConfig => {
+                // Determine how many of each type to create for a vibrant marketplace
+                let count = 2; // Base count for all types
+                if (buyerConfig.type === 'casual_buyer') {
+                    count = 6; // Lots of casual buyers for general demand
+                } else if (buyerConfig.type === 'speculator') {
+                    count = 4; // Multiple speculators for active trading
+                } else if (buyerConfig.type === 'bargain_hunter') {
+                    count = 4; // More bargain hunters for deal competition
+                }
+                
+                // Create the specified number of buyers of this type
+                for (let i = 0; i < count; i++) {
+                    this.state.aiBuyers.push({
+                        ...buyerConfig,
+                        id: this.generateBuyerId(buyerConfig.type),
+                        lastPurchaseTime: 0,
+                        totalPurchases: 0,
+                        totalSpent: 0
+                    });
+                }
+            });
+            
+            console.log('Initialized', this.state.aiBuyers.length, 'AI buyers:', this.state.aiBuyers.map(b => `${b.id}(${b.type})`));
         } catch (error) {
             console.error('❌ Error during AI buyer initialization:', error);
         }
         
         // Start buyer evaluation cycle
         this.startBuyerSimulation();
+    }
+    
+    // Force reinitialize AI buyers (useful for debugging or config changes)
+    reinitializeAIBuyers() {
+        console.log('🔄 Force reinitializing AI buyers...');
+        this.stopBuyerSimulation();
+        this.state.aiBuyers = [];
+        this.initializeAIBuyers();
     }
     
     generateBuyerId(buyerType) {
@@ -1607,6 +1629,14 @@ class MarketEngine {
         this.buyerInterval = setInterval(() => {
             this.evaluatePlayerListings();
         }, this.config.buyerSimulation.evaluationInterval);
+    }
+    
+    stopBuyerSimulation() {
+        if (this.buyerInterval) {
+            clearInterval(this.buyerInterval);
+            this.buyerInterval = null;
+            console.log('Stopped buyer simulation');
+        }
     }
     
     evaluatePlayerListings() {
@@ -1688,16 +1718,10 @@ class MarketEngine {
             return false;
         }
         
-        // Check rarity preference
-        if (!buyer.rarityPreference.includes(listing.rarity)) {
-            // Reduce chance for non-preferred rarities
-            buyChance *= 0.3; // 30% of normal chance for non-preferred rarities
-        }
-        
-        // Calculate base buy chance
+        // Start with base buy chance
         let buyChance = buyer.buyChance;
         
-        // Apply rarity-based purchase rate from config
+        // Apply rarity-based purchase rate from config (market demand, not buyer preference)
         const rarityRate = this.config.buyerSimulation.rarityPurchaseRates[listing.rarity] || 0.5;
         buyChance *= rarityRate;
         
@@ -1719,38 +1743,24 @@ class MarketEngine {
             }
         }
         
-        // Price-based adjustments
-        if (priceRatio < 0.7) {
-            // Great deal - increase chance
+        // Price-based adjustments - great deals should almost always sell
+        if (priceRatio < 0.6) {
+            // Amazing deal - major boost
+            buyChance += 0.6;
+            if (buyer.type === 'bargain_hunter') buyChance += 0.2; // Extra for bargain hunters
+        } else if (priceRatio < 0.8) {
+            // Good deal - significant increase
             buyChance += 0.4;
-        } else if (priceRatio < 0.9) {
-            // Good deal - moderate increase
-            buyChance += 0.2;
+        } else if (priceRatio < 0.95) {
+            // Fair price - small increase
+            buyChance += 0.1;
         }
-        
-        // Time-based cooldown (disabled for testing)
-        /*const timeSinceLastPurchase = Date.now() - buyer.lastPurchaseTime;
-        const cooldownPeriod = 30000; // 30 seconds (reduced for testing)
-        if (timeSinceLastPurchase < cooldownPeriod) {
-            console.log(`  ⏰ ${buyer.type} still in cooldown (${Math.round((cooldownPeriod - timeSinceLastPurchase) / 1000)}s remaining)`);
-            buyChance *= 0.2; // Reduce chance more significantly
-        }
-        
-        // Additional scaling based on buyer activity level
-        if (buyer.totalPurchases > 5) {
-            buyChance *= 0.8; // Slightly reduce chance for very active buyers
-        }*/
         
         // Clamp buy chance
         buyChance = Math.min(buyChance, 0.95);
         
         const randomRoll = Math.random();
         const willBuy = randomRoll < buyChance;
-        
-        // Only log successful purchases or high-chance failures for debugging
-        if (willBuy || buyChance > 0.7) {
-            console.log(`${buyer.type} ${willBuy ? 'BOUGHT' : 'skipped'} ${listing.cardName} (${(buyChance * 100).toFixed(1)}% chance)`);
-        }
         
         return willBuy;
     }

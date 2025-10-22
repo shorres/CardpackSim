@@ -3237,7 +3237,7 @@ class UIManager {
                 <div class="flex justify-between items-start">
                     <div class="flex-1">
                         <div class="font-medium">${listing.cardName}${listing.isFoil ? ' ⭐' : ''}</div>
-                        <div class="text-sm text-gray-400">${listing.setId}</div>
+                        <div class="text-sm text-gray-400">${window.getAllSets()[listing.setId].name}</div>
                         <div class="text-sm">
                             ${listing.quantity}x @ $${listing.price.toFixed(2)} each = $${totalValue.toFixed(2)}
                         </div>
