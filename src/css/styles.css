@@ -1349,6 +1349,34 @@ canvas {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+/* Sell All Button - Always bright red regardless of theme */
+#sell-all-btn {
+    background-color: #dc2626 !important;
+    color: white !important;
+    border: 2px solid #b91c1c !important;
+    font-weight: bold !important;
+    font-size: 1.125rem !important;
+    padding: 12px 24px !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+    user-select: none !important;
+}
+
+#sell-all-btn:hover {
+    background-color: #b91c1c !important;
+    border-color: #991b1b !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(220, 38, 38, 0.6) !important;
+}
+
+#sell-all-btn:active {
+    transform: translateY(0) !important;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.5) !important;
+}
+
 .update-banner button:hover {
     transform: translateY(-1px);
 }

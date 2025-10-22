@@ -33,6 +33,7 @@ class UIManager {
         this.openedPackDisplay = document.getElementById('opened-pack-display');
         this.collectionDisplay = document.getElementById('collection-display');
         this.collectionProgress = document.getElementById('collection-progress');
+        this.sellAllBtn = document.getElementById('sell-all-btn');
         
         // Player stats elements
         this.playerWallet = document.getElementById('player-wallet');
@@ -670,6 +671,11 @@ class UIManager {
         this.collectionFilter.addEventListener('change', (e) => {
             this.collectionFilters.filter = e.target.value;
             this.renderCollection();
+        });
+
+        // Sell all button listener
+        this.sellAllBtn.addEventListener('click', () => {
+            this.handleSellAllClick();
         });
 
         // Lock settings modal listeners
@@ -1726,6 +1732,65 @@ class UIManager {
     closeSellModal() {
         this.sellCardModal.classList.add('hidden');
         this.currentSellCard = null;
+    }
+
+    handleSellAllClick() {
+        const selectedSetId = this.collectionSetSelector.value;
+        if (!selectedSetId) {
+            alert('Please select a set first!');
+            return;
+        }
+
+        // First confirmation dialog
+        const firstConfirm = confirm(
+            `☢️ NUCLEAR WARNING ☢️\n\n` +
+            `Are you absolutely sure you want to SELL ALL cards in your collection for this set?\n\n` +
+            `This will permanently remove ALL cards that are not locked from your collection!\n\n` +
+            `You cannot undo this action!`
+        );
+
+        if (!firstConfirm) return;
+
+        // 30% chance for second confirmation dialog
+        const showSecondConfirm = Math.random() < 0.3;
+        
+        if (showSecondConfirm) {
+            const secondConfirm = confirm(
+                `🤔 Wait, are you SURE you're sure?\n\n` +
+                `This seems like a pretty drastic decision...\n\n` +
+                `Maybe take a moment to think about it?\n\n` +
+                `Really sell EVERYTHING?`
+            );
+            
+            if (!secondConfirm) return;
+        }
+
+        // Execute the sell all operation
+        this.executeSellAll(selectedSetId);
+    }
+
+    executeSellAll(setId) {
+        const result = this.gameEngine.sellAllCards(setId);
+        
+        if (result.success) {
+            // Show success message
+            alert(
+                `💰 COLLECTION LIQUIDATED! 💰\n\n` +
+                `${result.message}\n\n` +
+                `Gross Value: $${result.grossValue.toFixed(2)}\n` +
+                `Trading Fee: $${result.fee.toFixed(2)}\n` +
+                `Net Proceeds: $${result.netValue.toFixed(2)}\n\n` +
+                `New Wallet Balance: $${result.newWallet.toFixed(2)}`
+            );
+            
+            // Update UI
+            this.updatePlayerStats();
+            this.renderCollection();
+            this.renderPortfolio();
+        } else {
+            // Show error message
+            alert(`❌ Sale Failed\n\n${result.message}`);
+        }
     }
 
     handleSellTypeChange() {
