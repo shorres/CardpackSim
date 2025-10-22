@@ -13,10 +13,16 @@ class MarketEngine {
             // Trading Market Extensions
             wishlist: [], // [{ setId, cardName, maxPrice, isFoil, priority, addedAt }]
             marketListings: {}, // { setId: { cardName: [{ price, quantity, isFoil, sellerId, listedAt, duration }] } }
+            playerListings: {}, // { setId: { cardName: [{ id, price, quantity, isFoil, listedAt, views }] } }
             marketActivity: [], // Recent trading activity
-            aiTraders: [] // AI trader instances
+            aiTraders: [], // AI trader instances
+            aiBuyers: [] // AI buyer instances
         };
         
+        this.initializeConfig();
+    }
+    
+    initializeConfig() {
         this.config = {
             // Pack pricing
             packPrices: {
@@ -68,6 +74,63 @@ class MarketEngine {
                 { type: 'whale', listingChance: 0.05, priceMultiplier: 2.0, holdTime: 14 }
             ],
             
+            // AI buyer behaviors for player listings
+            buyerTypes: [
+                {
+                    type: 'bargain_hunter',
+                    maxPriceThreshold: 0.85, // Will pay up to 85% of market price
+                    demandMultiplier: 1.0, // Normal response to demand events
+                    buyChance: 0.7,
+                    rarityPreference: ['common', 'uncommon', 'rare'], // Prefers lower rarities
+                    description: 'Looks for deals below market price'
+                },
+                {
+                    type: 'speculator',
+                    maxPriceThreshold: 1.3, // Will pay up to 130% of market price
+                    demandMultiplier: 2.5, // Strong response to demand events
+                    buyChance: 0.5,
+                    rarityPreference: ['rare', 'mythic'], // Focuses on valuable cards
+                    description: 'Buys cards during demand spikes'
+                },
+                {
+                    type: 'collector_buyer',
+                    maxPriceThreshold: 1.8, // Will pay premium for collection completion
+                    demandMultiplier: 0.5, // Less influenced by demand events
+                    buyChance: 0.5,
+                    rarityPreference: ['mythic', 'rare'], // Collector priorities
+                    description: 'Pays premium for specific cards'
+                },
+                {
+                    type: 'flipper_buyer',
+                    maxPriceThreshold: 0.9, // Buys below market to resell
+                    demandMultiplier: 1.8, // Strong demand awareness for flipping
+                    buyChance: 0.5,
+                    rarityPreference: ['uncommon', 'rare', 'mythic'], // Best flip potential
+                    description: 'Buys to resell at higher prices'
+                },
+                {
+                    type: 'casual_buyer',
+                    maxPriceThreshold: 1.1, // Will pay up to 110% for convenience
+                    demandMultiplier: 0.8, // Some awareness of trends
+                    buyChance: 0.5, // 30% chance
+                    rarityPreference: ['common', 'uncommon', 'rare', 'mythic'], // Casual preferences
+                    description: 'Regular player looking for cards'
+                }
+            ],
+            
+            // Player listing purchase simulation
+            buyerSimulation: {
+                evaluationInterval: 30000, // Check listings every 30 seconds
+                maxPurchasesPerCycle: 10, // Max purchases per evaluation cycle
+                demandEventBonus: 0.3, // Additional buy chance during demand events
+                rarityPurchaseRates: {
+                    common: 0.8,    // Common cards sell well
+                    uncommon: 0.6,  // Uncommon cards moderate demand
+                    rare: 0.6,      // Rare cards lower demand
+                    mythic: 0.5     // Mythic cards very selective demand
+                }
+            },
+            
             // Price recording intervals (in minutes)
             recordingIntervals: {
                 shortTerm: 30,  // 30 minutes for 24h charts (48 points)
@@ -88,7 +151,7 @@ class MarketEngine {
     }
 
     initializeMarket() {
-        // Initialize prices for all existing cards
+                // Initialize prices for all existing cards
         const allSets = window.getAllSets();
         Object.keys(allSets).forEach(setId => {
             this.initializeSetPrices(setId, allSets[setId]);
@@ -744,7 +807,23 @@ class MarketEngine {
     }
 
     setState(newState) {
+        // Preserve initialized AI buyers when restoring state
+        const preservedAIBuyers = this.state?.aiBuyers || [];
+        console.log('🔄 setState called, preserving', preservedAIBuyers.length, 'AI buyers');
+        
         this.state = { ...newState };
+        
+        // Restore AI buyers if they were initialized
+        if (preservedAIBuyers.length > 0) {
+            this.state.aiBuyers = preservedAIBuyers;
+            console.log('✅ Preserved', preservedAIBuyers.length, 'AI buyers during setState');
+        } else if (newState.aiBuyers && newState.aiBuyers.length > 0) {
+            console.log('✅ Using AI buyers from saved state:', newState.aiBuyers.length);
+        } else {
+            console.log('⚠️ No AI buyers to preserve, will need to initialize');
+            // Initialize AI buyers if none exist
+            this.initializeAIBuyers();
+        }
         
         // Restart market systems if they were running
         if (this.priceUpdateTimer) {
@@ -892,7 +971,6 @@ class MarketEngine {
             sellerType: trader.type,
             listedAt: Date.now(),
             duration: trader.holdTime * 24 * 60 * 60 * 1000, // Convert days to ms
-            views: 0
         };
         
         this.state.marketListings[setId][cardName].push(listing);
@@ -1054,9 +1132,9 @@ class MarketEngine {
     }
     
     // Utility method to ensure complete market state exists
-    ensureMarketState() {
+    ensureMarketState() {    
         if (!this.state) {
-            console.warn('Market engine state is undefined, reinitializing complete state...');
+            console.warn('🚨 Market engine state is undefined, reinitializing complete state...');
             this.state = {
                 cardPrices: {},
                 marketSentiment: 1.0,
@@ -1067,16 +1145,23 @@ class MarketEngine {
                 totalMarketValue: 0,
                 wishlist: [],
                 marketListings: {},
+                playerListings: {},
                 marketActivity: [],
-                aiTraders: []
+                aiTraders: [],
+                aiBuyers: []
             };
         }
         
         // Ensure all required state properties exist
         if (!this.state.marketListings) this.state.marketListings = {};
+        if (!this.state.playerListings) this.state.playerListings = {};
         if (!this.state.wishlist) this.state.wishlist = [];
         if (!this.state.marketActivity) this.state.marketActivity = [];
         if (!this.state.cardPrices) this.state.cardPrices = {};
+        // Only initialize aiBuyers if it doesn't exist - don't overwrite populated arrays
+        if (!this.state.aiBuyers) {
+            this.state.aiBuyers = [];
+        }
         if (!this.state.priceHistory) this.state.priceHistory = {};
         if (!this.state.supplyData) this.state.supplyData = {};
         if (!this.state.demandEvents) this.state.demandEvents = [];
@@ -1147,18 +1232,25 @@ class MarketEngine {
     }
     
     // Market Activity and Events
-    recordMarketActivity(type, setId, cardName, price, quantity, isFoil) {
+    recordMarketActivity(type, setId, cardName, price, quantity, isFoil, buyerId = null) {
         this.ensureMarketState();
         
-        this.state.marketActivity.unshift({
-            type, // 'list', 'buy', 'expire'
+        const activity = {
+            type, // 'list', 'buy', 'expire', 'player_list', 'player_buy', 'ai_buy_from_player'
             setId,
             cardName,
             price,
             quantity,
             isFoil,
             timestamp: Date.now()
-        });
+        };
+        
+        // Add buyer information for AI purchases
+        if (buyerId) {
+            activity.buyerId = buyerId;
+        }
+        
+        this.state.marketActivity.unshift(activity);
         
         // Keep only recent activity (last 100 events)
         this.state.marketActivity = this.state.marketActivity.slice(0, 100);
@@ -1271,10 +1363,488 @@ class MarketEngine {
         }
     }
 
+    // =============================================================================
+    // PLAYER LISTING SYSTEM
+    // =============================================================================
+    
+    // Create a player listing
+    createPlayerListing(setId, cardName, price, quantity, isFoil = false) {
+        // Ensure market structure exists
+        this.ensureMarketStructure(setId, cardName);
+        
+        // Ensure player listings structure exists
+        if (!this.state.playerListings[setId]) {
+            this.state.playerListings[setId] = {};
+        }
+        if (!this.state.playerListings[setId][cardName]) {
+            this.state.playerListings[setId][cardName] = [];
+        }
+        
+        // Generate unique listing ID
+        const listingId = Date.now() + Math.random().toString(36).substr(2, 9);
+        
+        const listing = {
+            id: listingId,
+            price: Math.round(price * 100) / 100, // Round to 2 decimal places
+            quantity: quantity,
+            isFoil: isFoil,
+            listedAt: Date.now(),
+            isPlayerListing: true
+        };
+        
+        this.state.playerListings[setId][cardName].push(listing);
+        
+        // Record market activity
+        this.recordMarketActivity('player_list', setId, cardName, price, quantity, isFoil);
+        
+        return {
+            success: true,
+            message: `Listed ${quantity}x ${cardName}${isFoil ? ' (Foil)' : ''} for $${price.toFixed(2)} each`,
+            listingId: listingId
+        };
+    }
+    
+    // Cancel a player listing
+    cancelPlayerListing(listingId) {
+        // Find the listing across all sets and cards
+        for (const setId in this.state.playerListings) {
+            for (const cardName in this.state.playerListings[setId]) {
+                const listings = this.state.playerListings[setId][cardName];
+                const listingIndex = listings.findIndex(listing => listing.id === listingId);
+                
+                if (listingIndex !== -1) {
+                    const listing = listings[listingIndex];
+                    listings.splice(listingIndex, 1);
+                    
+                    // Clean up empty structures
+                    if (listings.length === 0) {
+                        delete this.state.playerListings[setId][cardName];
+                        if (Object.keys(this.state.playerListings[setId]).length === 0) {
+                            delete this.state.playerListings[setId];
+                        }
+                    }
+                    
+                    return {
+                        success: true,
+                        message: `Cancelled listing for ${listing.quantity}x ${cardName}`,
+                        refundedCards: {
+                            setId: setId,
+                            cardName: cardName,
+                            quantity: listing.quantity,
+                            isFoil: listing.isFoil
+                        }
+                    };
+                }
+            }
+        }
+        
+        return {
+            success: false,
+            message: 'Listing not found'
+        };
+    }
+    
+    // Get all player listings
+    getPlayerListings() {
+        const allListings = [];
+        
+        for (const setId in this.state.playerListings) {
+            for (const cardName in this.state.playerListings[setId]) {
+                this.state.playerListings[setId][cardName].forEach(listing => {
+                    allListings.push({
+                        ...listing,
+                        setId: setId,
+                        cardName: cardName
+                    });
+                });
+            }
+        }
+        
+        // Sort by listing date (newest first)
+        return allListings.sort((a, b) => b.listedAt - a.listedAt);
+    }
+    
+    // Get player listings for a specific card
+    getPlayerListingsForCard(setId, cardName, isFoil = null) {
+        if (!this.state.playerListings[setId] || !this.state.playerListings[setId][cardName]) {
+            return [];
+        }
+        
+        return this.state.playerListings[setId][cardName]
+            .filter(listing => isFoil === null || listing.isFoil === isFoil)
+            .sort((a, b) => a.price - b.price); // Sort by price, cheapest first
+    }
+    
+    // Purchase from a player listing
+    purchaseFromPlayerListing(listingId, quantityToBuy = 1) {
+        // Find the listing
+        for (const setId in this.state.playerListings) {
+            for (const cardName in this.state.playerListings[setId]) {
+                const listings = this.state.playerListings[setId][cardName];
+                const listingIndex = listings.findIndex(listing => listing.id === listingId);
+                
+                if (listingIndex !== -1) {
+                    const listing = listings[listingIndex];
+                    const actualQuantity = Math.min(quantityToBuy, listing.quantity);
+                    const cost = listing.price * actualQuantity;
+                    
+                    // Check if player has enough funds (handled by calling code)
+                    
+                    // Update listing quantity or remove if depleted
+                    listing.quantity -= actualQuantity;
+                    if (listing.quantity <= 0) {
+                        listings.splice(listingIndex, 1);
+                        
+                        // Clean up empty structures
+                        if (listings.length === 0) {
+                            delete this.state.playerListings[setId][cardName];
+                            if (Object.keys(this.state.playerListings[setId]).length === 0) {
+                                delete this.state.playerListings[setId];
+                            }
+                        }
+                    }
+                    
+                    // Record market activity
+                    this.recordMarketActivity('player_buy', setId, cardName, listing.price, actualQuantity, listing.isFoil);
+                    
+                    return {
+                        success: true,
+                        cost: cost,
+                        quantity: actualQuantity,
+                        setId: setId,
+                        cardName: cardName,
+                        isFoil: listing.isFoil,
+                        price: listing.price
+                    };
+                }
+            }
+        }
+        
+        return {
+            success: false,
+            message: 'Listing not found or no longer available'
+        };
+    }
+    
+    // Update the getAvailableListings method to include player listings
+    getAvailableListingsWithPlayer(setId, cardName, isFoil = null) {
+        // Get AI trader listings
+        const aiListings = this.getAvailableListings(setId, cardName, isFoil).map(listing => ({
+            ...listing,
+            isPlayerListing: false
+        }));
+        
+        // Get player listings
+        const playerListings = this.getPlayerListingsForCard(setId, cardName, isFoil).map(listing => ({
+            ...listing,
+            sellerId: 'You',
+            sellerType: 'player',
+            isPlayerListing: true
+        }));
+        
+        // Combine and sort by price
+        return [...aiListings, ...playerListings].sort((a, b) => a.price - b.price);
+    }
+
+    // =============================================================================
+    // AI BUYER SYSTEM FOR PLAYER LISTINGS
+    // =============================================================================
+    
+    initializeAIBuyers() {
+        console.log('Initializing AI buyers...');
+        
+        if (!this.config) {
+            console.warn('Config missing, recreating...');
+            this.initializeConfig();
+        }
+        
+        if (!this.config.buyerTypes) {
+            console.error('No buyer types configured');
+            return;
+        }
+        
+        try {
+            // Create AI buyers based on configured types
+            this.state.aiBuyers = this.config.buyerTypes.map(buyerConfig => ({
+                ...buyerConfig,
+                id: this.generateBuyerId(buyerConfig.type),
+                lastPurchaseTime: 0,
+                totalPurchases: 0,
+                totalSpent: 0
+            }));
+            
+            console.log('Initialized', this.state.aiBuyers.length, 'AI buyers:', this.state.aiBuyers.map(b => b.id));
+        } catch (error) {
+            console.error('❌ Error during AI buyer initialization:', error);
+        }
+        
+        // Start buyer evaluation cycle
+        this.startBuyerSimulation();
+    }
+    
+    generateBuyerId(buyerType) {
+        const prefixes = {
+            bargain_hunter: ['Deal', 'Bargain', 'Discount'],
+            speculator: ['Bull', 'Trend', 'Meta'],
+            collector_buyer: ['Complete', 'Archive', 'Museum'],
+            flipper_buyer: ['Quick', 'Flip', 'Turn'],
+            casual_buyer: ['Casual', 'Regular', 'Player']
+        };
+        
+        const prefix = prefixes[buyerType][Math.floor(Math.random() * prefixes[buyerType].length)];
+        const number = Math.floor(Math.random() * 9999) + 1;
+        return `${prefix}${number}`;
+    }
+    
+    startBuyerSimulation() {
+        // Prevent multiple intervals
+        if (this.buyerInterval) {
+            clearInterval(this.buyerInterval);
+        }
+        
+        console.log('Starting buyer simulation with', this.state.aiBuyers.length, 'buyers');
+        
+        this.buyerInterval = setInterval(() => {
+            this.evaluatePlayerListings();
+        }, this.config.buyerSimulation.evaluationInterval);
+    }
+    
+    evaluatePlayerListings() {
+        // Get all player listings
+        const allPlayerListings = [];
+        
+        for (const setId in this.state.playerListings) {
+            for (const cardName in this.state.playerListings[setId]) {
+                this.state.playerListings[setId][cardName].forEach(listing => {
+                    allPlayerListings.push({
+                        ...listing,
+                        setId: setId,
+                        cardName: cardName,
+                        rarity: this.getCardRarity(setId, cardName)
+                    });
+                });
+            }
+        }
+        
+        if (allPlayerListings.length === 0) {
+            return;
+        }
+        
+        // Evaluate each listing with each buyer
+        let purchasesMade = 0;
+        const maxPurchases = this.config.buyerSimulation.maxPurchasesPerCycle;
+        
+        // Shuffle buyers for fair evaluation
+        const shuffledBuyers = [...this.state.aiBuyers].sort(() => Math.random() - 0.5);
+        
+        for (const buyer of shuffledBuyers) {
+            if (purchasesMade >= maxPurchases) break;
+            
+            // Shuffle listings for fair evaluation
+            const shuffledListings = [...allPlayerListings].sort(() => Math.random() - 0.5);
+            
+            for (const listing of shuffledListings) {
+                if (purchasesMade >= maxPurchases) break;
+                
+                const shouldBuy = this.shouldBuyerPurchaseListing(buyer, listing);
+                
+                if (shouldBuy) {
+                    const result = this.executeBuyerPurchase(buyer, listing);
+                    if (result.success) {
+                        purchasesMade++;
+                        break; // This buyer is done for this cycle
+                    }
+                }
+            }
+        }
+    }
+    
+    getCardRarity(setId, cardName) {
+        const allSets = window.getAllSets();
+        const setData = allSets[setId];
+        if (!setData || !setData.cards) return 'common';
+        
+        for (const rarity in setData.cards) {
+            if (setData.cards[rarity].includes(cardName)) {
+                return rarity;
+            }
+        }
+        return 'common';
+    }
+    
+    shouldBuyerPurchaseListing(buyer, listing) {
+        // Get market price for comparison
+        const marketPrice = this.getCardPrice(listing.setId, listing.cardName, listing.isFoil);
+        const priceRatio = listing.price / marketPrice;
+        
+        // Check if price exceeds buyer's threshold
+        if (priceRatio > buyer.maxPriceThreshold) {
+            return false;
+        }
+        
+        // Debug: Check if market price is valid
+        if (!marketPrice || marketPrice <= 0) {
+            console.warn(`Invalid market price for ${listing.cardName}: ${marketPrice}`);
+            return false;
+        }
+        
+        // Check rarity preference
+        if (!buyer.rarityPreference.includes(listing.rarity)) {
+            // Reduce chance for non-preferred rarities
+            buyChance *= 0.3; // 30% of normal chance for non-preferred rarities
+        }
+        
+        // Calculate base buy chance
+        let buyChance = buyer.buyChance;
+        
+        // Apply rarity-based purchase rate from config
+        const rarityRate = this.config.buyerSimulation.rarityPurchaseRates[listing.rarity] || 0.5;
+        buyChance *= rarityRate;
+        
+        // Check for demand events affecting this card
+        const demandEvent = this.state.demandEvents.find(event => 
+            event.setId === listing.setId && 
+            event.cardName === listing.cardName && 
+            event.expiresAt > Date.now()
+        );
+        
+        if (demandEvent) {
+            // Increase buy chance during demand events
+            const demandBonus = buyer.demandMultiplier * this.config.buyerSimulation.demandEventBonus;
+            buyChance += demandBonus;
+            
+            // Speculators are especially interested in demand events
+            if (buyer.type === 'speculator') {
+                buyChance += 0.3;
+            }
+        }
+        
+        // Price-based adjustments
+        if (priceRatio < 0.7) {
+            // Great deal - increase chance
+            buyChance += 0.4;
+        } else if (priceRatio < 0.9) {
+            // Good deal - moderate increase
+            buyChance += 0.2;
+        }
+        
+        // Time-based cooldown (disabled for testing)
+        /*const timeSinceLastPurchase = Date.now() - buyer.lastPurchaseTime;
+        const cooldownPeriod = 30000; // 30 seconds (reduced for testing)
+        if (timeSinceLastPurchase < cooldownPeriod) {
+            console.log(`  ⏰ ${buyer.type} still in cooldown (${Math.round((cooldownPeriod - timeSinceLastPurchase) / 1000)}s remaining)`);
+            buyChance *= 0.2; // Reduce chance more significantly
+        }
+        
+        // Additional scaling based on buyer activity level
+        if (buyer.totalPurchases > 5) {
+            buyChance *= 0.8; // Slightly reduce chance for very active buyers
+        }*/
+        
+        // Clamp buy chance
+        buyChance = Math.min(buyChance, 0.95);
+        
+        const randomRoll = Math.random();
+        const willBuy = randomRoll < buyChance;
+        
+        // Only log successful purchases or high-chance failures for debugging
+        if (willBuy || buyChance > 0.7) {
+            console.log(`${buyer.type} ${willBuy ? 'BOUGHT' : 'skipped'} ${listing.cardName} (${(buyChance * 100).toFixed(1)}% chance)`);
+        }
+        
+        return willBuy;
+    }
+    
+    executeBuyerPurchase(buyer, listing) {
+        // Use the existing purchaseFromPlayerListing method
+        const result = this.purchaseFromPlayerListing(listing.id, 1);
+        
+        if (result.success) {
+            // Update buyer stats
+            buyer.lastPurchaseTime = Date.now();
+            buyer.totalPurchases++;
+            buyer.totalSpent += result.cost;
+            
+            // Record special market activity for AI buyer purchases
+            this.recordMarketActivity('ai_buy_from_player', listing.setId, listing.cardName, 
+                                    result.price, result.quantity, result.isFoil, buyer.id);
+            
+            // Trigger notification callback if available (will be handled by UI)
+            if (this.onPlayerListingSold) {
+                this.onPlayerListingSold(buyer, listing, result);
+            }
+        }
+        
+        return result;
+    }
+    
+    // Buyer statistics and debugging methods
+    getBuyerStatistics() {
+        return this.state.aiBuyers.map(buyer => ({
+            id: buyer.id,
+            type: buyer.type,
+            totalPurchases: buyer.totalPurchases,
+            totalSpent: buyer.totalSpent,
+            averageSpend: buyer.totalPurchases > 0 ? buyer.totalSpent / buyer.totalPurchases : 0,
+            lastActivity: buyer.lastPurchaseTime
+        }));
+    }
+    
+    getPlayerListingStats() {
+        let totalListings = 0;
+        let totalValue = 0;
+        
+        for (const setId in this.state.playerListings) {
+            for (const cardName in this.state.playerListings[setId]) {
+                this.state.playerListings[setId][cardName].forEach(listing => {
+                    totalListings++;
+                    totalValue += listing.price * listing.quantity;
+                });
+            }
+        }
+        
+        return {
+            totalListings,
+            totalValue,
+            averageValue: totalListings > 0 ? totalValue / totalListings : 0
+        };
+    }
+    
+    // Enhanced market activity recording to support buyer information
+    recordMarketActivityEnhanced(type, setId, cardName, price, quantity, isFoil, buyerId = null) {
+        const activity = {
+            type,
+            setId,
+            cardName,
+            price,
+            quantity,
+            isFoil,
+            timestamp: Date.now(),
+            buyerId: buyerId
+        };
+        
+        this.state.marketActivity.unshift(activity);
+        
+        // Keep only recent activity (last 100 entries)
+        if (this.state.marketActivity.length > 100) {
+            this.state.marketActivity = this.state.marketActivity.slice(0, 100);
+        }
+    }
+
+    // Manual trigger for testing
+    debugTriggerBuyerEvaluation() {
+        console.log('Manual buyer evaluation triggered');
+        this.evaluatePlayerListings();
+    }
+
     destroy() {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
             this.updateInterval = null;
+        }
+        if (this.buyerInterval) {
+            clearInterval(this.buyerInterval);
+            this.buyerInterval = null;
         }
     }
 }
@@ -1284,4 +1854,6 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = { MarketEngine };
 } else {
     window.MarketEngine = MarketEngine;
+    // Expose for debugging
+    window.debugMarket = null; // Will be set by game engine
 }

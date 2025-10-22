@@ -32,6 +32,15 @@ class GameEngine {
         // Make storage manager globally available for getAllSets function
         window.storageManager = this.storageManager;
         this.marketEngine = new MarketEngine();
+        
+        // Set up market engine callback for player listing sales
+        this.marketEngine.onPlayerListingSold = (buyer, listing, result) => {
+            this.handlePlayerListingSold(buyer, listing, result);
+        };
+        
+        // Expose for debugging
+        window.debugMarket = this.marketEngine;
+        
         this.initializeState();
     }
 
@@ -423,6 +432,153 @@ class GameEngine {
             fee: fee,
             newWallet: this.state.wallet
         };
+    }
+
+    // Player Listing Methods
+    createPlayerListing(setId, cardName, quantity, price, isFoil = false) {
+        const collectionSet = this.state.collection[setId];
+        if (!collectionSet || !collectionSet[cardName]) {
+            return { success: false, message: "Card not found in collection" };
+        }
+        
+        const availableQuantity = this.getAvailableQuantityForSale(setId, cardName, isFoil);
+        
+        if (quantity > availableQuantity) {
+            return { 
+                success: false, 
+                message: `Not enough ${isFoil ? 'foil' : 'regular'} cards available. You have ${availableQuantity} available for listing.` 
+            };
+        }
+        
+        // Validate price (must be positive and reasonable)
+        if (price <= 0) {
+            return { success: false, message: "Price must be greater than $0.00" };
+        }
+        if (price > 999.99) {
+            return { success: false, message: "Price cannot exceed $999.99" };
+        }
+        
+        // Remove cards from collection (they're now in the listing)
+        const cardData = collectionSet[cardName];
+        if (isFoil) {
+            cardData.foilCount -= quantity;
+        } else {
+            cardData.count -= quantity;
+        }
+        
+        // Clean up empty entries
+        if (cardData.count === 0 && cardData.foilCount === 0) {
+            delete collectionSet[cardName];
+        }
+        
+        // Create the listing in the market
+        const result = this.marketEngine.createPlayerListing(setId, cardName, price, quantity, isFoil);
+        
+        if (result.success) {
+            this.updateNetWorth();
+            this.saveState();
+        }
+        
+        return result;
+    }
+    
+    cancelPlayerListing(listingId) {
+        const result = this.marketEngine.cancelPlayerListing(listingId);
+        
+        if (result.success && result.refundedCards) {
+            // Return cards to collection
+            const { setId, cardName, quantity, isFoil } = result.refundedCards;
+            
+            if (!this.state.collection[setId]) {
+                this.state.collection[setId] = {};
+            }
+            if (!this.state.collection[setId][cardName]) {
+                this.state.collection[setId][cardName] = { count: 0, foilCount: 0 };
+            }
+            
+            const cardData = this.state.collection[setId][cardName];
+            if (isFoil) {
+                cardData.foilCount += quantity;
+            } else {
+                cardData.count += quantity;
+            }
+            
+            this.updateNetWorth();
+            this.saveState();
+        }
+        
+        return result;
+    }
+    
+    getPlayerListings() {
+        return this.marketEngine.getPlayerListings();
+    }
+    
+    handlePlayerListingSold(buyer, listing, result) {
+        // Add the sale proceeds to player's wallet
+        const proceeds = result.cost;
+        this.state.wallet = Math.round((this.state.wallet + proceeds) * 100) / 100;
+        this.state.totalEarnings = Math.round((this.state.totalEarnings + proceeds) * 100) / 100;
+        
+        // Update sales statistics
+        this.state.salesCount++;
+        if (proceeds > this.state.highestSale) {
+            this.state.highestSale = proceeds;
+        }
+        
+        // Update net worth and save
+        this.updateNetWorth();
+        this.recordNetWorthHistory();
+        this.checkAchievements();
+        this.saveState();
+        
+        // Trigger UI notification if callback is set
+        if (this.onListingSoldCallback) {
+            this.onListingSoldCallback(buyer, listing, result, proceeds);
+        }
+    }
+    
+    purchaseFromPlayerListing(listingId, quantityToBuy = 1) {
+        const result = this.marketEngine.purchaseFromPlayerListing(listingId, quantityToBuy);
+        
+        if (result.success) {
+            // Check if player has enough funds
+            if (this.state.wallet < result.cost) {
+                return { success: false, message: 'Insufficient funds' };
+            }
+            
+            // Deduct cost from wallet
+            this.state.wallet = Math.round((this.state.wallet - result.cost) * 100) / 100;
+            
+            // Add cards to collection
+            const { setId, cardName, quantity, isFoil } = result;
+            
+            if (!this.state.collection[setId]) {
+                this.state.collection[setId] = {};
+            }
+            if (!this.state.collection[setId][cardName]) {
+                this.state.collection[setId][cardName] = { count: 0, foilCount: 0 };
+            }
+            
+            const cardData = this.state.collection[setId][cardName];
+            if (isFoil) {
+                cardData.foilCount += quantity;
+            } else {
+                cardData.count += quantity;
+            }
+            
+            this.updateNetWorth();
+            this.saveState();
+            
+            return {
+                success: true,
+                message: `Purchased ${quantity}x ${cardName}${isFoil ? ' (Foil)' : ''} for $${result.cost.toFixed(2)}`,
+                cost: result.cost,
+                newWallet: this.state.wallet
+            };
+        }
+        
+        return result;
     }
 
     getPortfolioSummary() {

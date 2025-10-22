@@ -3,6 +3,12 @@ class UIManager {
     constructor(gameEngine) {
         this.gameEngine = gameEngine;
         this.currentOpeningPack = null;
+        
+        // Set up callback for listing sales
+        this.gameEngine.onListingSoldCallback = (buyer, listing, result, proceeds) => {
+            this.handleListingSold(buyer, listing, result, proceeds);
+        };
+        
         this.initializeElements();
         this.setupEventListeners();
         this.setupPackTearing();
@@ -80,6 +86,11 @@ class UIManager {
         this.sellCardInfo = document.getElementById('sell-card-info');
         this.sellQuantity = document.getElementById('sell-quantity');
         this.sellFoilOnly = document.getElementById('sell-foil-only');
+        this.sellInstant = document.getElementById('sell-instant');
+        this.sellListing = document.getElementById('sell-listing');
+        this.customPriceSection = document.getElementById('custom-price-section');
+        this.sellCustomPrice = document.getElementById('sell-custom-price');
+        this.priceGuidance = document.getElementById('price-guidance');
         this.salePreview = document.getElementById('sale-preview');
         this.confirmSellBtn = document.getElementById('confirm-sell-btn');
         this.cancelSellBtn = document.getElementById('cancel-sell-btn');
@@ -91,6 +102,16 @@ class UIManager {
         this.buyPreview = document.getElementById('buy-preview');
         this.confirmBuyBtn = document.getElementById('confirm-buy-btn');
         this.cancelBuyBtn = document.getElementById('cancel-buy-btn');
+        
+
+        
+        // Player listings display
+        this.playerListingsDisplay = document.getElementById('player-listings-display');
+        this.listingsCount = document.getElementById('listings-count');
+        
+        // Buyer stats display
+        this.buyerStatsDisplay = document.getElementById('buyer-stats-display');
+        this.buyerStatsToggle = document.getElementById('buyer-stats-toggle');
         
         // Achievement notification
         this.achievementNotification = document.getElementById('achievement-notification');
@@ -605,6 +626,19 @@ class UIManager {
         this.sellFoilOnly.addEventListener('change', () => {
             this.updateSalePreview();
         });
+        
+        // Sell type radio button listeners
+        this.sellInstant.addEventListener('change', () => {
+            this.handleSellTypeChange();
+        });
+        
+        this.sellListing.addEventListener('change', () => {
+            this.handleSellTypeChange();
+        });
+        
+        this.sellCustomPrice.addEventListener('input', () => {
+            this.updateSalePreview();
+        });
 
         // Portfolio filter/search/sort listeners
         this.portfolioSearch.addEventListener('input', (e) => {
@@ -698,6 +732,8 @@ class UIManager {
             }
         });
 
+
+
         // Profile modal event listeners
         this.profileBtn.addEventListener('click', () => {
             this.openProfileModal();
@@ -754,7 +790,7 @@ class UIManager {
         }
     }
 
-    showNotification(message, type = 'info') {
+    showNotification(message, type = 'info', duration = 3000) {
         // Create temporary notification
         const notification = document.createElement('div');
         notification.className = `fixed top-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg text-white font-medium z-50 ${
@@ -767,7 +803,7 @@ class UIManager {
         
         setTimeout(() => {
             notification.remove();
-        }, 3000);
+        }, duration);
     }
 
     switchTab(tabName) {
@@ -790,6 +826,7 @@ class UIManager {
             this.renderPortfolio(); // Refresh portfolio when switching to tab
             this.renderMarketSummary();
             this.renderHotCards();
+            this.renderPlayerListings(); // Show player's active listings
         }
     }
 
@@ -1209,7 +1246,7 @@ class UIManager {
         // Fix: Add sell button if player owns ANY version of the card (regular OR foil)
         if (totalOwned > 0) {
             countDisplay += `
-                <div class="absolute bottom-1 right-1">
+                <div class="absolute bottom-1 right-1 flex gap-1">
                     <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-2 py-1 rounded sell-card-btn" 
                             data-set-id="${setId || this.collectionSetSelector.value}" 
                             data-card-name="${name}">
@@ -1249,6 +1286,7 @@ class UIManager {
             this.renderMarketListings();
             this.renderWishlist();
             this.renderMarketActivity();
+            this.renderPlayerListings();
         }, 30000);
         
         // Initial render
@@ -1260,6 +1298,7 @@ class UIManager {
         this.renderMarketListings();
         this.renderWishlist();
         this.renderMarketActivity();
+        this.renderPlayerListings();
     }
 
     onMarketUpdate() {
@@ -1271,6 +1310,7 @@ class UIManager {
         this.renderMarketListings();
         this.renderWishlist();
         this.renderMarketActivity();
+        this.renderPlayerListings();
         if (this.selectedCard) {
             this.renderCardDetailsPanel();
         }
@@ -1671,6 +1711,14 @@ class UIManager {
         // Disable foil checkbox if no foils available for sale
         this.sellFoilOnly.disabled = availableFoil === 0;
         
+        // Reset to instant sell by default
+        this.sellInstant.checked = true;
+        this.sellListing.checked = false;
+        this.customPriceSection.classList.add('hidden');
+        
+        // Update price guidance for listing option
+        this.updatePriceGuidance(regularPrice, foilPrice);
+        
         this.updateSalePreview();
         this.sellCardModal.classList.remove('hidden');
     }
@@ -1680,11 +1728,36 @@ class UIManager {
         this.currentSellCard = null;
     }
 
+    handleSellTypeChange() {
+        const isListing = this.sellListing.checked;
+        
+        if (isListing) {
+            this.customPriceSection.classList.remove('hidden');
+            this.confirmSellBtn.textContent = 'Create Listing';
+        } else {
+            this.customPriceSection.classList.add('hidden');
+            this.confirmSellBtn.textContent = 'Sell';
+        }
+        
+        this.updateSalePreview();
+    }
+
+    updatePriceGuidance(regularPrice, foilPrice) {
+        const minPrice = Math.min(regularPrice, foilPrice) * 0.5;
+        const maxPrice = Math.max(regularPrice, foilPrice) * 2;
+        
+        this.priceGuidance.innerHTML = `
+            Market prices: Regular $${regularPrice.toFixed(2)}, Foil $${foilPrice.toFixed(2)}<br>
+            Suggested range: $${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}
+        `;
+    }
+
     updateSalePreview() {
         if (!this.currentSellCard) return;
         
         const quantity = parseInt(this.sellQuantity.value);
         const isFoil = this.sellFoilOnly.checked;
+        const isListing = this.sellListing.checked;
         const { setId, cardName } = this.currentSellCard;
         
         // Get available quantity considering locks
@@ -1704,27 +1777,66 @@ class UIManager {
             return;
         }
         
-        const salePrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, isFoil);
-        const totalValue = salePrice * quantity;
-        const fee = totalValue * 0.05;
-        const netValue = totalValue - fee;
-        
-        this.salePreview.innerHTML = `
-            <div class="space-y-2">
-                <div class="flex justify-between">
-                    <span>Gross Value:</span>
-                    <span>$${totalValue.toFixed(2)}</span>
+        if (isListing) {
+            // Handle custom listing preview
+            const customPrice = parseFloat(this.sellCustomPrice.value) || 0;
+            if (customPrice <= 0) {
+                this.salePreview.innerHTML = `
+                    <div class="text-yellow-400">
+                        ⚠️ Please enter a valid price per card
+                    </div>
+                `;
+                this.confirmSellBtn.disabled = true;
+                return;
+            }
+            
+            const totalValue = customPrice * quantity;
+            
+            this.salePreview.innerHTML = `
+                <div class="space-y-2">
+                    <div class="text-sm text-gray-400 mb-2">📦 Listing Preview</div>
+                    <div class="flex justify-between">
+                        <span>Quantity:</span>
+                        <span>${quantity}x ${isFoil ? 'Foil ' : ''}${cardName}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Price per card:</span>
+                        <span>$${customPrice.toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between font-bold border-t pt-2">
+                        <span>Total Value:</span>
+                        <span class="text-blue-400">$${totalValue.toFixed(2)}</span>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-2">
+                        💡 Cards will be removed from your collection and listed for other players to buy
+                    </div>
                 </div>
-                <div class="flex justify-between text-red-400">
-                    <span>Trading Fee (5%):</span>
-                    <span>-$${fee.toFixed(2)}</span>
+            `;
+        } else {
+            // Handle instant sale preview
+            const salePrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, isFoil);
+            const totalValue = salePrice * quantity;
+            const fee = totalValue * 0.05;
+            const netValue = totalValue - fee;
+            
+            this.salePreview.innerHTML = `
+                <div class="space-y-2">
+                    <div class="text-sm text-gray-400 mb-2">⚡ Instant Sale Preview</div>
+                    <div class="flex justify-between">
+                        <span>Gross Value:</span>
+                        <span>$${totalValue.toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between text-red-400">
+                        <span>Trading Fee (5%):</span>
+                        <span>-$${fee.toFixed(2)}</span>
+                    </div>
+                    <div class="flex justify-between font-bold border-t pt-2">
+                        <span>Net Proceeds:</span>
+                        <span class="text-green-400">$${netValue.toFixed(2)}</span>
+                    </div>
                 </div>
-                <div class="flex justify-between font-bold border-t pt-2">
-                    <span>Net Proceeds:</span>
-                    <span class="text-green-400">$${netValue.toFixed(2)}</span>
-                </div>
-            </div>
-        `;
+            `;
+        }
         
         this.confirmSellBtn.disabled = false;
     }
@@ -1734,9 +1846,24 @@ class UIManager {
         
         const quantity = parseInt(this.sellQuantity.value);
         const isFoil = this.sellFoilOnly.checked;
+        const isListing = this.sellListing.checked;
         const { setId, cardName } = this.currentSellCard;
         
-        const result = this.gameEngine.sellCard(setId, cardName, quantity, isFoil);
+        let result;
+        
+        if (isListing) {
+            // Create a listing
+            const customPrice = parseFloat(this.sellCustomPrice.value);
+            if (!customPrice || customPrice <= 0) {
+                this.showNotification('Please enter a valid price', 'error');
+                return;
+            }
+            
+            result = this.gameEngine.createPlayerListing(setId, cardName, quantity, customPrice, isFoil);
+        } else {
+            // Instant sell
+            result = this.gameEngine.sellCard(setId, cardName, quantity, isFoil);
+        }
         
         if (result.success) {
             this.showNotification(result.message, 'success');
@@ -1749,6 +1876,11 @@ class UIManager {
             // Update collection if we're on that tab
             if (this.currentTab === 'collection') {
                 this.renderCollection();
+            }
+            
+            // Update player listings if we created a listing
+            if (isListing) {
+                this.renderPlayerListings();
             }
             
             // If there's an open chart for this card, update it
@@ -1871,6 +2003,207 @@ class UIManager {
         
         // Close the modal
         this.closeBuyModal();
+    }
+
+    purchaseFromPlayer(setId, cardName, isFoil, listingId) {
+        const result = this.gameEngine.purchaseFromPlayerListing(listingId, 1);
+        
+        if (result.success) {
+            this.showNotification(result.message, 'success');
+            
+            // Update displays
+            this.updatePlayerStats();
+            this.renderCardDetailsPanel(); // Refresh the panel
+            this.renderMarketListings(); // Refresh marketplace
+            this.renderPlayerListings(); // Update player listings display
+            
+            // Update collection if on that tab
+            if (this.currentTab === 'collection') {
+                this.renderCollection();
+            }
+        } else {
+            this.showNotification(result.message, 'error');
+        }
+    }
+
+    // Listing Modal Methods (deprecated - now consolidated into Sell modal)
+    
+    openListingModal(setId, cardName) {
+        // DEPRECATED: This functionality has been moved to the consolidated sell modal
+        this.showNotification('This feature has been moved to the Sell button', 'info');
+        this.openSellModal(setId, cardName);
+        return;
+        
+        const collectionSet = this.gameEngine.state.collection[setId];
+        const cardData = collectionSet[cardName];
+        
+        // Check if player has ANY version of the card
+        const totalOwned = cardData ? (cardData.count + cardData.foilCount) : 0;
+        if (!cardData || totalOwned === 0) {
+            this.showNotification("You don't own this card", 'error');
+            return;
+        }
+        
+        this.currentListingCard = { setId, cardName };
+        
+        const rarity = this.gameEngine.getCardRarity(setId, cardName);
+        const regularPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, false);
+        const foilPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, true);
+        const trend = this.gameEngine.marketEngine.getCardTrend(setId, cardName);
+        
+        const regularCount = cardData.count;
+        const foilCount = cardData.foilCount;
+        
+        // Get available quantities considering locks
+        const availableRegular = this.gameEngine.getAvailableQuantityForSale(setId, cardName, false);
+        const availableFoil = this.gameEngine.getAvailableQuantityForSale(setId, cardName, true);
+        
+        // Check if card is locked
+        const isLocked = this.isCardLocked(setId, cardName, regularCount, foilCount, rarity);
+        
+        this.listingCardInfo.innerHTML = `
+            <div class="mb-3">
+                <h4 class="font-bold text-lg">${cardName} ${isLocked ? '🔒' : ''}</h4>
+                <p class="text-sm text-gray-400 capitalize">${rarity} | ${trend.trend} ${trend.change > 0 ? '+' : ''}${trend.change.toFixed(1)}%</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <div class="text-gray-400">Regular Copies</div>
+                    <div>${regularCount} owned | ${availableRegular} available</div>
+                    <div class="text-xs text-gray-500">MSRP: $${regularPrice.toFixed(2)}</div>
+                </div>
+                <div>
+                    <div class="text-gray-400">Foil Copies</div>
+                    <div>${foilCount} owned | ${availableFoil} available</div>
+                    <div class="text-xs text-gray-500">MSRP: $${foilPrice.toFixed(2)}</div>
+                </div>
+            </div>
+        `;
+        
+        // Set max listable quantity
+        this.listingQuantity.max = Math.max(availableRegular, 1);
+        this.listingQuantity.value = Math.min(1, availableRegular);
+        this.listingFoilOnly.checked = false;
+        this.listingPrice.value = regularPrice.toFixed(2);
+        
+        // Disable foil checkbox if no foils available
+        this.listingFoilOnly.disabled = availableFoil === 0;
+        
+        this.updateListingPreview();
+        this.createListingModal.classList.remove('hidden');
+    }
+
+    closeListingModal() {
+        this.createListingModal.classList.add('hidden');
+        this.currentListingCard = null;
+    }
+
+    updateListingPreview() {
+        if (!this.currentListingCard) return;
+        
+        const quantity = parseInt(this.listingQuantity.value) || 1;
+        const price = parseFloat(this.listingPrice.value) || 0;
+        const isFoil = this.listingFoilOnly.checked;
+        const { setId, cardName } = this.currentListingCard;
+        
+        // Get available quantity considering locks
+        const availableQuantity = this.gameEngine.getAvailableQuantityForSale(setId, cardName, isFoil);
+        
+        // Update max quantity for the input
+        this.listingQuantity.max = Math.max(availableQuantity, 1);
+        
+        // Get market price for comparison
+        const marketPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, isFoil);
+        const priceComparison = price / marketPrice;
+        
+        let comparisonText = '';
+        let comparisonColor = '';
+        if (priceComparison > 1.2) {
+            comparisonText = `📈 ${((priceComparison - 1) * 100).toFixed(0)}% above market`;
+            comparisonColor = 'text-red-400';
+        } else if (priceComparison < 0.8) {
+            comparisonText = `📉 ${((1 - priceComparison) * 100).toFixed(0)}% below market`;
+            comparisonColor = 'text-green-400';
+        } else {
+            comparisonText = '💰 Near market price';
+            comparisonColor = 'text-blue-400';
+        }
+        
+        this.priceGuidance.innerHTML = `
+            <div class="${comparisonColor}">${comparisonText}</div>
+            <div>Market price: $${marketPrice.toFixed(2)}</div>
+        `;
+        
+        if (quantity > availableQuantity) {
+            this.listingPreview.innerHTML = `
+                <div class="text-red-400">
+                    ❌ Not enough ${isFoil ? 'foil' : 'regular'} cards available! You have ${availableQuantity} available.
+                </div>
+            `;
+            this.confirmListingBtn.disabled = true;
+            return;
+        }
+        
+        if (price <= 0) {
+            this.listingPreview.innerHTML = `
+                <div class="text-red-400">
+                    ❌ Price must be greater than $0.00
+                </div>
+            `;
+            this.confirmListingBtn.disabled = true;
+            return;
+        }
+        
+        const totalValue = price * quantity;
+        
+        this.listingPreview.innerHTML = `
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span>Listing ${quantity}x ${cardName}${isFoil ? ' (Foil)' : ''}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Price per card:</span>
+                    <span>$${price.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between font-bold border-t pt-2">
+                    <span>Total if sold:</span>
+                    <span class="text-green-400">$${totalValue.toFixed(2)}</span>
+                </div>
+                <div class="text-xs text-gray-400">
+                    Cards will be removed from your collection when listed
+                </div>
+            </div>
+        `;
+        
+        this.confirmListingBtn.disabled = false;
+    }
+
+    executeCreateListing() {
+        if (!this.currentListingCard) return;
+        
+        const quantity = parseInt(this.listingQuantity.value);
+        const price = parseFloat(this.listingPrice.value);
+        const isFoil = this.listingFoilOnly.checked;
+        const { setId, cardName } = this.currentListingCard;
+        
+        const result = this.gameEngine.createPlayerListing(setId, cardName, quantity, price, isFoil);
+        
+        if (result.success) {
+            this.showNotification(result.message, 'success');
+            this.closeListingModal();
+            
+            // Update displays
+            this.updatePlayerStats();
+            this.renderPortfolio();
+            this.renderPlayerListings();
+            
+            // Update collection if on that tab
+            if (this.currentTab === 'collection') {
+                this.renderCollection();
+            }
+        } else {
+            this.showNotification(result.message, 'error');
+        }
     }
 
     showAchievementNotification(achievement) {
@@ -2494,10 +2827,12 @@ class UIManager {
                     if (searchTerm && !cardName.toLowerCase().includes(searchTerm)) return;
                     
                     try {
-                        const listings = this.gameEngine.marketEngine.getAvailableListings(setId, cardName);
+                        const listings = this.gameEngine.marketEngine.getAvailableListingsWithPlayer(setId, cardName);
                         if (listings.length > 0) {
-                            const bestPrice = this.gameEngine.marketEngine.getBestListingPrice(setId, cardName, false);
-                            const foilPrice = this.gameEngine.marketEngine.getBestListingPrice(setId, cardName, true);
+                            const regularListings = listings.filter(l => !l.isFoil);
+                            const foilListings = listings.filter(l => l.isFoil);
+                            const bestPrice = regularListings.length > 0 ? Math.min(...regularListings.map(l => l.price)) : null;
+                            const foilPrice = foilListings.length > 0 ? Math.min(...foilListings.map(l => l.price)) : null;
                             
                             availableCards.push({
                                 setId,
@@ -2506,8 +2841,9 @@ class UIManager {
                                 bestPrice,
                                 foilPrice,
                                 totalListings: listings.length,
-                                regularListings: listings.filter(l => !l.isFoil).length,
-                                foilListings: listings.filter(l => l.isFoil).length
+                                regularListings: regularListings.length,
+                                foilListings: foilListings.length,
+                                hasPlayerListings: listings.some(l => l.isPlayerListing)
                             });
                         }
                     } catch (error) {
@@ -2548,6 +2884,7 @@ class UIManager {
                     <div class="text-sm text-gray-400">${window.getAllSets()[card.setId].name}</div>
                     <div class="text-xs text-gray-500 mt-1">
                         ${card.regularListings} regular, ${card.foilListings} foil listings
+                        ${card.hasPlayerListings ? '<span class="text-blue-400">• Player listings</span>' : ''}
                     </div>
                 </div>
                 <div class="text-right">
@@ -2569,8 +2906,8 @@ class UIManager {
         if (!this.cardDetailsPanel || !this.selectedCard) return;
         
         const { setId, cardName } = this.selectedCard;
-        const regularListings = this.gameEngine.marketEngine.getAvailableListings(setId, cardName, false);
-        const foilListings = this.gameEngine.marketEngine.getAvailableListings(setId, cardName, true);
+        const regularListings = this.gameEngine.marketEngine.getAvailableListingsWithPlayer(setId, cardName, false);
+        const foilListings = this.gameEngine.marketEngine.getAvailableListingsWithPlayer(setId, cardName, true);
         const currentPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, false);
         
         this.cardDetailsPanel.innerHTML = `
@@ -2606,19 +2943,27 @@ class UIManager {
     renderScrollableListingSection(title, listings, isFoil) {
         if (listings.length === 0) return '';
         
-        const listingItems = listings.slice(0, 10).map((listing, index) => `
-            <div class="flex justify-between items-center p-2 bg-gray-700 rounded">
+        const listingItems = listings.slice(0, 10).map((listing, index) => {
+            const isPlayerListing = listing.isPlayerListing;
+            const sellerDisplay = isPlayerListing ? 
+                `<span class="text-blue-400">👤 ${listing.sellerId}</span>` : 
+                `<span class="text-gray-500">${listing.sellerId}</span>`;
+            const bgClass = isPlayerListing ? 'bg-blue-900/30' : 'bg-gray-700';
+            
+            return `
+            <div class="flex justify-between items-center p-2 ${bgClass} rounded">
                 <div>
                     <span class="font-medium">$${listing.price.toFixed(2)}</span>
                     <span class="text-sm text-gray-400 ml-2">${listing.quantity}x available</span>
-                    <div class="text-xs text-gray-500">Seller: ${listing.sellerId}</div>
+                    <div class="text-xs">${sellerDisplay}</div>
                 </div>
-                <button onclick="uiManager.openBuyModal('${this.selectedCard.setId}', '${this.selectedCard.cardName}', ${isFoil}, ${index})" 
+                <button onclick="uiManager.${isPlayerListing ? 'purchaseFromPlayer' : 'openBuyModal'}('${this.selectedCard.setId}', '${this.selectedCard.cardName}', ${isFoil}, ${isPlayerListing ? `'${listing.id}'` : index})" 
                         class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm">
                     Buy 1 for $${listing.price.toFixed(2)}
                 </button>
             </div>
-        `).join('');
+            `;
+        }).join('');
         
         return `
             <div class="mb-4">
@@ -2687,12 +3032,51 @@ class UIManager {
             element.className = 'activity-item flex justify-between items-center py-1';
             
             const timeAgo = this.formatTimeAgo(event.timestamp);
-            const actionIcon = event.type === 'buy' ? '🛒' : event.type === 'list' ? '📝' : '⏰';
-            const actionText = event.type === 'buy' ? 'bought' : event.type === 'list' ? 'listed' : 'expired';
+            let actionIcon, actionText, actorText;
+            
+            switch(event.type) {
+                case 'buy':
+                    actionIcon = '🛒';
+                    actionText = 'bought';
+                    actorText = 'Someone';
+                    break;
+                case 'list':
+                    actionIcon = '📝';
+                    actionText = 'listed';
+                    actorText = 'Someone';
+                    break;
+                case 'player_list':
+                    actionIcon = '👤📝';
+                    actionText = 'listed';
+                    actorText = 'You';
+                    break;
+                case 'player_buy':
+                    actionIcon = '👤🛒';
+                    actionText = 'bought';
+                    actorText = 'You';
+                    break;
+                case 'ai_buy_from_player':
+                    actionIcon = '🤖💰';
+                    actionText = 'bought from you';
+                    actorText = event.buyerId || 'AI Buyer';
+                    break;
+                default:
+                    actionIcon = '⏰';
+                    actionText = 'expired';
+                    actorText = 'Listing';
+            }
+            
+            // Color-code different activity types
+            let textClass = '';
+            if (event.type.startsWith('player_')) {
+                textClass = 'text-blue-400'; // Player activities in blue
+            } else if (event.type === 'ai_buy_from_player') {
+                textClass = 'text-green-400'; // AI buying from player in green (money coming in)
+            }
             
             element.innerHTML = `
-                <span class="text-xs">
-                    ${actionIcon} Someone ${actionText} ${event.quantity}x ${event.cardName} 
+                <span class="text-xs ${textClass}">
+                    ${actionIcon} ${actorText} ${actionText} ${event.quantity}x ${event.cardName} 
                     ${event.isFoil ? '★' : ''} for $${event.price.toFixed(2)}
                 </span>
                 <span class="text-xs text-gray-500">${timeAgo}</span>
@@ -2821,6 +3205,177 @@ class UIManager {
         if (hours > 0) return `${hours}h ago`;
         if (minutes > 0) return `${minutes}m ago`;
         return `${seconds}s ago`;
+    }
+
+    renderPlayerListings() {
+        if (!this.playerListingsDisplay || !this.listingsCount) return;
+        
+        const listings = this.gameEngine.getPlayerListings();
+        
+        // Update count display
+        this.listingsCount.textContent = `${listings.length} active listing${listings.length !== 1 ? 's' : ''}`;
+        
+        if (listings.length === 0) {
+            this.playerListingsDisplay.innerHTML = `
+                <div class="text-center text-gray-400 py-4">
+                    No active listings. Create a listing from your portfolio to start selling!
+                </div>
+            `;
+            return;
+        }
+        
+        this.playerListingsDisplay.innerHTML = '';
+        
+        listings.forEach(listing => {
+            const element = document.createElement('div');
+            element.className = 'listing-item bg-gray-800/50 rounded p-3 mb-2';
+            
+            const listedTime = this.formatTimeAgo(listing.listedAt);
+            const totalValue = listing.price * listing.quantity;
+            
+            element.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="font-medium">${listing.cardName}${listing.isFoil ? ' ⭐' : ''}</div>
+                        <div class="text-sm text-gray-400">${listing.setId}</div>
+                        <div class="text-sm">
+                            ${listing.quantity}x @ $${listing.price.toFixed(2)} each = $${totalValue.toFixed(2)}
+                        </div>
+                        <div class="text-xs text-gray-500">Listed ${listedTime}</div>
+                    </div>
+                    <div class="ml-3">
+                        <button class="cancel-listing-btn bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
+                                data-listing-id="${listing.id}">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            this.playerListingsDisplay.appendChild(element);
+        });
+        
+        // Add event listeners for cancel buttons
+        const cancelButtons = this.playerListingsDisplay.querySelectorAll('.cancel-listing-btn');
+        cancelButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const listingId = btn.dataset.listingId;
+                this.cancelPlayerListing(listingId);
+            });
+        });
+    }
+
+    cancelPlayerListing(listingId) {
+        const result = this.gameEngine.cancelPlayerListing(listingId);
+        
+        if (result.success) {
+            this.showNotification(result.message, 'success');
+            
+            // Update all relevant displays
+            this.renderPlayerListings();
+            this.renderPortfolio();
+            this.updatePlayerStats();
+            
+            // Update collection if on that tab
+            if (this.currentTab === 'collection') {
+                this.renderCollection();
+            }
+        } else {
+            this.showNotification(result.message, 'error');
+        }
+    }
+
+    handleListingSold(buyer, listing, result, proceeds) {
+        // Show notification that listing was sold
+        const message = `🤖💰 ${buyer.id} bought your ${listing.cardName}${listing.isFoil ? ' ⭐' : ''} for $${proceeds.toFixed(2)}!`;
+        this.showNotification(message, 'success', 6000); // Show for 6 seconds
+        
+        // Update all relevant displays
+        this.updatePlayerStats();
+        this.renderPlayerListings();
+        this.renderMarketActivity();
+        
+        // Update collection if on that tab
+        if (this.currentTab === 'collection') {
+            this.renderCollection();
+        }
+        
+        // Update portfolio
+        this.renderPortfolio();
+    }
+
+    toggleBuyerStats() {
+        if (!this.buyerStatsDisplay || !this.buyerStatsToggle) return;
+        
+        const isHidden = this.buyerStatsDisplay.classList.contains('hidden');
+        
+        if (isHidden) {
+            this.buyerStatsDisplay.classList.remove('hidden');
+            this.buyerStatsToggle.textContent = '▲ Hide';
+            this.renderBuyerStats();
+        } else {
+            this.buyerStatsDisplay.classList.add('hidden');
+            this.buyerStatsToggle.textContent = '▼ Show';
+        }
+    }
+
+    renderBuyerStats() {
+        if (!this.buyerStatsDisplay) return;
+        
+        const buyerStats = this.gameEngine.marketEngine.getBuyerStatistics();
+        const listingStats = this.gameEngine.marketEngine.getPlayerListingStats();
+        
+        this.buyerStatsDisplay.innerHTML = `
+            <div class="mb-4 p-3 bg-gray-800/50 rounded">
+                <div class="font-medium mb-2">📊 Market Overview</div>
+                <div class="grid grid-cols-3 gap-4 text-xs">
+                    <div>
+                        <div class="text-gray-400">Active Listings</div>
+                        <div class="font-medium">${listingStats.totalListings}</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">Total Value</div>
+                        <div class="font-medium">$${listingStats.totalValue.toFixed(2)}</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">Avg. Price</div>
+                        <div class="font-medium">$${listingStats.averageValue.toFixed(2)}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <div class="font-medium mb-2">🤖 AI Buyer Performance</div>
+                ${buyerStats.map(buyer => `
+                    <div class="p-2 bg-gray-800/30 rounded text-xs">
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium">${buyer.id}</span>
+                            <span class="text-gray-400">${buyer.type}</span>
+                        </div>
+                        <div class="mt-1 grid grid-cols-3 gap-2">
+                            <div>
+                                <div class="text-gray-400">Purchases</div>
+                                <div>${buyer.totalPurchases}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400">Total Spent</div>
+                                <div>$${buyer.totalSpent.toFixed(2)}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400">Avg. Buy</div>
+                                <div>$${buyer.averageSpend.toFixed(2)}</div>
+                            </div>
+                        </div>
+                        ${buyer.lastActivity > 0 ? `
+                            <div class="mt-1 text-gray-500">
+                                Last: ${this.formatTimeAgo(buyer.lastActivity)}
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        `;
     }
 
     // Cleanup method to prevent memory leaks

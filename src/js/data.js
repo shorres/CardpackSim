@@ -443,16 +443,6 @@ class WeeklySetGenerator {
         const now = new Date();
         const { startOfWeek, endOfWeek } = this.getWeeklySetDates();
         
-        // Add some debugging info in console during development
-        if (window.location.hostname === 'localhost' || window.location.protocol === 'file:') {
-            console.log('Weekly Set Debug:', {
-                now: now.toISOString(),
-                startOfWeek: startOfWeek.toISOString(),
-                endOfWeek: endOfWeek.toISOString(),
-                timeUntilNext: endOfWeek.getTime() - now.getTime()
-            });
-        }
-        
         return endOfWeek.getTime() - now.getTime();
     }
 
