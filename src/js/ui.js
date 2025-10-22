@@ -142,6 +142,21 @@ class UIManager {
         this.lockKeepMythics = document.getElementById('lock-keep-mythics');
         this.lockKeepRares = document.getElementById('lock-keep-rares');
         
+        // Sell All Modal elements
+        this.sellAllConfirmModal = document.getElementById('sell-all-confirm-modal');
+        this.sellAllCancelBtn = document.getElementById('sell-all-cancel-btn');
+        this.sellAllConfirmBtn = document.getElementById('sell-all-confirm-btn');
+        this.sellAllSecondConfirmModal = document.getElementById('sell-all-second-confirm-modal');
+        this.sellAllSecondCancelBtn = document.getElementById('sell-all-second-cancel-btn');
+        this.sellAllSecondConfirmBtn = document.getElementById('sell-all-second-confirm-btn');
+        this.sellAllSuccessModal = document.getElementById('sell-all-success-modal');
+        this.sellAllSuccessOkBtn = document.getElementById('sell-all-success-ok-btn');
+        this.successMessage = document.getElementById('success-message');
+        this.successGross = document.getElementById('success-gross');
+        this.successFee = document.getElementById('success-fee');
+        this.successNet = document.getElementById('success-net');
+        this.successWallet = document.getElementById('success-wallet');
+        
         this.currentSellCard = null;
         this.currentTab = 'packs'; // Default tab
         this.currentChart = null;
@@ -676,6 +691,47 @@ class UIManager {
         // Sell all button listener
         this.sellAllBtn.addEventListener('click', () => {
             this.handleSellAllClick();
+        });
+
+        // Sell All Modal event listeners
+        this.sellAllCancelBtn.addEventListener('click', () => {
+            this.closeSellAllConfirmModal();
+        });
+        
+        this.sellAllConfirmBtn.addEventListener('click', () => {
+            this.showSecondConfirmOrExecute();
+        });
+        
+        this.sellAllSecondCancelBtn.addEventListener('click', () => {
+            this.closeSellAllSecondConfirmModal();
+        });
+        
+        this.sellAllSecondConfirmBtn.addEventListener('click', () => {
+            this.executeSellAllFromModal();
+        });
+        
+        // Close modals when clicking backdrop
+        this.sellAllConfirmModal.addEventListener('click', (e) => {
+            if (e.target === this.sellAllConfirmModal) {
+                this.closeSellAllConfirmModal();
+            }
+        });
+        
+        this.sellAllSecondConfirmModal.addEventListener('click', (e) => {
+            if (e.target === this.sellAllSecondConfirmModal) {
+                this.closeSellAllSecondConfirmModal();
+            }
+        });
+
+        // Success modal event listeners
+        this.sellAllSuccessOkBtn.addEventListener('click', () => {
+            this.closeSellAllSuccessModal();
+        });
+        
+        this.sellAllSuccessModal.addEventListener('click', (e) => {
+            if (e.target === this.sellAllSuccessModal) {
+                this.closeSellAllSuccessModal();
+            }
         });
 
         // Lock settings modal listeners
@@ -1735,62 +1791,68 @@ class UIManager {
     }
 
     handleSellAllClick() {
-        const selectedSetId = this.collectionSetSelector.value;
-        if (!selectedSetId) {
-            alert('Please select a set first!');
+        // Check if the player has any cards in their portfolio
+        const portfolio = this.gameEngine.getPortfolioSummary();
+        if (!portfolio || portfolio.cards.length === 0) {
+            alert('You have no cards in your portfolio to sell!');
             return;
         }
+        
+        // Show first confirmation modal
+        this.sellAllConfirmModal.classList.remove('hidden');
+    }
 
-        // First confirmation dialog
-        const firstConfirm = confirm(
-            `☢️ NUCLEAR WARNING ☢️\n\n` +
-            `Are you absolutely sure you want to SELL ALL cards in your collection for this set?\n\n` +
-            `This will permanently remove ALL cards that are not locked from your collection!\n\n` +
-            `You cannot undo this action!`
-        );
+    closeSellAllConfirmModal() {
+        this.sellAllConfirmModal.classList.add('hidden');
+    }
 
-        if (!firstConfirm) return;
+    closeSellAllSecondConfirmModal() {
+        this.sellAllSecondConfirmModal.classList.add('hidden');
+    }
 
+    showSecondConfirmOrExecute() {
+        this.closeSellAllConfirmModal();
+        
         // 30% chance for second confirmation dialog
         const showSecondConfirm = Math.random() < 0.3;
         
         if (showSecondConfirm) {
-            const secondConfirm = confirm(
-                `🤔 Wait, are you SURE you're sure?\n\n` +
-                `This seems like a pretty drastic decision...\n\n` +
-                `Maybe take a moment to think about it?\n\n` +
-                `Really sell EVERYTHING?`
-            );
-            
-            if (!secondConfirm) return;
+            this.sellAllSecondConfirmModal.classList.remove('hidden');
+        } else {
+            this.executeSellAllFromModal();
         }
-
-        // Execute the sell all operation
-        this.executeSellAll(selectedSetId);
     }
 
-    executeSellAll(setId) {
-        const result = this.gameEngine.sellAllCards(setId);
+    executeSellAllFromModal() {
+        this.closeSellAllSecondConfirmModal();
+        this.executeSellAllPortfolio();
+    }
+
+    executeSellAllPortfolio() {
+        const result = this.gameEngine.sellAllPortfolioCards();
         
         if (result.success) {
-            // Show success message
-            alert(
-                `💰 COLLECTION LIQUIDATED! 💰\n\n` +
-                `${result.message}\n\n` +
-                `Gross Value: $${result.grossValue.toFixed(2)}\n` +
-                `Trading Fee: $${result.fee.toFixed(2)}\n` +
-                `Net Proceeds: $${result.netValue.toFixed(2)}\n\n` +
-                `New Wallet Balance: $${result.newWallet.toFixed(2)}`
-            );
+            // Populate and show custom success modal
+            this.successMessage.textContent = result.message;
+            this.successGross.textContent = `$${result.grossValue.toFixed(2)}`;
+            this.successFee.textContent = `$${result.fee.toFixed(2)}`;
+            this.successNet.textContent = `$${result.netValue.toFixed(2)}`;
+            this.successWallet.textContent = `$${result.newWallet.toFixed(2)}`;
+            
+            this.sellAllSuccessModal.classList.remove('hidden');
             
             // Update UI
             this.updatePlayerStats();
             this.renderCollection();
             this.renderPortfolio();
         } else {
-            // Show error message
+            // Show error message (keeping alert for errors since they should be rare)
             alert(`❌ Sale Failed\n\n${result.message}`);
         }
+    }
+
+    closeSellAllSuccessModal() {
+        this.sellAllSuccessModal.classList.add('hidden');
     }
 
     handleSellTypeChange() {
