@@ -33,6 +33,7 @@ class UIManager {
         this.openedPackDisplay = document.getElementById('opened-pack-display');
         this.collectionDisplay = document.getElementById('collection-display');
         this.collectionProgress = document.getElementById('collection-progress');
+        this.sellAllBtn = document.getElementById('sell-all-btn');
         
         // Player stats elements
         this.playerWallet = document.getElementById('player-wallet');
@@ -140,6 +141,21 @@ class UIManager {
         this.lockKeepOneFoil = document.getElementById('lock-keep-one-foil');
         this.lockKeepMythics = document.getElementById('lock-keep-mythics');
         this.lockKeepRares = document.getElementById('lock-keep-rares');
+        
+        // Sell All Modal elements
+        this.sellAllConfirmModal = document.getElementById('sell-all-confirm-modal');
+        this.sellAllCancelBtn = document.getElementById('sell-all-cancel-btn');
+        this.sellAllConfirmBtn = document.getElementById('sell-all-confirm-btn');
+        this.sellAllSecondConfirmModal = document.getElementById('sell-all-second-confirm-modal');
+        this.sellAllSecondCancelBtn = document.getElementById('sell-all-second-cancel-btn');
+        this.sellAllSecondConfirmBtn = document.getElementById('sell-all-second-confirm-btn');
+        this.sellAllSuccessModal = document.getElementById('sell-all-success-modal');
+        this.sellAllSuccessOkBtn = document.getElementById('sell-all-success-ok-btn');
+        this.successMessage = document.getElementById('success-message');
+        this.successGross = document.getElementById('success-gross');
+        this.successFee = document.getElementById('success-fee');
+        this.successNet = document.getElementById('success-net');
+        this.successWallet = document.getElementById('success-wallet');
         
         this.currentSellCard = null;
         this.currentTab = 'packs'; // Default tab
@@ -670,6 +686,52 @@ class UIManager {
         this.collectionFilter.addEventListener('change', (e) => {
             this.collectionFilters.filter = e.target.value;
             this.renderCollection();
+        });
+
+        // Sell all button listener
+        this.sellAllBtn.addEventListener('click', () => {
+            this.handleSellAllClick();
+        });
+
+        // Sell All Modal event listeners
+        this.sellAllCancelBtn.addEventListener('click', () => {
+            this.closeSellAllConfirmModal();
+        });
+        
+        this.sellAllConfirmBtn.addEventListener('click', () => {
+            this.showSecondConfirmOrExecute();
+        });
+        
+        this.sellAllSecondCancelBtn.addEventListener('click', () => {
+            this.closeSellAllSecondConfirmModal();
+        });
+        
+        this.sellAllSecondConfirmBtn.addEventListener('click', () => {
+            this.executeSellAllFromModal();
+        });
+        
+        // Close modals when clicking backdrop
+        this.sellAllConfirmModal.addEventListener('click', (e) => {
+            if (e.target === this.sellAllConfirmModal) {
+                this.closeSellAllConfirmModal();
+            }
+        });
+        
+        this.sellAllSecondConfirmModal.addEventListener('click', (e) => {
+            if (e.target === this.sellAllSecondConfirmModal) {
+                this.closeSellAllSecondConfirmModal();
+            }
+        });
+
+        // Success modal event listeners
+        this.sellAllSuccessOkBtn.addEventListener('click', () => {
+            this.closeSellAllSuccessModal();
+        });
+        
+        this.sellAllSuccessModal.addEventListener('click', (e) => {
+            if (e.target === this.sellAllSuccessModal) {
+                this.closeSellAllSuccessModal();
+            }
         });
 
         // Lock settings modal listeners
@@ -1726,6 +1788,71 @@ class UIManager {
     closeSellModal() {
         this.sellCardModal.classList.add('hidden');
         this.currentSellCard = null;
+    }
+
+    handleSellAllClick() {
+        // Check if the player has any cards in their portfolio
+        const portfolio = this.gameEngine.getPortfolioSummary();
+        if (!portfolio || portfolio.cards.length === 0) {
+            alert('You have no cards in your portfolio to sell!');
+            return;
+        }
+        
+        // Show first confirmation modal
+        this.sellAllConfirmModal.classList.remove('hidden');
+    }
+
+    closeSellAllConfirmModal() {
+        this.sellAllConfirmModal.classList.add('hidden');
+    }
+
+    closeSellAllSecondConfirmModal() {
+        this.sellAllSecondConfirmModal.classList.add('hidden');
+    }
+
+    showSecondConfirmOrExecute() {
+        this.closeSellAllConfirmModal();
+        
+        // 30% chance for second confirmation dialog
+        const showSecondConfirm = Math.random() < 0.3;
+        
+        if (showSecondConfirm) {
+            this.sellAllSecondConfirmModal.classList.remove('hidden');
+        } else {
+            this.executeSellAllFromModal();
+        }
+    }
+
+    executeSellAllFromModal() {
+        this.closeSellAllSecondConfirmModal();
+        this.executeSellAllPortfolio();
+    }
+
+    executeSellAllPortfolio() {
+        const result = this.gameEngine.sellAllPortfolioCards();
+        
+        if (result.success) {
+            // Populate and show custom success modal
+            this.successMessage.textContent = result.message;
+            this.successGross.textContent = `$${result.grossValue.toFixed(2)}`;
+            this.successFee.textContent = `$${result.fee.toFixed(2)}`;
+            this.successNet.textContent = `$${result.netValue.toFixed(2)}`;
+            this.successWallet.textContent = `$${result.newWallet.toFixed(2)}`;
+            
+            this.sellAllSuccessModal.classList.remove('hidden');
+            
+            // Update UI
+            this.updatePlayerStats();
+            this.renderCollection();
+            this.renderPortfolio();
+        } else {
+            // Show error message (keeping alert for errors since they should be rare)
+            alert(`❌ Sale Failed\n\n${result.message}`);
+        }
+    }
+
+    closeSellAllSuccessModal() {
+        this.sellAllSuccessModal.classList.add('hidden');
     }
 
     handleSellTypeChange() {
