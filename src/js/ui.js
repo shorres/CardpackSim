@@ -9,6 +9,11 @@ class UIManager {
             this.handleListingSold(buyer, listing, result, proceeds);
         };
         
+        // Set up callback for sell order execution
+        this.gameEngine.onSellOrderExecutedCallback = (order, result) => {
+            this.handleSellOrderExecuted(order, result);
+        };
+        
         this.initializeElements();
         this.setupEventListeners();
         this.setupPackTearing();
@@ -83,19 +88,26 @@ class UIManager {
         this.packArtTearOff = document.getElementById('pack-art-tear-off');
         this.packArtSetNameTorn = document.getElementById('pack-art-set-name-torn');
         
-        // Sell modal elements
+        // Sell modal elements - Step-based design
         this.sellCardModal = document.getElementById('sell-card-modal');
         this.sellCardInfo = document.getElementById('sell-card-info');
-        this.sellQuantity = document.getElementById('sell-quantity');
-        this.sellFoilOnly = document.getElementById('sell-foil-only');
-        this.sellInstant = document.getElementById('sell-instant');
-        this.sellListing = document.getElementById('sell-listing');
-        this.customPriceSection = document.getElementById('custom-price-section');
+        
+        // Step-based modal elements
+        // Note: Old radio button references removed as they no longer exist in new design
         this.sellCustomPrice = document.getElementById('sell-custom-price');
         this.priceGuidance = document.getElementById('price-guidance');
-        this.salePreview = document.getElementById('sale-preview');
+        this.sellTriggerType = document.getElementById('sell-trigger-type');
+        this.sellTriggerValue = document.getElementById('sell-trigger-value');
+        this.sellTriggerPrefix = document.getElementById('sell-trigger-prefix');
+        this.sellTriggerSuffix = document.getElementById('sell-trigger-suffix');
+        this.sellTriggerHint = document.getElementById('sell-trigger-hint');
+        
+        // Legacy elements that still exist for compatibility
         this.confirmSellBtn = document.getElementById('confirm-sell-btn');
         this.cancelSellBtn = document.getElementById('cancel-sell-btn');
+        
+        // Elements that are now step-specific (accessed directly in methods)
+        // this.sellQuantity, this.sellFoilOnly etc. are now accessed via getElementById in specific methods
         
         // Buy modal elements
         this.buyCardModal = document.getElementById('buy-card-modal');
@@ -105,7 +117,21 @@ class UIManager {
         this.confirmBuyBtn = document.getElementById('confirm-buy-btn');
         this.cancelBuyBtn = document.getElementById('cancel-buy-btn');
         
-
+        // Sell Order modal elements
+        this.sellOrderModal = document.getElementById('sell-order-modal');
+        this.sellOrderCardInfo = document.getElementById('sell-order-card-info');
+        this.sellOrderRegular = document.getElementById('sell-order-regular');
+        this.sellOrderFoil = document.getElementById('sell-order-foil');
+        this.sellOrderQuantity = document.getElementById('sell-order-quantity');
+        this.sellOrderTriggerType = document.getElementById('sell-order-trigger-type');
+        this.sellOrderTriggerValue = document.getElementById('sell-order-trigger-value');
+        this.sellOrderPrefix = document.getElementById('sell-order-prefix');
+        this.sellOrderSuffix = document.getElementById('sell-order-suffix');
+        this.sellOrderHint = document.getElementById('sell-order-hint');
+        this.sellOrderPreview = document.getElementById('sell-order-preview');
+        this.sellOrderDescription = document.getElementById('sell-order-description');
+        this.sellOrderCreateBtn = document.getElementById('sell-order-create-btn');
+        this.sellOrderCancelBtn = document.getElementById('sell-order-cancel-btn');
         
         // Player listings display
         this.playerListingsDisplay = document.getElementById('player-listings-display');
@@ -628,34 +654,84 @@ class UIManager {
             this.handlePurchaseResult(result);
         });
         
-        // Sell modal event listeners
+        // Sell modal event listeners - Step-based design
+        // Cancel button (available on step 1)
         this.cancelSellBtn.addEventListener('click', () => {
             this.closeSellModal();
         });
         
+        // Back button navigation
+        const modalBackBtn = document.getElementById('modal-back-btn');
+        modalBackBtn.addEventListener('click', () => {
+            this.showSellModalStep('step-1');
+        });
+        
+        // Sell method selection buttons
+        const sellMethodBtns = document.querySelectorAll('.sell-method-btn');
+        sellMethodBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const method = btn.dataset.method;
+                this.handleSellMethodSelect(method);
+            });
+        });
+        
+        // Instant sell step listeners
+        const sellQuantity = document.getElementById('sell-quantity');
+        sellQuantity.addEventListener('input', () => {
+            this.updateSalePreview();
+        });
+        
+        const sellFoilOnly = document.getElementById('sell-foil-only');
+        sellFoilOnly.addEventListener('change', () => {
+            this.updateSalePreview();
+        });
+        
         this.confirmSellBtn.addEventListener('click', () => {
-            this.executeSale();
+            this.executeInstantSale();
         });
         
-        this.sellQuantity.addEventListener('input', () => {
-            this.updateSalePreview();
+        // Listing step listeners
+        const sellQuantityListing = document.getElementById('sell-quantity-listing');
+        sellQuantityListing.addEventListener('input', () => {
+            this.updateListingPreview();
         });
         
-        this.sellFoilOnly.addEventListener('change', () => {
-            this.updateSalePreview();
-        });
-        
-        // Sell type radio button listeners
-        this.sellInstant.addEventListener('change', () => {
-            this.handleSellTypeChange();
-        });
-        
-        this.sellListing.addEventListener('change', () => {
-            this.handleSellTypeChange();
+        const sellFoilOnlyListing = document.getElementById('sell-foil-only-listing');
+        sellFoilOnlyListing.addEventListener('change', () => {
+            this.updateListingPreview();
         });
         
         this.sellCustomPrice.addEventListener('input', () => {
-            this.updateSalePreview();
+            this.updateListingPreview();
+        });
+        
+        const confirmListingBtn = document.getElementById('confirm-listing-btn');
+        confirmListingBtn.addEventListener('click', () => {
+            this.executeCreateListing();
+        });
+        
+        // Auto-sell step listeners
+        const sellQuantityAuto = document.getElementById('sell-quantity-auto');
+        sellQuantityAuto.addEventListener('input', () => {
+            this.updateAutoSellPreview();
+        });
+        
+        const sellFoilOnlyAuto = document.getElementById('sell-foil-only-auto');
+        sellFoilOnlyAuto.addEventListener('change', () => {
+            this.updateAutoSellPreview();
+        });
+        
+        this.sellTriggerType.addEventListener('change', () => {
+            this.updateAutoSellForm();
+        });
+        
+        this.sellTriggerValue.addEventListener('input', () => {
+            this.updateAutoSellPreview();
+        });
+        
+        const confirmAutoSellBtn = document.getElementById('confirm-auto-sell-btn');
+        confirmAutoSellBtn.addEventListener('click', () => {
+            this.executeCreateAutoSell();
         });
 
         // Portfolio filter/search/sort listeners
@@ -764,6 +840,42 @@ class UIManager {
             if (e.target === this.lockSettingsModal) {
                 this.closeLockSettingsModal();
             }
+        });
+
+        // Sell Order modal listeners
+        this.sellOrderCancelBtn.addEventListener('click', () => {
+            this.closeSellOrderModal();
+        });
+        
+        this.sellOrderCreateBtn.addEventListener('click', () => {
+            this.createSellOrder();
+        });
+        
+        this.sellOrderModal.addEventListener('click', (e) => {
+            if (e.target === this.sellOrderModal) {
+                this.closeSellOrderModal();
+            }
+        });
+        
+        // Sell order form listeners for live updates
+        this.sellOrderTriggerType.addEventListener('change', () => {
+            this.updateSellOrderForm();
+        });
+        
+        this.sellOrderTriggerValue.addEventListener('input', () => {
+            this.updateSellOrderPreview();
+        });
+        
+        this.sellOrderQuantity.addEventListener('input', () => {
+            this.updateSellOrderPreview();
+        });
+        
+        this.sellOrderRegular.addEventListener('change', () => {
+            this.updateSellOrderQuantityLimits();
+        });
+        
+        this.sellOrderFoil.addEventListener('change', () => {
+            this.updateSellOrderQuantityLimits();
         });
 
         // Price chart modal listeners
@@ -897,7 +1009,7 @@ class UIManager {
             this.renderPortfolio(); // Refresh portfolio when switching to tab
             this.renderMarketSummary();
             this.renderHotCards();
-            this.renderPlayerListings(); // Show player's active listings
+            this.renderPlayerListings(); // Show player's active listings and sell orders
         }
     }
 
@@ -1800,29 +1912,434 @@ class UIManager {
             </div>
         `;
         
-        // Set max sellable quantity (will be updated in updateSalePreview based on foil checkbox)
-        this.sellQuantity.max = Math.max(availableRegular, 1);
-        this.sellQuantity.value = Math.min(1, availableRegular);
-        this.sellFoilOnly.checked = false;
+        // Store card data for later use
+        this.sellModalData = {
+            availableRegular,
+            availableFoil,
+            regularPrice,
+            foilPrice
+        };
         
-        // Disable foil checkbox if no foils available for sale
-        this.sellFoilOnly.disabled = availableFoil === 0;
-        
-        // Reset to instant sell by default
-        this.sellInstant.checked = true;
-        this.sellListing.checked = false;
-        this.customPriceSection.classList.add('hidden');
+        // Reset to step 1 (sell method selection)
+        this.showSellModalStep('step-1');
         
         // Update price guidance for listing option
         this.updatePriceGuidance(regularPrice, foilPrice);
         
-        this.updateSalePreview();
         this.sellCardModal.classList.remove('hidden');
     }
 
     closeSellModal() {
         this.sellCardModal.classList.add('hidden');
         this.currentSellCard = null;
+        this.sellModalData = null;
+    }
+
+    showSellModalStep(stepId) {
+        // Hide all steps
+        const allSteps = document.querySelectorAll('.modal-step');
+        allSteps.forEach(step => step.classList.add('hidden'));
+        
+        // Show the requested step
+        const targetStep = document.getElementById(stepId);
+        if (targetStep) {
+            targetStep.classList.remove('hidden');
+        }
+        
+        // Update back button visibility
+        const backBtn = document.getElementById('modal-back-btn');
+        if (stepId === 'step-1') {
+            backBtn.classList.add('hidden');
+        } else {
+            backBtn.classList.remove('hidden');
+        }
+    }
+
+    handleSellMethodSelect(method) {
+        if (!this.currentSellCard || !this.sellModalData) return;
+        
+        const { availableRegular, availableFoil, regularPrice, foilPrice } = this.sellModalData;
+        
+        // Initialize form values for the selected method
+        switch (method) {
+            case 'instant':
+                // Set up instant sell form
+                const sellQuantity = document.getElementById('sell-quantity');
+                sellQuantity.max = Math.max(availableRegular, 1);
+                sellQuantity.value = Math.min(1, availableRegular);
+                
+                const sellFoilOnly = document.getElementById('sell-foil-only');
+                sellFoilOnly.checked = false;
+                sellFoilOnly.disabled = availableFoil === 0;
+                
+                this.showSellModalStep('step-instant');
+                
+                // Ensure DOM elements are available before calling preview
+                setTimeout(() => {
+                    this.updateSalePreview();
+                }, 10);
+                break;
+                
+            case 'listing':
+                // Set up listing form
+                const sellQuantityListing = document.getElementById('sell-quantity-listing');
+                sellQuantityListing.max = Math.max(availableRegular, 1);
+                sellQuantityListing.value = Math.min(1, availableRegular);
+                
+                const sellFoilOnlyListing = document.getElementById('sell-foil-only-listing');
+                sellFoilOnlyListing.checked = false;
+                sellFoilOnlyListing.disabled = availableFoil === 0;
+                
+                // Set default price
+                const sellCustomPrice = document.getElementById('sell-custom-price');
+                sellCustomPrice.value = regularPrice.toFixed(2);
+                
+                this.showSellModalStep('step-listing');
+                
+                // Ensure DOM elements are available before calling preview
+                setTimeout(() => {
+                    console.log('About to call updateListingPreview from handleSellMethodSelect');
+                    this.updateListingPreview();
+                }, 10);
+                break;
+                
+            case 'auto-sell':
+                // Set up auto-sell form
+                const sellQuantityAuto = document.getElementById('sell-quantity-auto');
+                sellQuantityAuto.max = Math.max(availableRegular, 1);
+                sellQuantityAuto.value = Math.min(1, availableRegular);
+                
+                const sellFoilOnlyAuto = document.getElementById('sell-foil-only-auto');
+                sellFoilOnlyAuto.checked = false;
+                sellFoilOnlyAuto.disabled = availableFoil === 0;
+                
+                // Reset auto-sell form
+                const sellTriggerType = document.getElementById('sell-trigger-type');
+                sellTriggerType.value = 'percent_gain';
+                
+                const sellTriggerValue = document.getElementById('sell-trigger-value');
+                sellTriggerValue.value = '20.0';
+                
+                this.showSellModalStep('step-auto-sell');
+                
+                // Ensure DOM elements are available before calling preview methods
+                setTimeout(() => {
+                    this.updateAutoSellForm();
+                    this.updateAutoSellPreview();
+                }, 10);
+                break;
+        }
+    }
+
+    executeInstantSale() {
+        const sellQuantity = document.getElementById('sell-quantity');
+        const sellFoilOnly = document.getElementById('sell-foil-only');
+        
+        const quantity = parseInt(sellQuantity.value);
+        const foilOnly = sellFoilOnly.checked;
+        
+        if (!this.currentSellCard || quantity <= 0) {
+            this.showNotification('Invalid sale parameters', 'error');
+            return;
+        }
+        
+        const result = this.gameEngine.sellCard(
+            this.currentSellCard.setId,
+            this.currentSellCard.cardName,
+            quantity,
+            foilOnly
+        );
+        
+        if (result.success) {
+            this.showNotification(result.message, 'success');
+            this.closeSellModal();
+            this.updatePlayerStats();
+            this.renderCollection();
+            this.renderPortfolio();
+            this.renderPlayerListings();
+        } else {
+            this.showNotification(result.message, 'error');
+        }
+    }
+
+    executeCreateListing() {
+        const sellQuantityListing = document.getElementById('sell-quantity-listing');
+        const sellFoilOnlyListing = document.getElementById('sell-foil-only-listing');
+        const sellCustomPrice = document.getElementById('sell-custom-price');
+        
+        const quantity = parseInt(sellQuantityListing.value);
+        const foilOnly = sellFoilOnlyListing.checked;
+        const customPrice = parseFloat(sellCustomPrice.value);
+        
+        if (!this.currentSellCard || quantity <= 0 || customPrice <= 0) {
+            this.showNotification('Invalid listing parameters', 'error');
+            return;
+        }
+        
+        const result = this.gameEngine.createListing(
+            this.currentSellCard.setId,
+            this.currentSellCard.cardName,
+            quantity,
+            customPrice,
+            foilOnly
+        );
+        
+        if (result.success) {
+            this.showNotification(result.message, 'success');
+            this.closeSellModal();
+            this.updatePlayerStats();
+            this.renderCollection();
+            this.renderPortfolio();
+            this.renderPlayerListings();
+        } else {
+            this.showNotification(result.message, 'error');
+        }
+    }
+
+    executeCreateAutoSell() {
+        const sellQuantityAuto = document.getElementById('sell-quantity-auto');
+        const sellFoilOnlyAuto = document.getElementById('sell-foil-only-auto');
+        const sellTriggerType = document.getElementById('sell-trigger-type');
+        const sellTriggerValue = document.getElementById('sell-trigger-value');
+        
+        const quantity = parseInt(sellQuantityAuto.value);
+        const foilOnly = sellFoilOnlyAuto.checked;
+        const triggerType = sellTriggerType.value;
+        const triggerValue = parseFloat(sellTriggerValue.value);
+        
+        if (!this.currentSellCard || quantity <= 0 || triggerValue <= 0) {
+            this.showNotification('Invalid auto-sell parameters', 'error');
+            return;
+        }
+        
+        const result = this.gameEngine.createSellOrder(
+            this.currentSellCard.setId,
+            this.currentSellCard.cardName,
+            quantity,
+            foilOnly,
+            triggerType,
+            triggerValue
+        );
+        
+        if (result.success) {
+            this.showNotification(result.message, 'success');
+            this.closeSellModal();
+            this.updatePlayerStats();
+            this.renderCollection();
+            this.renderPortfolio();
+            this.renderPlayerListings();
+        } else {
+            this.showNotification(result.message, 'error');
+        }
+    }
+
+    updateSalePreview() {
+        if (!this.currentSellCard || !this.sellModalData) return;
+        
+        const sellQuantity = document.getElementById('sell-quantity');
+        const sellFoilOnly = document.getElementById('sell-foil-only');
+        const salePreview = document.getElementById('sale-preview');
+        
+        if (!sellQuantity || !sellFoilOnly || !salePreview) return;
+        
+        const quantity = parseInt(sellQuantity.value);
+        const isFoil = sellFoilOnly.checked;
+        const { setId, cardName } = this.currentSellCard;
+        const { availableRegular, availableFoil, regularPrice, foilPrice } = this.sellModalData;
+        
+        const availableQuantity = isFoil ? availableFoil : availableRegular;
+        const price = isFoil ? foilPrice : regularPrice;
+        
+        // Update max quantity
+        sellQuantity.max = Math.max(availableQuantity, 1);
+        
+        if (quantity > availableQuantity) {
+            salePreview.innerHTML = `
+                <div class="text-red-400">
+                    ❌ Not enough ${isFoil ? 'foil' : 'regular'} cards available! You have ${availableQuantity} sellable copies.
+                </div>
+            `;
+            this.confirmSellBtn.disabled = true;
+            return;
+        }
+        
+        const grossValue = quantity * price;
+        const fee = Math.round(grossValue * 0.05 * 100) / 100;
+        const netValue = grossValue - fee;
+        
+        salePreview.innerHTML = `
+            <div class="space-y-2">
+                <div class="text-sm text-gray-400 mb-2">💰 Instant Sale Preview</div>
+                <div class="flex justify-between">
+                    <span>Quantity:</span>
+                    <span>${quantity}x ${isFoil ? 'Foil ' : ''}${cardName}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Price per card:</span>
+                    <span>$${price.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Gross value:</span>
+                    <span>$${grossValue.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Market fee (5%):</span>
+                    <span class="text-red-400">-$${fee.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between font-bold border-t pt-2">
+                    <span>Net proceeds:</span>
+                    <span class="text-green-400">$${netValue.toFixed(2)}</span>
+                </div>
+            </div>
+        `;
+        
+        this.confirmSellBtn.disabled = false;
+    }
+
+    updateListingPreview() {
+        try {
+            console.log('updateListingPreview called');
+            if (!this.currentSellCard || !this.sellModalData) {
+                console.log('Missing currentSellCard or sellModalData');
+                return;
+            }
+        } catch (error) {
+            console.error('Error in updateListingPreview:', error);
+            return;
+        }
+        
+        const sellQuantityListing = document.getElementById('sell-quantity-listing');
+        const sellFoilOnlyListing = document.getElementById('sell-foil-only-listing');
+        const sellCustomPrice = document.getElementById('sell-custom-price');
+        const listingPreview = document.getElementById('listing-preview');
+        
+        console.log('DOM elements:', { sellQuantityListing, sellFoilOnlyListing, sellCustomPrice, listingPreview });
+        
+        const quantity = parseInt(sellQuantityListing.value);
+        const isFoil = sellFoilOnlyListing.checked;
+        const customPrice = parseFloat(sellCustomPrice.value) || 0;
+        const { setId, cardName } = this.currentSellCard;
+        const { availableRegular, availableFoil } = this.sellModalData;
+        
+        const availableQuantity = isFoil ? availableFoil : availableRegular;
+        
+        // Update max quantity
+        sellQuantityListing.max = Math.max(availableQuantity, 1);
+        
+        if (quantity > availableQuantity) {
+            listingPreview.innerHTML = `
+                <div class="text-red-400">
+                    ❌ Not enough ${isFoil ? 'foil' : 'regular'} cards available! You have ${availableQuantity} sellable copies.
+                </div>
+            `;
+            document.getElementById('confirm-listing-btn').disabled = true;
+            return;
+        }
+        
+        if (customPrice <= 0) {
+            listingPreview.innerHTML = `
+                <div class="text-yellow-400">
+                    ⚠️ Please enter a valid price
+                </div>
+            `;
+            document.getElementById('confirm-listing-btn').disabled = true;
+            return;
+        }
+        
+        const totalValue = quantity * customPrice;
+        
+        listingPreview.innerHTML = `
+            <div class="space-y-2">
+                <div class="text-sm text-gray-400 mb-2">📦 Listing Preview</div>
+                <div class="flex justify-between">
+                    <span>Quantity:</span>
+                    <span>${quantity}x ${isFoil ? 'Foil ' : ''}${cardName}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Price per card:</span>
+                    <span>$${customPrice.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between font-bold border-t pt-2">
+                    <span>Total Value:</span>
+                    <span class="text-blue-400">$${totalValue.toFixed(2)}</span>
+                </div>
+                <div class="text-xs text-gray-400 mt-2">
+                    💡 Cards will be removed from your collection and listed for other players to buy
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('confirm-listing-btn').disabled = false;
+    }
+
+    updateAutoSellPreview() {
+        if (!this.currentSellCard || !this.sellModalData) return;
+        
+        const sellQuantityAuto = document.getElementById('sell-quantity-auto');
+        const sellFoilOnlyAuto = document.getElementById('sell-foil-only-auto');
+        const sellTriggerType = document.getElementById('sell-trigger-type');
+        const sellTriggerValue = document.getElementById('sell-trigger-value');
+        const autoSellPreview = document.getElementById('auto-sell-preview');
+        
+        const quantity = parseInt(sellQuantityAuto.value);
+        const isFoil = sellFoilOnlyAuto.checked;
+        const triggerType = sellTriggerType.value;
+        const triggerValue = parseFloat(sellTriggerValue.value) || 0;
+        const { setId, cardName } = this.currentSellCard;
+        const { availableRegular, availableFoil } = this.sellModalData;
+        
+        // For auto-sell, we check total owned quantity (not just sellable)
+        const ownedQuantity = this.gameEngine.getOwnedQuantity(setId, cardName, isFoil);
+        
+        // Update max quantity
+        sellQuantityAuto.max = Math.max(ownedQuantity, 1);
+        
+        if (quantity > ownedQuantity) {
+            autoSellPreview.innerHTML = `
+                <div class="text-red-400">
+                    ❌ Not enough ${isFoil ? 'foil' : 'regular'} cards owned! You have ${ownedQuantity} copies.
+                </div>
+            `;
+            document.getElementById('confirm-auto-sell-btn').disabled = true;
+            return;
+        }
+        
+        if (triggerValue <= 0) {
+            autoSellPreview.innerHTML = `
+                <div class="text-yellow-400">
+                    ⚠️ Please enter a valid trigger value
+                </div>
+            `;
+            document.getElementById('confirm-auto-sell-btn').disabled = true;
+            return;
+        }
+        
+        // Get trigger description
+        let triggerDescription = '';
+        switch (triggerType) {
+            case 'price_above':
+                triggerDescription = `when price rises above $${triggerValue.toFixed(2)}`;
+                break;
+            case 'price_below':
+                triggerDescription = `when price drops below $${triggerValue.toFixed(2)}`;
+                break;
+            case 'percent_gain':
+                triggerDescription = `when price gains ${triggerValue}% from current value`;
+                break;
+            case 'percent_loss':
+                triggerDescription = `when price drops ${triggerValue}% from current value`;
+                break;
+        }
+        
+        autoSellPreview.innerHTML = `
+            <div class="text-purple-400">
+                🎯 Auto-Sell Order Preview<br>
+                ${quantity}x ${cardName} ${isFoil ? '(Foil)' : '(Regular)'}<br>
+                Trigger: ${triggerDescription}
+            </div>
+        `;
+        
+        document.getElementById('confirm-auto-sell-btn').disabled = false;
     }
 
     handleSellAllClick() {
@@ -1891,17 +2408,56 @@ class UIManager {
     }
 
     handleSellTypeChange() {
-        const isListing = this.sellListing.checked;
+        // Legacy method - no longer used in step-based modal design
+        // Kept for compatibility but does nothing
+        console.log('handleSellTypeChange called but not needed in step-based design');
+    }
+
+    updateAutoSellForm() {
+        if (!this.currentSellCard || !this.sellModalData) return;
         
-        if (isListing) {
-            this.customPriceSection.classList.remove('hidden');
-            this.confirmSellBtn.textContent = 'Create Listing';
+        const triggerType = this.sellTriggerType.value;
+        const { regularPrice, foilPrice } = this.sellModalData;
+        
+        // Get current foil setting from the auto-sell step
+        const sellFoilOnlyAuto = document.getElementById('sell-foil-only-auto');
+        const isFoil = sellFoilOnlyAuto ? sellFoilOnlyAuto.checked : false;
+        const currentPrice = isFoil ? foilPrice : regularPrice;
+        
+        // Update prefix/suffix based on trigger type
+        if (triggerType === 'price_above' || triggerType === 'price_below') {
+            this.sellTriggerPrefix.textContent = '$';
+            this.sellTriggerSuffix.textContent = '';
+            this.sellTriggerValue.step = '0.01';
+            this.sellTriggerValue.min = '0.01';
+            this.sellTriggerValue.style.paddingLeft = '2rem';
+            this.sellTriggerValue.style.paddingRight = '0.75rem';
+            
+            if (triggerType === 'price_above') {
+                this.sellTriggerValue.value = (currentPrice * 1.2).toFixed(2); // 20% above current
+                this.sellTriggerHint.textContent = `Current price: $${currentPrice.toFixed(2)}`;
+            } else {
+                this.sellTriggerValue.value = (currentPrice * 0.8).toFixed(2); // 20% below current
+                this.sellTriggerHint.textContent = `Current price: $${currentPrice.toFixed(2)}`;
+            }
         } else {
-            this.customPriceSection.classList.add('hidden');
-            this.confirmSellBtn.textContent = 'Sell';
+            this.sellTriggerPrefix.textContent = '';
+            this.sellTriggerSuffix.textContent = '%';
+            this.sellTriggerValue.step = '0.1';
+            this.sellTriggerValue.min = '0.1';
+            this.sellTriggerValue.style.paddingLeft = '0.75rem';
+            this.sellTriggerValue.style.paddingRight = '2rem';
+            
+            if (triggerType === 'percent_gain') {
+                this.sellTriggerValue.value = '20.0'; // 20% gain
+                this.sellTriggerHint.textContent = 'Sell when price gains this percentage from current value';
+            } else {
+                this.sellTriggerValue.value = '10.0'; // 10% loss
+                this.sellTriggerHint.textContent = 'Sell when price drops this percentage from current value (stop-loss)';
+            }
         }
         
-        this.updateSalePreview();
+        this.updateAutoSellPreview();
     }
 
     updatePriceGuidance(regularPrice, foilPrice) {
@@ -1914,106 +2470,36 @@ class UIManager {
         `;
     }
 
-    updateSalePreview() {
-        if (!this.currentSellCard) return;
-        
-        const quantity = parseInt(this.sellQuantity.value);
-        const isFoil = this.sellFoilOnly.checked;
-        const isListing = this.sellListing.checked;
-        const { setId, cardName } = this.currentSellCard;
-        
-        // Get available quantity considering locks
-        const availableQuantity = this.gameEngine.getAvailableQuantityForSale(setId, cardName, isFoil);
-        
-        // Update max quantity for the input
-        this.sellQuantity.max = Math.max(availableQuantity, 1);
-        
-        if (quantity > availableQuantity) {
-            this.salePreview.innerHTML = `
-                <div class="text-red-400">
-                    ❌ Not enough ${isFoil ? 'foil' : 'regular'} cards available for sale! You have ${availableQuantity} sellable copies.
-                    ${availableQuantity === 0 ? '<br><small>🔒 All copies are locked by your protection settings.</small>' : ''}
-                </div>
-            `;
-            this.confirmSellBtn.disabled = true;
-            return;
-        }
-        
-        if (isListing) {
-            // Handle custom listing preview
-            const customPrice = parseFloat(this.sellCustomPrice.value) || 0;
-            if (customPrice <= 0) {
-                this.salePreview.innerHTML = `
-                    <div class="text-yellow-400">
-                        ⚠️ Please enter a valid price per card
-                    </div>
-                `;
-                this.confirmSellBtn.disabled = true;
-                return;
-            }
-            
-            const totalValue = customPrice * quantity;
-            
-            this.salePreview.innerHTML = `
-                <div class="space-y-2">
-                    <div class="text-sm text-gray-400 mb-2">📦 Listing Preview</div>
-                    <div class="flex justify-between">
-                        <span>Quantity:</span>
-                        <span>${quantity}x ${isFoil ? 'Foil ' : ''}${cardName}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Price per card:</span>
-                        <span>$${customPrice.toFixed(2)}</span>
-                    </div>
-                    <div class="flex justify-between font-bold border-t pt-2">
-                        <span>Total Value:</span>
-                        <span class="text-blue-400">$${totalValue.toFixed(2)}</span>
-                    </div>
-                    <div class="text-xs text-gray-400 mt-2">
-                        💡 Cards will be removed from your collection and listed for other players to buy
-                    </div>
-                </div>
-            `;
-        } else {
-            // Handle instant sale preview
-            const salePrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, isFoil);
-            const totalValue = salePrice * quantity;
-            const fee = totalValue * 0.05;
-            const netValue = totalValue - fee;
-            
-            this.salePreview.innerHTML = `
-                <div class="space-y-2">
-                    <div class="text-sm text-gray-400 mb-2">⚡ Instant Sale Preview</div>
-                    <div class="flex justify-between">
-                        <span>Gross Value:</span>
-                        <span>$${totalValue.toFixed(2)}</span>
-                    </div>
-                    <div class="flex justify-between text-red-400">
-                        <span>Trading Fee (5%):</span>
-                        <span>-$${fee.toFixed(2)}</span>
-                    </div>
-                    <div class="flex justify-between font-bold border-t pt-2">
-                        <span>Net Proceeds:</span>
-                        <span class="text-green-400">$${netValue.toFixed(2)}</span>
-                    </div>
-                </div>
-            `;
-        }
-        
-        this.confirmSellBtn.disabled = false;
-    }
+
+
 
     executeSale() {
-        if (!this.currentSellCard) return;
-        
-        const quantity = parseInt(this.sellQuantity.value);
-        const isFoil = this.sellFoilOnly.checked;
-        const isListing = this.sellListing.checked;
+        // Legacy method - replaced by step-specific execution methods
+        console.log('Legacy executeSale called - using step-specific methods instead');
+        return;
         const { setId, cardName } = this.currentSellCard;
         
         let result;
         
-        if (isListing) {
+        if (isAutoSell) {
+            // Create an auto-sell order
+            const triggerType = this.sellTriggerType.value;
+            const triggerValue = parseFloat(this.sellTriggerValue.value);
+            
+            if (!triggerValue || triggerValue <= 0) {
+                this.showNotification('Please enter a valid trigger value', 'error');
+                return;
+            }
+            
+            let triggerValueForOrder = triggerValue;
+            
+            // Convert percentage to decimal for the order
+            if (triggerType === 'percent_gain' || triggerType === 'percent_loss') {
+                triggerValueForOrder = triggerValue / 100;
+            }
+            
+            result = this.gameEngine.createSellOrder(setId, cardName, quantity, triggerType, triggerValueForOrder, isFoil);
+        } else if (isListing) {
             // Create a listing
             const customPrice = parseFloat(this.sellCustomPrice.value);
             if (!customPrice || customPrice <= 0) {
@@ -2040,8 +2526,8 @@ class UIManager {
                 this.renderCollection();
             }
             
-            // Update player listings if we created a listing
-            if (isListing) {
+            // Update player listings if we created a listing or auto-sell order
+            if (isListing || isAutoSell) {
                 this.renderPlayerListings();
             }
             
@@ -2260,7 +2746,7 @@ class UIManager {
         this.currentListingCard = null;
     }
 
-    updateListingPreview() {
+    updateLegacyListingPreview() {
         if (!this.currentListingCard) return;
         
         const quantity = parseInt(this.listingQuantity.value) || 1;
@@ -3138,6 +3624,8 @@ class UIManager {
         `;
     }
 
+
+
     renderWishlist() {
         if (!this.wishlistDisplay) return;
         
@@ -3373,14 +3861,16 @@ class UIManager {
         if (!this.playerListingsDisplay || !this.listingsCount) return;
         
         const listings = this.gameEngine.getPlayerListings();
+        const sellOrders = this.gameEngine.getSellOrders().filter(order => order.isActive);
+        const totalItems = listings.length + sellOrders.length;
         
         // Update count display
-        this.listingsCount.textContent = `${listings.length} active listing${listings.length !== 1 ? 's' : ''}`;
+        this.listingsCount.textContent = `${totalItems} active listing${totalItems !== 1 ? 's' : ''}`;
         
-        if (listings.length === 0) {
+        if (totalItems === 0) {
             this.playerListingsDisplay.innerHTML = `
                 <div class="text-center text-gray-400 py-4">
-                    No active listings. Create a listing from your portfolio to start selling!
+                    No active listings or auto-sell orders. Create a listing from your portfolio to start selling!
                 </div>
             `;
             return;
@@ -3388,9 +3878,10 @@ class UIManager {
         
         this.playerListingsDisplay.innerHTML = '';
         
+        // Render regular listings
         listings.forEach(listing => {
             const element = document.createElement('div');
-            element.className = 'listing-item bg-gray-800/50 rounded p-3 mb-2';
+            element.className = 'listing-item bg-gray-800/50 rounded p-3 mb-2 border-l-4 border-blue-500';
             
             const listedTime = this.formatTimeAgo(listing.listedAt);
             const totalValue = listing.price * listing.quantity;
@@ -3398,7 +3889,10 @@ class UIManager {
             element.innerHTML = `
                 <div class="flex justify-between items-start">
                     <div class="flex-1">
-                        <div class="font-medium">${listing.cardName}${listing.isFoil ? ' ⭐' : ''}</div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-medium">${listing.cardName}${listing.isFoil ? ' ⭐' : ''}</span>
+                            <span class="bg-blue-600 text-white px-2 py-0.5 rounded text-xs">📦 LISTING</span>
+                        </div>
                         <div class="text-sm text-gray-400">${window.getAllSets()[listing.setId].name}</div>
                         <div class="text-sm">
                             ${listing.quantity}x @ $${listing.price.toFixed(2)} each = $${totalValue.toFixed(2)}
@@ -3417,13 +3911,58 @@ class UIManager {
             this.playerListingsDisplay.appendChild(element);
         });
         
+        // Render sell orders
+        sellOrders.forEach(order => {
+            const element = document.createElement('div');
+            element.className = 'listing-item bg-purple-900/20 rounded p-3 mb-2 border-l-4 border-purple-500';
+            
+            const createdTime = this.formatTimeAgo(order.createdAt);
+            const description = this.gameEngine.marketEngine.getSellOrderDescription(order);
+            const currentPrice = this.gameEngine.marketEngine.getCardPrice(order.setId, order.cardName, order.isFoil);
+            
+            element.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-medium">${order.cardName}${order.isFoil ? ' ⭐' : ''}</span>
+                            <span class="bg-purple-600 text-white px-2 py-0.5 rounded text-xs">⚡ AUTO-SELL</span>
+                        </div>
+                        <div class="text-sm text-gray-400">${window.getAllSets()[order.setId].name}</div>
+                        <div class="text-sm text-purple-300">
+                            ${description}
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            Current price: $${currentPrice.toFixed(2)} | Created ${createdTime}
+                        </div>
+                    </div>
+                    <div class="ml-3">
+                        <button class="cancel-sell-order-btn bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
+                                data-order-id="${order.id}">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            this.playerListingsDisplay.appendChild(element);
+        });
+        
         // Add event listeners for cancel buttons
-        const cancelButtons = this.playerListingsDisplay.querySelectorAll('.cancel-listing-btn');
-        cancelButtons.forEach(btn => {
+        const cancelListingButtons = this.playerListingsDisplay.querySelectorAll('.cancel-listing-btn');
+        cancelListingButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const listingId = btn.dataset.listingId;
                 this.cancelPlayerListing(listingId);
+            });
+        });
+        
+        const cancelSellOrderButtons = this.playerListingsDisplay.querySelectorAll('.cancel-sell-order-btn');
+        cancelSellOrderButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const orderId = btn.dataset.orderId;
+                this.cancelSellOrder(orderId);
             });
         });
     }
@@ -3457,6 +3996,35 @@ class UIManager {
         this.updatePlayerStats();
         this.renderPlayerListings();
         this.renderMarketActivity();
+        
+        // Update collection if on that tab
+        if (this.currentTab === 'collection') {
+            this.renderCollection();
+        }
+        
+        // Update portfolio
+        this.renderPortfolio();
+    }
+
+    handleSellOrderExecuted(order, result) {
+        if (result.success) {
+            // Calculate performance info
+            const priceChangePercent = result.percentChange || 0;
+            const priceChangeText = priceChangePercent >= 0 ? 
+                `+${priceChangePercent.toFixed(1)}%` : 
+                `${priceChangePercent.toFixed(1)}%`;
+            
+            const message = `⚡💰 Auto-sell executed: ${order.quantity}x ${order.cardName}${order.isFoil ? ' ⭐' : ''} sold for $${result.proceeds.toFixed(2)} (${priceChangeText})`;
+            this.showNotification(message, 'success', 8000); // Show for 8 seconds
+        } else {
+            const message = `⚡❌ Auto-sell cancelled: ${result.message}`;
+            this.showNotification(message, 'warning', 5000);
+        }
+        
+        // Update all relevant displays
+        this.updatePlayerStats();
+        this.renderCardDetailsPanel(); // Refresh card details to show updated sell orders
+        this.renderPlayerListings(); // Update listings display (includes sell orders)
         
         // Update collection if on that tab
         if (this.currentTab === 'collection') {
@@ -3553,6 +4121,214 @@ class UIManager {
         if (this.currentChart) {
             this.currentChart.destroy();
             this.currentChart = null;
+        }
+    }
+
+    // =============================================================================
+    // SELL ORDER MODAL METHODS
+    // =============================================================================
+    
+    openSellOrderModal(setId, cardName) {
+        const collection = this.gameEngine.state.collection[setId];
+        const cardData = collection && collection[cardName];
+        
+        if (!cardData || (cardData.count === 0 && cardData.foilCount === 0)) {
+            this.showNotification("You don't own this card", 'error');
+            return;
+        }
+        
+        this.currentSellOrderCard = { setId, cardName };
+        
+        const regularPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, false);
+        const foilPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, true);
+        const rarity = this.gameEngine.getCardRarity(setId, cardName);
+        
+        this.sellOrderCardInfo.innerHTML = `
+            <div class="mb-3">
+                <h4 class="font-bold text-lg">${cardName}</h4>
+                <p class="text-sm text-gray-400 capitalize">${rarity} | ${window.getAllSets()[setId].name}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <div class="text-gray-400">Regular Copies</div>
+                    <div>${cardData.count} owned @ $${regularPrice.toFixed(2)} each</div>
+                </div>
+                <div>
+                    <div class="text-gray-400">Foil Copies</div>
+                    <div>${cardData.foilCount} owned @ $${foilPrice.toFixed(2)} each</div>
+                </div>
+            </div>
+        `;
+        
+        // Reset form
+        this.sellOrderRegular.checked = true;
+        this.sellOrderFoil.checked = false;
+        this.sellOrderQuantity.value = 1;
+        this.sellOrderTriggerType.value = 'percent_gain';
+        this.sellOrderTriggerValue.value = 0.2; // 20% gain
+        
+        // Disable foil option if no foils available
+        this.sellOrderFoil.disabled = cardData.foilCount === 0;
+        
+        this.updateSellOrderQuantityLimits();
+        this.updateSellOrderForm();
+        this.updateSellOrderPreview();
+        
+        this.sellOrderModal.classList.remove('hidden');
+    }
+    
+    closeSellOrderModal() {
+        this.sellOrderModal.classList.add('hidden');
+        this.currentSellOrderCard = null;
+    }
+    
+    updateSellOrderQuantityLimits() {
+        if (!this.currentSellOrderCard) return;
+        
+        const { setId, cardName } = this.currentSellOrderCard;
+        const collection = this.gameEngine.state.collection[setId];
+        const cardData = collection[cardName];
+        
+        const isFoil = this.sellOrderFoil.checked;
+        const maxQuantity = isFoil ? cardData.foilCount : cardData.count;
+        
+        this.sellOrderQuantity.max = maxQuantity;
+        this.sellOrderQuantity.value = Math.min(parseInt(this.sellOrderQuantity.value) || 1, maxQuantity);
+        
+        this.updateSellOrderPreview();
+    }
+    
+    updateSellOrderForm() {
+        const triggerType = this.sellOrderTriggerType.value;
+        
+        // Update prefix/suffix based on trigger type
+        if (triggerType === 'price_above' || triggerType === 'price_below') {
+            this.sellOrderPrefix.textContent = '$';
+            this.sellOrderSuffix.textContent = '';
+            this.sellOrderTriggerValue.step = '0.01';
+            this.sellOrderTriggerValue.min = '0.01';
+            
+            // Set a reasonable default based on current price
+            if (this.currentSellOrderCard) {
+                const { setId, cardName } = this.currentSellOrderCard;
+                const isFoil = this.sellOrderFoil.checked;
+                const currentPrice = this.gameEngine.marketEngine.getCardPrice(setId, cardName, isFoil);
+                
+                if (triggerType === 'price_above') {
+                    this.sellOrderTriggerValue.value = (currentPrice * 1.2).toFixed(2); // 20% above current
+                    this.sellOrderHint.textContent = `Current price: $${currentPrice.toFixed(2)}`;
+                } else {
+                    this.sellOrderTriggerValue.value = (currentPrice * 0.8).toFixed(2); // 20% below current
+                    this.sellOrderHint.textContent = `Current price: $${currentPrice.toFixed(2)}`;
+                }
+            }
+        } else {
+            this.sellOrderPrefix.textContent = '';
+            this.sellOrderSuffix.textContent = '%';
+            this.sellOrderTriggerValue.step = '0.1';
+            this.sellOrderTriggerValue.min = '0.1';
+            
+            if (triggerType === 'percent_gain') {
+                this.sellOrderTriggerValue.value = '20.0'; // 20% gain
+                this.sellOrderHint.textContent = 'Sell when price gains this percentage from current value';
+            } else {
+                this.sellOrderTriggerValue.value = '10.0'; // 10% loss
+                this.sellOrderHint.textContent = 'Sell when price drops this percentage from current value (stop-loss)';
+            }
+        }
+        
+        this.updateSellOrderPreview();
+    }
+    
+    updateSellOrderPreview() {
+        if (!this.currentSellOrderCard) return;
+        
+        const { setId, cardName } = this.currentSellOrderCard;
+        const isFoil = this.sellOrderFoil.checked;
+        const quantity = parseInt(this.sellOrderQuantity.value) || 1;
+        const triggerType = this.sellOrderTriggerType.value;
+        const triggerValue = parseFloat(this.sellOrderTriggerValue.value) || 0;
+        
+        let triggerValueForOrder = triggerValue;
+        
+        // Convert percentage to decimal for the order
+        if (triggerType === 'percent_gain' || triggerType === 'percent_loss') {
+            triggerValueForOrder = triggerValue / 100;
+        }
+        
+        // Create a mock order for description
+        const mockOrder = {
+            cardName: cardName,
+            isFoil: isFoil,
+            quantity: quantity,
+            triggerType: triggerType,
+            triggerValue: triggerValueForOrder
+        };
+        
+        const description = this.gameEngine.marketEngine.getSellOrderDescription(mockOrder);
+        this.sellOrderDescription.textContent = description;
+        
+        this.sellOrderPreview.classList.remove('hidden');
+    }
+    
+    createSellOrder() {
+        if (!this.currentSellOrderCard) return;
+        
+        const { setId, cardName } = this.currentSellOrderCard;
+        const isFoil = this.sellOrderFoil.checked;
+        const quantity = parseInt(this.sellOrderQuantity.value) || 1;
+        const triggerType = this.sellOrderTriggerType.value;
+        const triggerValue = parseFloat(this.sellOrderTriggerValue.value) || 0;
+        
+        // Validate inputs
+        if (quantity <= 0) {
+            this.showNotification('Quantity must be greater than 0', 'error');
+            return;
+        }
+        
+        if (triggerValue <= 0) {
+            this.showNotification('Trigger value must be greater than 0', 'error');
+            return;
+        }
+        
+        let triggerValueForOrder = triggerValue;
+        
+        // Convert percentage to decimal for the order
+        if (triggerType === 'percent_gain' || triggerType === 'percent_loss') {
+            triggerValueForOrder = triggerValue / 100;
+        }
+        
+        const result = this.gameEngine.createSellOrder(setId, cardName, quantity, triggerType, triggerValueForOrder, isFoil);
+        
+        if (result.success) {
+            this.showNotification(result.message, 'success');
+            this.closeSellOrderModal();
+            
+            // Refresh UI components
+            this.renderCardDetailsPanel();
+            this.renderPlayerListings(); // Update listings display (includes sell orders)
+            if (this.currentTab === 'collection') {
+                this.renderCollection();
+            }
+        } else {
+            this.showNotification(result.message, 'error');
+        }
+    }
+    
+    cancelSellOrder(orderId) {
+        const result = this.gameEngine.cancelSellOrder(orderId);
+        
+        if (result.success) {
+            this.showNotification(result.message, 'success');
+            
+            // Refresh UI components
+            this.renderCardDetailsPanel();
+            this.renderPlayerListings(); // Update listings display (now shows both listings and sell orders)
+            if (this.currentTab === 'collection') {
+                this.renderCollection();
+            }
+        } else {
+            this.showNotification(result.message, 'error');
         }
     }
 }
