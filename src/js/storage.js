@@ -135,6 +135,33 @@ class StorageManager {
         
         return null;
     }
+
+    // Emergency reset - completely clear all save data
+    clearAllData() {
+        try {
+            localStorage.removeItem(this.storageKey);
+            localStorage.removeItem(this.marketStorageKey);
+            localStorage.removeItem(this.weeklySetsKey);
+            console.log('🗑️ All save data cleared');
+            return true;
+        } catch (error) {
+            console.error('Failed to clear save data:', error);
+            return false;
+        }
+    }
+
+    // Safe reset that preserves weekly sets but clears game state
+    resetGameState() {
+        try {
+            localStorage.removeItem(this.storageKey);
+            localStorage.removeItem(this.marketStorageKey);
+            console.log('🔄 Game state reset (weekly sets preserved)');
+            return true;
+        } catch (error) {
+            console.error('Failed to reset game state:', error);
+            return false;
+        }
+    }
 }
 
 // Export for use in other modules

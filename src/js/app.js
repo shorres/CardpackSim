@@ -23,6 +23,10 @@ class TCGPackSimulator {
         window.gameEngine = this.gameEngine;
         window.uiManager = this.uiManager;
         
+        // Expose emergency reset functions globally
+        window.emergencyReset = () => this.emergencyReset();
+        window.clearAllData = () => this.clearAllData();
+        
         // Initial render
         this.uiManager.refreshUI();
         
@@ -170,6 +174,50 @@ class TCGPackSimulator {
         document.addEventListener('keydown', handleEscape);
         
         document.body.appendChild(modal);
+    }
+
+    // Emergency reset methods
+    emergencyReset() {
+        try {
+            console.log('🚨 EMERGENCY RESET - Clearing corrupted save data...');
+            
+            // Clear all save data
+            if (this.gameEngine?.storageManager?.clearAllData()) {
+                console.log('✅ Save data cleared successfully');
+                
+                // Force page reload to start fresh
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+                
+                return 'Save data cleared. Page will reload in 1 second...';
+            } else {
+                return 'Failed to clear save data. Try manual localStorage clear.';
+            }
+        } catch (error) {
+            console.error('Emergency reset failed:', error);
+            return 'Emergency reset failed. Try: localStorage.clear() in console.';
+        }
+    }
+
+    clearAllData() {
+        try {
+            console.log('🗑️ CLEARING ALL DATA...');
+            
+            // Clear localStorage completely
+            localStorage.clear();
+            console.log('✅ All localStorage cleared');
+            
+            // Force page reload
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+            
+            return 'All data cleared. Page will reload in 1 second...';
+        } catch (error) {
+            console.error('Clear all data failed:', error);
+            return 'Failed to clear data.';
+        }
     }
 }
 
