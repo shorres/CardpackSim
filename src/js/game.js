@@ -419,11 +419,6 @@ class GameEngine {
             cardData.count -= quantity;
         }
         
-        // Clean up empty entries
-        if (cardData.count === 0 && cardData.foilCount === 0) {
-            delete collectionSet[cardName];
-        }
-        
         // Update wallet and earnings
         this.state.wallet = Math.round((this.state.wallet + netValue) * 100) / 100;
         this.state.totalEarnings = Math.round((this.state.totalEarnings + netValue) * 100) / 100;
@@ -479,11 +474,6 @@ class GameEngine {
             cardData.foilCount -= quantity;
         } else {
             cardData.count -= quantity;
-        }
-        
-        // Clean up empty entries
-        if (cardData.count === 0 && cardData.foilCount === 0) {
-            delete collectionSet[cardName];
         }
         
         // Create the listing in the market
@@ -931,11 +921,6 @@ class GameEngine {
                     });
                 }
             }
-
-            // Clean up empty entries
-            if (cardData.count === 0 && cardData.foilCount === 0) {
-                delete collectionSet[cardName];
-            }
         }
 
         if (soldCards.length === 0) {
@@ -1047,16 +1032,6 @@ class GameEngine {
                         });
                     }
                 }
-
-                // Clean up empty entries
-                if (cardData.count === 0 && cardData.foilCount === 0) {
-                    delete collectionSet[cardName];
-                }
-            }
-
-            // Clean up empty sets
-            if (Object.keys(collectionSet).length === 0) {
-                delete this.state.collection[setId];
             }
         }
 
