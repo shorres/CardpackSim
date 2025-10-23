@@ -1393,3 +1393,41 @@ canvas {
         justify-content: center !important;
     }
 }
+
+/* Sell Modal Step-based Design */
+.modal-step {
+    transition: opacity 0.3s ease-in-out;
+}
+
+.modal-step.hidden {
+    display: none;
+}
+
+.sell-method-btn {
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-primary) !important;
+}
+
+.sell-method-btn:hover {
+    background-color: var(--bg-quaternary) !important;
+    border-color: var(--accent-primary) !important;
+    transform: translateY(-1px);
+}
+
+.sell-method-btn:active {
+    transform: translateY(0);
+}
+
+#modal-back-btn {
+    transition: all 0.2s ease;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#modal-back-btn:hover {
+    background-color: var(--bg-quaternary) !important;
+    transform: translateX(-2px);
+}

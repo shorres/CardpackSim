@@ -512,65 +512,160 @@
     <!-- Sell Card Modal -->
     <div id="sell-card-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="rounded-lg p-6 w-96 max-w-full mx-4" style="background-color: var(--bg-secondary); color: var(--text-primary);">
-            <h3 class="text-xl font-bold mb-4">💰 Sell Card</h3>
+            
+            <!-- Modal Header with Step Navigation -->
+            <div class="flex items-center justify-between mb-4">
+                <button id="modal-back-btn" class="p-2 rounded text-lg hidden" style="background-color: var(--bg-tertiary); color: var(--text-primary);">
+                    ←
+                </button>
+                <h3 class="text-xl font-bold">💰 Sell Card</h3>
+                <div class="w-10"></div>
+            </div>
+            
+            <!-- Card Info (always visible) -->
             <div id="sell-card-info" class="mb-4">
                 <!-- Card info will be populated here -->
             </div>
             
-            <!-- Sell Type Selection -->
-            <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Sell Method</label>
-                <div class="space-y-2">
-                    <label class="flex items-center p-3 rounded cursor-pointer" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary);">
-                        <input type="radio" name="sell-type" value="instant" id="sell-instant" class="mr-3" checked>
-                        <div class="flex-1">
-                            <div class="font-medium">⚡ Sell Instantly</div>
-                            <div class="text-xs text-gray-400">Sell immediately for current market price</div>
-                        </div>
+            <!-- Step 1: Sell Method Selection -->
+            <div id="step-1" class="modal-step">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Choose Sell Method</label>
+                    <div class="space-y-2">
+                        <button class="sell-method-btn flex items-center p-3 rounded cursor-pointer w-full text-left" data-method="instant" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary);">
+                            <div class="flex-1">
+                                <div class="font-medium">⚡ Sell Instantly</div>
+                                <div class="text-xs text-gray-400">Sell immediately for current market price</div>
+                            </div>
+                        </button>
+                        <button class="sell-method-btn flex items-center p-3 rounded cursor-pointer w-full text-left" data-method="listing" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary);">
+                            <div class="flex-1">
+                                <div class="font-medium">📦 Create Listing</div>
+                                <div class="text-xs text-gray-400">Set custom price and wait for buyers</div>
+                            </div>
+                        </button>
+                        <button class="sell-method-btn flex items-center p-3 rounded cursor-pointer w-full text-left" data-method="auto-sell" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary);">
+                            <div class="flex-1">
+                                <div class="font-medium">🎯 Auto-Sell Order</div>
+                                <div class="text-xs text-gray-400">Automatically sell when price conditions are met</div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2">
+                    <button id="cancel-sell-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--bg-quaternary); color: var(--text-primary);">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Step 2: Instant Sell Configuration -->
+            <div id="step-instant" class="modal-step hidden">
+                <div class="mb-4">
+                    <label for="sell-quantity" class="block text-sm font-medium mb-2">Quantity</label>
+                    <input type="number" id="sell-quantity" min="1" value="1" class="text-sm rounded-lg w-full p-2.5" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="sell-foil-only" class="mr-2">
+                        <span class="text-sm">Sell foil version only</span>
                     </label>
-                    <label class="flex items-center p-3 rounded cursor-pointer" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary);">
-                        <input type="radio" name="sell-type" value="listing" id="sell-listing" class="mr-3">
-                        <div class="flex-1">
-                            <div class="font-medium">📦 Create Listing</div>
-                            <div class="text-xs text-gray-400">Set custom price and wait for buyers</div>
-                        </div>
+                </div>
+                
+                <div id="sale-preview" class="mb-4 p-3 rounded text-sm" style="background-color: var(--bg-tertiary);">
+                    <!-- Sale preview will be shown here -->
+                </div>
+                
+                <div class="flex gap-2">
+                    <button id="confirm-sell-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--success); color: var(--text-primary);">
+                        Sell Now
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Step 3: Create Listing Configuration -->
+            <div id="step-listing" class="modal-step hidden">
+                <div class="mb-4">
+                    <label for="sell-quantity" class="block text-sm font-medium mb-2">Quantity</label>
+                    <input type="number" id="sell-quantity-listing" min="1" value="1" class="text-sm rounded-lg w-full p-2.5" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="sell-custom-price" class="block text-sm font-medium mb-2">List Price (per card)</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-2.5 text-sm">$</span>
+                        <input type="number" id="sell-custom-price" step="0.01" min="0.01" max="999.99" class="text-sm rounded-lg w-full p-2.5 pl-8" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);" placeholder="0.00">
+                    </div>
+                    <div id="price-guidance" class="text-xs text-gray-400 mt-1">
+                        <!-- Price guidance will be shown here -->
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="sell-foil-only-listing" class="mr-2">
+                        <span class="text-sm">Sell foil version only</span>
                     </label>
                 </div>
-            </div>
-            
-            <div class="mb-4">
-                <label for="sell-quantity" class="block text-sm font-medium mb-2">Quantity</label>
-                <input type="number" id="sell-quantity" min="1" value="1" class="text-sm rounded-lg w-full p-2.5" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
-            </div>
-            
-            <!-- Custom Price Field (hidden by default) -->
-            <div id="custom-price-section" class="mb-4 hidden">
-                <label for="sell-custom-price" class="block text-sm font-medium mb-2">List Price (per card)</label>
-                <div class="relative">
-                    <span class="absolute left-3 top-2.5 text-sm">$</span>
-                    <input type="number" id="sell-custom-price" step="0.01" min="0.01" max="999.99" class="text-sm rounded-lg w-full p-2.5 pl-8" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);" placeholder="0.00">
+                
+                <div id="listing-preview" class="mb-4 p-3 rounded text-sm" style="background-color: var(--bg-tertiary);">
+                    <!-- Listing preview will be shown here -->
                 </div>
-                <div id="price-guidance" class="text-xs text-gray-400 mt-1">
-                    <!-- Price guidance will be shown here -->
+                
+                <div class="flex gap-2">
+                    <button id="confirm-listing-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--success); color: var(--text-primary);">
+                        Create Listing
+                    </button>
                 </div>
             </div>
             
-            <div class="mb-4">
-                <label class="flex items-center">
-                    <input type="checkbox" id="sell-foil-only" class="mr-2">
-                    <span class="text-sm">Sell foil version only</span>
-                </label>
-            </div>
-            <div id="sale-preview" class="mb-4 p-3 rounded text-sm" style="background-color: var(--bg-tertiary);">
-                <!-- Sale preview will be shown here -->
-            </div>
-            <div class="flex gap-2">
-                <button id="confirm-sell-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--success); color: var(--text-primary);">
-                    Sell
-                </button>
-                <button id="cancel-sell-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--bg-quaternary); color: var(--text-primary);">
-                    Cancel
-                </button>
+            <!-- Step 4: Auto-Sell Order Configuration -->
+            <div id="step-auto-sell" class="modal-step hidden">
+                <div class="mb-4">
+                    <label for="sell-quantity-auto" class="block text-sm font-medium mb-2">Quantity</label>
+                    <input type="number" id="sell-quantity-auto" min="1" value="1" class="text-sm rounded-lg w-full p-2.5" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Trigger Condition</label>
+                    <select id="sell-trigger-type" class="text-sm rounded-lg w-full p-2.5" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);">
+                        <option value="price_above">Price rises above</option>
+                        <option value="price_below">Price drops below</option>
+                        <option value="percent_gain">Percentage gain</option>
+                        <option value="percent_loss">Percentage loss (stop-loss)</option>
+                    </select>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="sell-trigger-value" class="block text-sm font-medium mb-2">Trigger Value</label>
+                    <div class="relative">
+                        <span id="sell-trigger-prefix" class="absolute left-3 top-2.5 text-sm">$</span>
+                        <input type="number" id="sell-trigger-value" step="0.01" min="0.01" class="text-sm rounded-lg w-full p-2.5 pl-8" style="background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); color: var(--text-primary);" placeholder="0.00">
+                        <span id="sell-trigger-suffix" class="absolute right-3 top-2.5 text-sm"></span>
+                    </div>
+                    <div id="sell-trigger-hint" class="text-xs text-gray-400 mt-1">
+                        <!-- Hint text will appear here -->
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="sell-foil-only-auto" class="mr-2">
+                        <span class="text-sm">Sell foil version only</span>
+                    </label>
+                </div>
+                
+                <div id="auto-sell-preview" class="mb-4 p-3 rounded text-sm" style="background-color: var(--bg-tertiary);">
+                    <!-- Auto-sell preview will be shown here -->
+                </div>
+                
+                <div class="flex gap-2">
+                    <button id="confirm-auto-sell-btn" class="font-bold py-2 px-4 rounded flex-1" style="background-color: var(--success); color: var(--text-primary);">
+                        Create Order
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -753,6 +848,81 @@
             <div class="flex justify-center">
                 <button id="sell-all-success-ok-btn" class="px-8 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors" style="background-color: #10b981 !important;">
                     OK
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sell Order Modal -->
+    <div id="sell-order-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg p-6 w-full max-w-lg mx-4" style="background-color: var(--bg-secondary);">
+            <h3 class="text-xl font-bold mb-4" style="color: var(--text-primary);">⚡ Create Auto-Sell Order</h3>
+            
+            <div id="sell-order-card-info" class="mb-4">
+                <!-- Card info will be populated here -->
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Card Type Selection -->
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Card Type:</label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center">
+                            <input type="radio" name="sell-order-type" value="regular" id="sell-order-regular" checked class="mr-2">
+                            <span style="color: var(--text-primary);">Regular</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="sell-order-type" value="foil" id="sell-order-foil" class="mr-2">
+                            <span style="color: var(--text-primary);">Foil ⭐</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Quantity -->
+                <div>
+                    <label for="sell-order-quantity" class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Quantity:</label>
+                    <input type="number" id="sell-order-quantity" min="1" value="1" 
+                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+                </div>
+                
+                <!-- Trigger Type -->
+                <div>
+                    <label class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Trigger Condition:</label>
+                    <select id="sell-order-trigger-type" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+                        <option value="price_above">Price rises above</option>
+                        <option value="price_below">Price drops below</option>
+                        <option value="percent_gain">Percentage gain</option>
+                        <option value="percent_loss">Percentage loss (stop-loss)</option>
+                    </select>
+                </div>
+                
+                <!-- Trigger Value -->
+                <div>
+                    <label for="sell-order-trigger-value" class="block text-sm font-medium mb-2" style="color: var(--text-primary);">Trigger Value:</label>
+                    <div class="flex items-center gap-2">
+                        <span id="sell-order-prefix" class="text-gray-400">$</span>
+                        <input type="number" id="sell-order-trigger-value" step="0.01" min="0.01" 
+                               class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white">
+                        <span id="sell-order-suffix" class="text-gray-400"></span>
+                    </div>
+                    <div id="sell-order-hint" class="text-xs text-gray-500 mt-1">
+                        <!-- Hint text will appear here -->
+                    </div>
+                </div>
+                
+                <!-- Preview -->
+                <div id="sell-order-preview" class="bg-gray-700 rounded-lg p-3 hidden">
+                    <h5 class="font-medium mb-2 text-purple-400">Order Preview:</h5>
+                    <p id="sell-order-description" class="text-sm" style="color: var(--text-primary);"></p>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button id="sell-order-cancel-btn" class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg transition-colors" style="color: var(--text-primary);">
+                    Cancel
+                </button>
+                <button id="sell-order-create-btn" class="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                    Create Order
                 </button>
             </div>
         </div>

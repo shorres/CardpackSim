@@ -38,6 +38,11 @@ class GameEngine {
             this.handlePlayerListingSold(buyer, listing, result);
         };
         
+        // Set up market engine callback for sell order execution
+        this.marketEngine.onSellOrderExecuted = (order, result) => {
+            this.handleSellOrderExecuted(order, result);
+        };
+        
         // Expose for debugging
         window.debugMarket = this.marketEngine;
         
@@ -358,6 +363,16 @@ class GameEngine {
         return Math.max(0, availableQuantity - lockedQuantity);
     }
 
+    getOwnedQuantity(setId, cardName, isFoil) {
+        const collectionSet = this.state.collection[setId];
+        if (!collectionSet || !collectionSet[cardName]) {
+            return 0;
+        }
+        
+        const cardData = collectionSet[cardName];
+        return isFoil ? cardData.foilCount : cardData.count;
+    }
+
     sellCard(setId, cardName, quantity, isFoil = false) {
         const collectionSet = this.state.collection[setId];
         if (!collectionSet || !collectionSet[cardName]) {
@@ -538,6 +553,29 @@ class GameEngine {
         }
     }
     
+    handleSellOrderExecuted(order, result) {
+        if (result.success) {
+            // Proceeds were already added by the sale itself in executeSellOrder
+            
+            // Update sales statistics for auto-sells
+            this.state.salesCount++;
+            if (result.proceeds > this.state.highestSale) {
+                this.state.highestSale = result.proceeds;
+            }
+            
+            // Update net worth and save (done by the sale itself, but ensure consistency)
+            this.updateNetWorth();
+            this.recordNetWorthHistory();
+            this.checkAchievements();
+            this.saveState();
+        }
+        
+        // Trigger UI notification if callback is set
+        if (this.onSellOrderExecutedCallback) {
+            this.onSellOrderExecutedCallback(order, result);
+        }
+    }
+    
     purchaseFromPlayerListing(listingId, quantityToBuy = 1) {
         const result = this.marketEngine.purchaseFromPlayerListing(listingId, quantityToBuy);
         
@@ -579,6 +617,82 @@ class GameEngine {
         }
         
         return result;
+    }
+
+    // =============================================================================
+    // AUTO-SELL ORDER METHODS
+    // =============================================================================
+    
+    // Create an auto-sell order
+    createSellOrder(setId, cardName, quantity, triggerType, triggerValue, isFoil = false) {
+        // Validate that player owns the cards
+        const collectionSet = this.state.collection[setId];
+        if (!collectionSet || !collectionSet[cardName]) {
+            return { success: false, message: "You don't own this card" };
+        }
+        
+        const cardData = collectionSet[cardName];
+        const availableQuantity = isFoil ? cardData.foilCount : cardData.count;
+        
+        if (availableQuantity < quantity) {
+            return { 
+                success: false, 
+                message: `You only have ${availableQuantity}x ${cardName}${isFoil ? ' ⭐' : ''} available` 
+            };
+        }
+        
+        // Validate trigger parameters
+        if (quantity <= 0) {
+            return { success: false, message: "Quantity must be greater than 0" };
+        }
+        
+        if (triggerValue <= 0) {
+            return { success: false, message: "Trigger value must be greater than 0" };
+        }
+        
+        // For percentage triggers, ensure reasonable bounds
+        if (triggerType === 'percent_gain' || triggerType === 'percent_loss') {
+            if (triggerValue > 10.0) { // 1000% seems like a reasonable max
+                return { success: false, message: "Percentage trigger cannot exceed 1000%" };
+            }
+        }
+        
+        // For price triggers, ensure reasonable bounds
+        if (triggerType === 'price_above' || triggerType === 'price_below') {
+            if (triggerValue > 999.99) {
+                return { success: false, message: "Price trigger cannot exceed $999.99" };
+            }
+        }
+        
+        // Create the sell order in the market
+        const result = this.marketEngine.createSellOrder(setId, cardName, quantity, triggerType, triggerValue, isFoil);
+        
+        if (result.success) {
+            this.saveState();
+        }
+        
+        return result;
+    }
+    
+    // Cancel a sell order
+    cancelSellOrder(orderId) {
+        const result = this.marketEngine.cancelSellOrder(orderId);
+        
+        if (result.success) {
+            this.saveState();
+        }
+        
+        return result;
+    }
+    
+    // Get all player's sell orders
+    getSellOrders() {
+        return this.marketEngine.getSellOrders();
+    }
+    
+    // Get sell orders for a specific card
+    getSellOrdersForCard(setId, cardName, isFoil = null) {
+        return this.marketEngine.getSellOrdersForCard(setId, cardName, isFoil);
     }
 
     getPortfolioSummary() {

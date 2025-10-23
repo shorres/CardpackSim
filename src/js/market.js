@@ -16,7 +16,8 @@ class MarketEngine {
             playerListings: {}, // { setId: { cardName: [{ id, price, quantity, isFoil, listedAt, views }] } }
             marketActivity: [], // Recent trading activity
             aiTraders: [], // AI trader instances
-            aiBuyers: [] // AI buyer instances
+            aiBuyers: [], // AI buyer instances
+            sellOrders: [] // [{ id, setId, cardName, isFoil, quantity, triggerType, triggerValue, originalPrice, createdAt, isActive }]
         };
         
         this.initializeConfig();
@@ -333,6 +334,7 @@ class MarketEngine {
         this.updateDemandEvents();
         this.applyPriceChanges();
         this.updateMarketListings(); // Add trading market updates
+        this.evaluateSellOrders(); // Check auto-sell conditions after price changes
         this.cleanupOldData();
         
         this.state.lastPriceUpdate = Date.now();
@@ -1845,6 +1847,228 @@ class MarketEngine {
     debugTriggerBuyerEvaluation() {
         console.log('Manual buyer evaluation triggered');
         this.evaluatePlayerListings();
+    }
+
+    // =============================================================================
+    // AUTO-SELL ORDER SYSTEM
+    // =============================================================================
+    
+    // Create a sell order for automatic selling when price conditions are met
+    createSellOrder(setId, cardName, quantity, triggerType, triggerValue, isFoil = false) {
+        // Ensure sell orders array exists
+        if (!this.state.sellOrders) {
+            this.state.sellOrders = [];
+        }
+        
+        // Get current price to establish baseline
+        const currentPrice = this.getCardPrice(setId, cardName, isFoil);
+        
+        // Generate unique order ID
+        const orderId = 'sell_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        
+        const sellOrder = {
+            id: orderId,
+            setId: setId,
+            cardName: cardName,
+            isFoil: isFoil,
+            quantity: quantity,
+            triggerType: triggerType, // 'price_above', 'price_below', 'percent_gain', 'percent_loss'
+            triggerValue: triggerValue, // Price target or percentage (as decimal, e.g., 0.2 for 20%)
+            originalPrice: currentPrice,
+            createdAt: Date.now(),
+            isActive: true
+        };
+        
+        this.state.sellOrders.push(sellOrder);
+        
+        return {
+            success: true,
+            message: this.getSellOrderDescription(sellOrder),
+            orderId: orderId
+        };
+    }
+    
+    // Cancel a sell order
+    cancelSellOrder(orderId) {
+        if (!this.state.sellOrders) {
+            return { success: false, message: 'No sell orders found' };
+        }
+        
+        const orderIndex = this.state.sellOrders.findIndex(order => order.id === orderId);
+        
+        if (orderIndex === -1) {
+            return { success: false, message: 'Sell order not found' };
+        }
+        
+        const cancelledOrder = this.state.sellOrders[orderIndex];
+        this.state.sellOrders.splice(orderIndex, 1);
+        
+        return {
+            success: true,
+            message: `Cancelled auto-sell order for ${cancelledOrder.quantity}x ${cancelledOrder.cardName}${cancelledOrder.isFoil ? ' ⭐' : ''}`,
+            cancelledOrder: cancelledOrder
+        };
+    }
+    
+    // Get all active sell orders
+    getSellOrders() {
+        return this.state.sellOrders || [];
+    }
+    
+    // Get sell orders for a specific card
+    getSellOrdersForCard(setId, cardName, isFoil = null) {
+        const allOrders = this.getSellOrders();
+        return allOrders.filter(order => 
+            order.setId === setId && 
+            order.cardName === cardName && 
+            order.isActive &&
+            (isFoil === null || order.isFoil === isFoil)
+        );
+    }
+    
+    // Evaluate all sell orders and execute any that meet their conditions
+    evaluateSellOrders() {
+        if (!this.state.sellOrders || this.state.sellOrders.length === 0) {
+            return;
+        }
+        
+        const activeOrders = this.state.sellOrders.filter(order => order.isActive);
+        
+        for (const order of activeOrders) {
+            const currentPrice = this.getCardPrice(order.setId, order.cardName, order.isFoil);
+            let shouldExecute = false;
+            
+            switch (order.triggerType) {
+                case 'price_above':
+                    shouldExecute = currentPrice >= order.triggerValue;
+                    break;
+                    
+                case 'price_below':
+                    shouldExecute = currentPrice <= order.triggerValue;
+                    break;
+                    
+                case 'percent_gain':
+                    const gainPercent = (currentPrice - order.originalPrice) / order.originalPrice;
+                    shouldExecute = gainPercent >= order.triggerValue;
+                    break;
+                    
+                case 'percent_loss':
+                    const lossPercent = (order.originalPrice - currentPrice) / order.originalPrice;
+                    shouldExecute = lossPercent >= order.triggerValue;
+                    break;
+            }
+            
+            if (shouldExecute) {
+                this.executeSellOrder(order, currentPrice);
+            }
+        }
+    }
+    
+    // Execute a sell order
+    executeSellOrder(order, currentPrice) {
+        // Check if player still owns the cards
+        if (window.gameEngine) {
+            const gameEngine = window.gameEngine;
+            const collection = gameEngine.state.collection[order.setId];
+            
+            if (!collection || !collection[order.cardName]) {
+                // Player no longer owns this card, deactivate order
+                order.isActive = false;
+                return;
+            }
+            
+            const cardData = collection[order.cardName];
+            const availableQuantity = order.isFoil ? cardData.foilCount : cardData.count;
+            
+            if (availableQuantity < order.quantity) {
+                // Not enough cards available, deactivate order
+                order.isActive = false;
+                if (this.onSellOrderExecuted) {
+                    this.onSellOrderExecuted(order, {
+                        success: false,
+                        message: `Auto-sell order cancelled: insufficient ${order.cardName}${order.isFoil ? ' ⭐' : ''} cards`,
+                        reason: 'insufficient_quantity'
+                    });
+                }
+                return;
+            }
+            
+            // Execute the sale using instant sell
+            const saleResult = gameEngine.sellCard(
+                order.setId, 
+                order.cardName, 
+                order.quantity, 
+                order.isFoil, 
+                true // isInstantSell flag
+            );
+            
+            if (saleResult.success) {
+                // Deactivate the order
+                order.isActive = false;
+                
+                // Calculate performance vs original price
+                const priceChange = currentPrice - order.originalPrice;
+                const percentChange = (priceChange / order.originalPrice) * 100;
+                
+                // Record market activity
+                this.recordMarketActivity(
+                    'auto_sell', 
+                    order.setId, 
+                    order.cardName, 
+                    currentPrice, 
+                    order.quantity, 
+                    order.isFoil
+                );
+                
+                // Notify about successful execution
+                if (this.onSellOrderExecuted) {
+                    this.onSellOrderExecuted(order, {
+                        success: true,
+                        proceeds: saleResult.proceeds,
+                        currentPrice: currentPrice,
+                        originalPrice: order.originalPrice,
+                        priceChange: priceChange,
+                        percentChange: percentChange,
+                        message: `Auto-sell executed: Sold ${order.quantity}x ${order.cardName}${order.isFoil ? ' ⭐' : ''} for $${saleResult.proceeds.toFixed(2)}`
+                    });
+                }
+            } else {
+                // Sale failed, deactivate order
+                order.isActive = false;
+                if (this.onSellOrderExecuted) {
+                    this.onSellOrderExecuted(order, {
+                        success: false,
+                        message: `Auto-sell failed: ${saleResult.message}`,
+                        reason: 'sale_failed'
+                    });
+                }
+            }
+        }
+    }
+    
+    // Get a human-readable description of a sell order
+    getSellOrderDescription(order) {
+        const cardName = `${order.cardName}${order.isFoil ? ' ⭐' : ''}`;
+        const qty = order.quantity > 1 ? `${order.quantity}x ` : '';
+        
+        switch (order.triggerType) {
+            case 'price_above':
+                return `Auto-sell ${qty}${cardName} when price reaches $${order.triggerValue.toFixed(2)}`;
+            
+            case 'price_below':
+                return `Auto-sell ${qty}${cardName} when price drops to $${order.triggerValue.toFixed(2)}`;
+            
+            case 'percent_gain':
+                const gainPercent = (order.triggerValue * 100).toFixed(1);
+                return `Auto-sell ${qty}${cardName} when price gains ${gainPercent}%`;
+            
+            case 'percent_loss':
+                const lossPercent = (order.triggerValue * 100).toFixed(1);
+                return `Auto-sell ${qty}${cardName} when price drops ${lossPercent}%`;
+            
+            default:
+                return `Auto-sell ${qty}${cardName}`;
+        }
     }
 
     destroy() {
