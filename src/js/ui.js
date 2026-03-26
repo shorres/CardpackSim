@@ -1368,11 +1368,6 @@ class UIManager {
             if (enableSmartOptimization) {
                 // Use smart screenshot optimization for collection views
                 artHTML = window.glyphArtGenerator.generateScreenshotWhenNeeded(name, rarity, 300, 200);
-                if (typeof artHTML === 'object' && artHTML.then) {
-                    // Handle promise - use DOM version while screenshot processes
-                    const artData = window.glyphArtGenerator.generateArt(name, rarity);
-                    artHTML = window.glyphArtGenerator.renderArtHTML(artData);
-                }
             } else {
                 // Use regular DOM rendering for pack opening and single cards
                 const artData = window.glyphArtGenerator.generateArt(name, rarity);

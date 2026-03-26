@@ -54,7 +54,9 @@ class TCGPackSimulator {
             if (originalMethod) {
                 this.uiManager.switchTab = (tabName) => {
                     if (tabName !== 'collection') {
-                        window.glyphArtGenerator.clearPerformanceCache();
+                        // Trim excess entries rather than wiping the cache entirely,
+                        // so screenshots remain available when the user returns to the collection tab.
+                        window.glyphArtGenerator.manageCacheSize(50);
                     }
                     return originalMethod.call(this.uiManager, tabName);
                 };
@@ -67,8 +69,8 @@ class TCGPackSimulator {
             
             // Conservative memory management - clean every 2 minutes
             setInterval(() => {
-                if (window.glyphArtGenerator.getCacheStats().imageCache > 30) {
-                    window.glyphArtGenerator.manageCacheSize(30);
+                if (window.glyphArtGenerator.getCacheStats().imageCache > 50) {
+                    window.glyphArtGenerator.manageCacheSize(50);
                 }
             }, 120000); // 2 minutes
         }
