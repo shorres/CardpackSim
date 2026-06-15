@@ -352,15 +352,21 @@ class MarketEngine {
     }
 
     processSupplyChanges() {
-        // This will be called when cards are opened
-        // For now, just simulate some background activity
+        // Apply gradual supply decay each cycle — cards leave circulation over time
+        // (traded, lost, destroyed), allowing prices to slowly recover from saturation.
+        // Rate of 0.5% per update means a card needs ~200 updates (~3.3 hours) to shed
+        // one unit of tracked supply, providing realistic long-run price recovery.
+        const supplyDecayRate = 0.005;
         const allSets = window.getAllSets();
         Object.keys(allSets).forEach(setId => {
             if (this.state.supplyData[setId]) {
                 Object.keys(this.state.supplyData[setId]).forEach(cardName => {
-                    // Simulate occasional background pack openings
-                    if (Math.random() < 0.001) { // 0.1% chance per card per update
-                        this.recordCardOpened(setId, cardName, false);
+                    const data = this.state.supplyData[setId][cardName];
+                    if (data.totalOpened > 0) {
+                        data.totalOpened = Math.max(0, data.totalOpened - supplyDecayRate);
+                    }
+                    if (data.marketSupply > 0) {
+                        data.marketSupply = Math.max(0, data.marketSupply - supplyDecayRate);
                     }
                 });
             }
@@ -427,8 +433,8 @@ class MarketEngine {
         
         let newPrice = cardData.basePrice;
         
-        // Apply supply pressure
-        const supplyReduction = Math.max(0, 1 - (supplyData.totalOpened * this.config.supplyImpact));
+        // Apply supply pressure (floor at 0.1 so price can't drop more than 90% from supply alone)
+        const supplyReduction = Math.max(0.1, 1 - (supplyData.totalOpened * this.config.supplyImpact));
         newPrice *= supplyReduction;
         
         // Apply demand events
@@ -466,8 +472,8 @@ class MarketEngine {
         else if (cardData.lastChange < -2) cardData.trend = 'falling';
         else cardData.trend = 'stable';
         
-        // Update foil price
-        cardData.foilPrice = Math.round(cardData.currentPrice * this.generateFoilMultiplier() * 100) / 100;
+        // Update foil price using the card's deterministic multiplier
+        cardData.foilPrice = Math.round(cardData.currentPrice * this.generateFoilMultiplier(setId, cardName) * 100) / 100;
         
         // Record price history
         this.recordPriceHistory(setId, cardName, cardData.currentPrice);
@@ -824,10 +830,8 @@ class MarketEngine {
             this.initializeAIBuyers();
         }
         
-        // Restart market systems if they were running
-        if (this.priceUpdateTimer) {
-            this.startPriceUpdates();
-        }
+        // Restart market systems (startPriceUpdates clears any existing interval first)
+        this.startPriceUpdates();
     }
     
     // =============================================================================
@@ -1822,27 +1826,6 @@ class MarketEngine {
         };
     }
     
-    // Enhanced market activity recording to support buyer information
-    recordMarketActivityEnhanced(type, setId, cardName, price, quantity, isFoil, buyerId = null) {
-        const activity = {
-            type,
-            setId,
-            cardName,
-            price,
-            quantity,
-            isFoil,
-            timestamp: Date.now(),
-            buyerId: buyerId
-        };
-        
-        this.state.marketActivity.unshift(activity);
-        
-        // Keep only recent activity (last 100 entries)
-        if (this.state.marketActivity.length > 100) {
-            this.state.marketActivity = this.state.marketActivity.slice(0, 100);
-        }
-    }
-
     // Manual trigger for testing
     debugTriggerBuyerEvaluation() {
         console.log('Manual buyer evaluation triggered');
@@ -1947,15 +1930,17 @@ class MarketEngine {
                     shouldExecute = currentPrice <= order.triggerValue;
                     break;
                     
-                case 'percent_gain':
+                case 'percent_gain': {
                     const gainPercent = (currentPrice - order.originalPrice) / order.originalPrice;
                     shouldExecute = gainPercent >= order.triggerValue;
                     break;
-                    
-                case 'percent_loss':
+                }
+
+                case 'percent_loss': {
                     const lossPercent = (order.originalPrice - currentPrice) / order.originalPrice;
                     shouldExecute = lossPercent >= order.triggerValue;
                     break;
+                }
             }
             
             if (shouldExecute) {
