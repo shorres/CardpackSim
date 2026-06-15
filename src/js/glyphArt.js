@@ -289,7 +289,7 @@ class GlyphArtGenerator {
     
     // Performance optimization: Image cache for collection views
     imageCache = new Map();
-    screenshotQueue = new Set();
+    screenshotQueue = new Map(); // keyed by cacheKey for deduplication
     isProcessingScreenshots = false;
     
     // Smart screenshot generation - only for collection views with many cards
@@ -310,8 +310,8 @@ class GlyphArtGenerator {
             `;
         }
         
-        // Add to queue for batch processing (don't await)
-        this.screenshotQueue.add({ cardName, rarity, width, height, cacheKey });
+        // Add to queue for batch processing; Map keyed on cacheKey deduplicates automatically
+        this.screenshotQueue.set(cacheKey, { cardName, rarity, width, height, cacheKey });
         
         // Start processing if not already running (don't await)
         if (!this.isProcessingScreenshots) {
@@ -334,10 +334,10 @@ class GlyphArtGenerator {
         try {
             // Process only 3 screenshots at a time to avoid blocking
             const batchSize = 3;
-            const batch = Array.from(this.screenshotQueue).slice(0, batchSize);
-            
+            const batch = Array.from(this.screenshotQueue.values()).slice(0, batchSize);
+
             for (const item of batch) {
-                this.screenshotQueue.delete(item);
+                this.screenshotQueue.delete(item.cacheKey);
                 
                 try {
                     const imageData = await this.createScreenshot(item.cardName, item.rarity, item.width, item.height);
