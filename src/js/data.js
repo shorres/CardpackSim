@@ -639,11 +639,59 @@ class WeeklySetGenerator {
 const weeklySetGenerator = new WeeklySetGenerator();
 
 // Enhanced function to get all available sets (including all stored weekly sets)
+// getAllSets() is called from ~37 sites, several of them inside per-card render loops.
+// It rebuilds the whole set object graph (spread of TCG_SETS, plus a spread per weekly set
+// via updateSetLifecycle), so memoize it. The key covers both inputs that can change the
+// result: which week it is, and any mutation of the weekly-set store.
+// No caller mutates the returned object, so the reference is safe to share.
+let allSetsCache = null;
+let allSetsCacheKey = null;
+
+// setId -> Map(cardName -> rarity). Rarity lookup used to be a linear .includes() scan
+// across four rarity arrays, preceded by a full getAllSets() rebuild -- and it runs once
+// per card inside getPortfolioSummary and once per listing in the buyer simulation, which
+// made it the dominant quadratic cost in the app.
+let cardRarityIndex = null;
+let cardRarityIndexKey = null;
+
+function lookupCardRarity(setId, cardName) {
+    const storageManager = window.storageManager || new StorageManager();
+    const key = getAllSetsCacheKey(storageManager);
+
+    if (!cardRarityIndex || cardRarityIndexKey !== key) {
+        const allSets = getAllSets();
+        cardRarityIndex = new Map();
+        Object.keys(allSets).forEach(id => {
+            const set = allSets[id];
+            if (!set || !set.cards) return;
+            const byName = new Map();
+            Object.keys(set.cards).forEach(rarity => {
+                const list = set.cards[rarity];
+                if (!Array.isArray(list)) return;
+                list.forEach(name => byName.set(name, rarity));
+            });
+            cardRarityIndex.set(id, byName);
+        });
+        cardRarityIndexKey = getAllSetsCacheKey(storageManager);
+    }
+
+    const bySet = cardRarityIndex.get(setId);
+    return (bySet && bySet.get(cardName)) || null;
+}
+
+function getAllSetsCacheKey(storageManager) {
+    return weeklySetGenerator.getWeeklySetId() + '|' + storageManager.getWeeklySetsRevision();
+}
+
 function getAllSets() {
-    const allSets = { ...TCG_SETS };
-    
     // Get storage manager instance
     const storageManager = window.storageManager || new StorageManager();
+
+    if (allSetsCache && allSetsCacheKey === getAllSetsCacheKey(storageManager)) {
+        return allSetsCache;
+    }
+
+    const allSets = { ...TCG_SETS };
     
     // Load all stored weekly sets first
     const storedWeeklySets = storageManager.loadWeeklySets();
@@ -672,7 +720,12 @@ function getAllSets() {
             allSets[setId] = updatedSetData;
         });
     }
-    
+
+    // Key computed *after* the lifecycle transitions above, since those bump the revision.
+    // They are idempotent, so the revision stabilises on the first call.
+    allSetsCache = allSets;
+    allSetsCacheKey = getAllSetsCacheKey(storageManager);
+
     return allSets;
 }
 
@@ -1113,6 +1166,7 @@ if (typeof module !== 'undefined' && module.exports) {
     window.WeeklySetGenerator = WeeklySetGenerator;
     window.weeklySetGenerator = weeklySetGenerator;
     window.getAllSets = getAllSets;
+    window.lookupCardRarity = lookupCardRarity;
     
     // Testing helper functions
     window.testWeeklySet = testWeeklySet;
