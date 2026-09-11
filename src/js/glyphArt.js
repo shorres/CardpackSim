@@ -287,174 +287,49 @@ class GlyphArtGenerator {
         `;
     }
     
-    // Performance optimization: Image cache for collection views
-    imageCache = new Map();
-    screenshotQueue = new Map(); // keyed by cacheKey for deduplication
-    isProcessingScreenshots = false;
-    
-    // Smart screenshot generation - only for collection views with many cards
-    generateScreenshotWhenNeeded(cardName, rarity, width = 300, height = 200) {
-        const cacheKey = `${cardName}_${rarity}_${width}_${height}`;
-        
-        // Return cached image HTML if available
-        if (this.imageCache.has(cacheKey)) {
-            const imageData = this.imageCache.get(cacheKey);
-            return `
-                <img class="glyph-art-optimized" src="${imageData}" style="
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                    pointer-events: none;
-                    user-select: none;
-                " alt="Generated art for ${cardName}" />
-            `;
-        }
-        
-        // Add to queue for batch processing; Map keyed on cacheKey deduplicates automatically
-        this.screenshotQueue.set(cacheKey, { cardName, rarity, width, height, cacheKey });
-        
-        // Start processing if not already running (don't await)
-        if (!this.isProcessingScreenshots) {
-            this.processScreenshotQueue().catch(console.warn);
-        }
-        
-        // Return DOM version immediately
-        const artData = this.generateArt(cardName, rarity);
-        return this.renderArtHTML(artData);
-    }
-    
-    // Process screenshot queue in small batches to avoid blocking
-    async processScreenshotQueue() {
-        if (this.isProcessingScreenshots || this.screenshotQueue.size === 0) {
-            return;
-        }
-        
-        this.isProcessingScreenshots = true;
-        
-        try {
-            // Process only 3 screenshots at a time to avoid blocking
-            const batchSize = 3;
-            const batch = Array.from(this.screenshotQueue.values()).slice(0, batchSize);
+    // Rendered-art cache.
+    //
+    // This used to be a screenshot pipeline: queue each card, rasterize it with
+    // html2canvas, cache the data URL. html2canvas was never actually loaded by
+    // index.html, so createScreenshot() always bailed, the cache never held a single
+    // entry, every card paid full generation cost on every render, and the queue kept
+    // re-arming its timers for nothing.
+    //
+    // generateArt() is seeded on cardName + rarity (see hashCode/seededRandom), so the
+    // markup for a given card is always identical -- which makes it trivially cacheable.
+    // Cache the HTML string instead.
+    artCache = new Map();
+    maxArtCacheEntries = 400;
 
-            for (const item of batch) {
-                this.screenshotQueue.delete(item.cacheKey);
-                
-                try {
-                    const imageData = await this.createScreenshot(item.cardName, item.rarity, item.width, item.height);
-                    if (imageData) {
-                        this.imageCache.set(item.cacheKey, imageData);
-                        
-                        // Update any visible cards with the new screenshot
-                        this.updateVisibleCard(item.cardName, item.rarity, imageData);
-                    }
-                } catch (error) {
-                    console.warn(`Screenshot failed for ${item.cardName}:`, error);
-                }
-                
-                // Small delay to prevent blocking the main thread
-                await new Promise(resolve => setTimeout(resolve, 10));
-            }
-            
-            // Manage cache size
-            this.manageCacheSize();
-            
-        } finally {
-            this.isProcessingScreenshots = false;
-            
-            // Continue processing if more items were added
-            if (this.screenshotQueue.size > 0) {
-                setTimeout(() => this.processScreenshotQueue(), 100);
-            }
+    getCardArtHTML(cardName, rarity) {
+        const cacheKey = cardName + '_' + rarity;
+        const cached = this.artCache.get(cacheKey);
+        if (cached !== undefined) {
+            // Refresh insertion order so the cache evicts least-recently-used.
+            this.artCache.delete(cacheKey);
+            this.artCache.set(cacheKey, cached);
+            return cached;
+        }
+
+        const html = this.renderArtHTML(this.generateArt(cardName, rarity));
+        this.artCache.set(cacheKey, html);
+        this.manageCacheSize();
+        return html;
+    }
+
+    manageCacheSize(maxEntries = this.maxArtCacheEntries) {
+        while (this.artCache.size > maxEntries) {
+            // Map iteration is insertion-ordered, so this drops the oldest entry.
+            this.artCache.delete(this.artCache.keys().next().value);
         }
     }
-    
-    // Create actual screenshot using html2canvas
-    async createScreenshot(cardName, rarity, width, height) {
-        if (typeof html2canvas === 'undefined') {
-            return null;
-        }
-        
-        // Create temporary container off-screen
-        const tempContainer = document.createElement('div');
-        tempContainer.style.cssText = `
-            position: absolute;
-            left: -9999px;
-            top: -9999px;
-            width: ${width}px;
-            height: ${height}px;
-            background: transparent;
-            overflow: hidden;
-            pointer-events: none;
-        `;
-        
-        const artData = this.generateArt(cardName, rarity);
-        tempContainer.innerHTML = this.renderArtHTML(artData);
-        document.body.appendChild(tempContainer);
-        
-        try {
-            const canvas = await html2canvas(tempContainer, {
-                width: width,
-                height: height,
-                backgroundColor: null,
-                scale: 1,
-                useCORS: true,
-                allowTaint: true,
-                logging: false
-            });
-            
-            return canvas.toDataURL('image/webp', 0.8);
-        } finally {
-            document.body.removeChild(tempContainer);
-        }
-    }
-    
-    // Update visible cards with new screenshots
-    updateVisibleCard(cardName, rarity, imageData) {
-        const cardElements = document.querySelectorAll(`[data-card-name="${cardName}"][data-card-rarity="${rarity}"] .glyph-art`);
-        cardElements.forEach(element => {
-            if (element && element.parentElement) {
-                element.parentElement.innerHTML = `
-                    <img class="glyph-art-optimized" src="${imageData}" style="
-                        width: 100%;
-                        height: 100%;
-                        object-fit: cover;
-                        pointer-events: none;
-                        user-select: none;
-                    " alt="Generated art for ${cardName}" />
-                `;
-            }
-        });
-    }
-    
-    // Memory management - keep cache small
-    manageCacheSize(maxEntries = 50) {
-        if (this.imageCache.size > maxEntries) {
-            const entries = Array.from(this.imageCache.entries());
-            this.imageCache.clear();
-            
-            // Keep only the most recent 75% of entries
-            const keepCount = Math.floor(maxEntries * 0.75);
-            const recentEntries = entries.slice(-keepCount);
-            
-            recentEntries.forEach(([key, value]) => {
-                this.imageCache.set(key, value);
-            });
-        }
-    }
-    
-    // Clear all performance caches
+
     clearPerformanceCache() {
-        this.imageCache.clear();
-        this.screenshotQueue.clear();
+        this.artCache.clear();
     }
-    
-    // Get cache statistics
+
     getCacheStats() {
-        return {
-            imageCache: this.imageCache.size,
-            screenshotQueue: this.screenshotQueue.size,
-            isProcessing: this.isProcessingScreenshots
-        };
+        return { artCache: this.artCache.size };
     }
 }
 
