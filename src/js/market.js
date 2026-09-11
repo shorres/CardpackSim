@@ -58,8 +58,12 @@ class MarketEngine {
             
             // Update frequency
             priceUpdateInterval: 60000, // 1 minute (increased frequency)
-            historyRetentionDays: 7, // Keep 7 days for charts
-            chartDataPoints: 200, // Max data points for charts (increased)
+            historyRetentionDays: 7, // Age bound on stored history
+            chartDataPoints: 200, // Max data points a chart draws
+            // How many real recorded points we KEEP per card. At 30-minute intervals this
+            // is ~24h of genuine price movement; anything older is synthesized on read.
+            // Storing 7 days per card (337 points, ~17KB) is what overran the save.
+            maxStoredHistoryPoints: 48,
             
             // Trading Market Settings
             maxListingsPerCard: 5, // Maximum concurrent listings for same card
@@ -158,6 +162,13 @@ class MarketEngine {
         
         // Start price update cycle
         this.startPriceUpdates();
+
+        // Start the AI buyer simulation. This previously ran only from setState(),
+        // so a brand-new game had an empty aiBuyers list and player listings never
+        // sold until the game was reloaded from a save.
+        // startBuyerSimulation() clears any existing interval, so this is safe to
+        // reach twice (fresh init followed by setState on a saved game).
+        this.initializeAIBuyers();
     }
 
     initializeSetPrices(setId, setData) {
@@ -217,7 +228,10 @@ class MarketEngine {
                         trend: 'stable' // 'rising', 'falling', 'stable'
                     };
                     
-                    this.state.priceHistory[setId][cardName] = this.generateInitialPriceHistory(basePrice);
+                    // Start empty. Chart history older than the first real recorded point is
+                    // synthesized on read (see getPriceHistory). Seeding 337 points per card
+                    // here cost ~17KB of save per card and overran the storage quota.
+                    this.state.priceHistory[setId][cardName] = [];
                     
                     this.state.supplyData[setId][cardName] = {
                         totalOpened: 0,
@@ -288,34 +302,80 @@ class MarketEngine {
         return min + randomFactor * (max - min);
     }
 
-    generateInitialPriceHistory(basePrice) {
-        const history = [];
-        const now = Date.now();
-        const hoursBack = 168; // Generate 7 days of history (7 * 24 = 168 hours)
-        const intervalMinutes = this.config.recordingIntervals.shortTerm; // Use consistent 30-minute intervals
-        const intervalMs = intervalMinutes * 60 * 1000;
-        
-        let currentPrice = basePrice;
-        
-        // Generate data points going backwards in time at 30-minute intervals
-        for (let h = 0; h <= hoursBack * 2; h++) { // *2 because we're doing 30-minute intervals (2 per hour)
-            const timestamp = now - (h * intervalMs);
-            
-            // Add some realistic price movement
-            const changePercent = (Math.random() - 0.5) * 0.1; // ±5% change
-            currentPrice *= (1 + changePercent);
-            
-            // Keep price within reasonable bounds (±50% of base)
-            currentPrice = Math.max(basePrice * 0.5, Math.min(basePrice * 1.5, currentPrice));
-            
-            history.unshift({ // Add to beginning since we're going backwards
-                timestamp: timestamp,
-                price: Math.round(currentPrice * 100) / 100,
+    // Synthesize plausible price history older than the earliest real recorded point.
+    // Deterministic (seeded per card) so charts look identical across sessions, and never
+    // written into state -- this is what keeps the save file small.
+    // Integer hash -> [0,1). Pure function of (seed, slot).
+    syntheticNoise(seed, slot) {
+        let h = (slot ^ seed) >>> 0;
+        h = Math.imul(h ^ (h >>> 15), 2246822519) >>> 0;
+        h = Math.imul(h ^ (h >>> 13), 3266489917) >>> 0;
+        h = (h ^ (h >>> 16)) >>> 0;
+        return h / 4294967296;
+    }
+
+    // The fabricated price curve for a card, evaluated at an ABSOLUTE timestamp.
+    //
+    // This must be a pure function of (card, timestamp) -- never of the requested window.
+    // The previous version ran a sequential random walk across whatever range was asked
+    // for, so the 1-day, 2-day and 1-week views each fabricated a *different* past for the
+    // same card. That is how a 1-week view could report a higher low ($1.06) than the
+    // 2-day view nested inside it ($1.02). Smoothed multi-octave value noise gives a
+    // plausible wandering line while letting every window slice the same curve.
+    syntheticPriceAt(setId, cardName, basePrice, timestamp) {
+        const intervalMs = this.config.recordingIntervals.shortTerm * 60 * 1000;
+        const seed = this.hashString(setId + cardName + 'history');
+        const pos = timestamp / intervalMs;
+
+        let value = 0;
+        let amplitude = 1;
+        let totalAmplitude = 0;
+
+        for (let octave = 0; octave < 3; octave++) {
+            const wavelength = 16 / Math.pow(2, octave); // slots per wave, halving each octave
+            const p = pos / wavelength;
+            const i0 = Math.floor(p);
+            const frac = p - i0;
+            const a = this.syntheticNoise(seed + (octave * 7919), i0);
+            const b = this.syntheticNoise(seed + (octave * 7919), i0 + 1);
+            const t = frac * frac * (3 - (2 * frac)); // smoothstep
+            value += (a + ((b - a) * t)) * amplitude;
+            totalAmplitude += amplitude;
+            amplitude *= 0.5;
+        }
+
+        const normalized = (value / totalAmplitude) - 0.5; // [-0.5, 0.5]
+        return basePrice * (1 + (normalized * 0.5));       // +/-25% of base
+    }
+
+    synthesizePriceHistory(setId, cardName, basePrice, fromTime, toTime, anchorPrice = null) {
+        const points = [];
+        if (!(basePrice > 0) || !(toTime > fromTime)) return points;
+
+        const intervalMs = this.config.recordingIntervals.shortTerm * 60 * 1000;
+
+        // Sample on a fixed grid aligned to the epoch, so the sample timestamps for an
+        // overlapping range are identical no matter which window asked for them.
+        const firstSlot = Math.ceil(fromTime / intervalMs);
+        const lastSlot = Math.floor((toTime - 1) / intervalMs);
+
+        // Calibrate the whole curve by one constant so it meets the real series exactly at
+        // the join. A constant (rather than a ramp) keeps the result window-independent.
+        const offset = anchorPrice > 0
+            ? anchorPrice - this.syntheticPriceAt(setId, cardName, basePrice, toTime)
+            : 0;
+
+        for (let slot = firstSlot; slot <= lastSlot; slot++) {
+            const timestamp = slot * intervalMs;
+            const price = this.syntheticPriceAt(setId, cardName, basePrice, timestamp) + offset;
+            points.push({
+                timestamp,
+                price: Math.round(Math.max(0.01, price) * 100) / 100,
                 volume: 0
             });
         }
-        
-        return history;
+
+        return points;
     }
 
     startPriceUpdates() {
@@ -335,7 +395,8 @@ class MarketEngine {
         this.applyPriceChanges();
         this.updateMarketListings(); // Add trading market updates
         this.evaluateSellOrders(); // Check auto-sell conditions after price changes
-        this.cleanupOldData();
+        // (cleanupOldData removed: recordPriceHistory trims on write, so reallocating
+        //  every card's history array once a minute was pure waste.)
         
         this.state.lastPriceUpdate = Date.now();
         
@@ -497,10 +558,13 @@ class MarketEngine {
                 volume: 0 // We'll track this when implementing actual trading
             });
             
-            // Keep only recent history for charts
+            // Bound by age *and* count so one card can never grow without limit.
             const cutoffTime = now - (this.config.historyRetentionDays * 24 * 60 * 60 * 1000);
-            this.state.priceHistory[setId][cardName] = 
-                this.state.priceHistory[setId][cardName].filter(entry => entry.timestamp > cutoffTime);
+            let trimmed = history.filter(entry => entry.timestamp > cutoffTime);
+            if (trimmed.length > this.config.maxStoredHistoryPoints) {
+                trimmed = trimmed.slice(trimmed.length - this.config.maxStoredHistoryPoints);
+            }
+            this.state.priceHistory[setId][cardName] = trimmed;
         }
     }
 
@@ -519,58 +583,55 @@ class MarketEngine {
 
     downsamplePriceHistory(history, hours) {
         if (history.length === 0) return history;
-        
+
         let intervalMinutes;
-        
-        // Determine appropriate interval based on time range
         if (hours <= 24) {
-            intervalMinutes = this.config.recordingIntervals.shortTerm; // 30 minutes for 24h
+            intervalMinutes = this.config.recordingIntervals.shortTerm;   // 30 min
         } else if (hours <= 48) {
-            intervalMinutes = this.config.recordingIntervals.mediumTerm; // 1 hour for 2 days
+            intervalMinutes = this.config.recordingIntervals.mediumTerm;  // 1 hour
         } else {
-            intervalMinutes = this.config.recordingIntervals.longTerm; // 12 hours for 1 week+
+            intervalMinutes = this.config.recordingIntervals.longTerm;    // 4 hours
         }
-        
         const intervalMs = intervalMinutes * 60 * 1000;
-        const downsampledHistory = [];
-        let lastIncludedTime = 0;
-        
+
+        // Bucket by interval and keep each bucket's first, min, max and last point.
+        //
+        // The previous version walked the series and kept whichever point happened to land
+        // first after the interval gate elapsed. That silently discarded extremes: a spike
+        // clearly visible on the 1-day chart (30-min gate, one stored point per gate) could
+        // vanish entirely on the 2-day chart (1-hour gate, every other point dropped) purely
+        // because of where the gate happened to fall. Peaks are the most informative part of
+        // a price chart, so they are exactly what must survive decimation.
+        const buckets = new Map();
         for (const entry of history) {
-            // Always include the first entry
-            if (downsampledHistory.length === 0) {
-                downsampledHistory.push(entry);
-                lastIncludedTime = entry.timestamp;
+            const key = Math.floor(entry.timestamp / intervalMs);
+            const bucket = buckets.get(key);
+            if (!bucket) {
+                buckets.set(key, { first: entry, last: entry, min: entry, max: entry });
                 continue;
             }
-            
-            // Include entry if enough time has passed since last included entry
-            if (entry.timestamp - lastIncludedTime >= intervalMs) {
-                downsampledHistory.push(entry);
-                lastIncludedTime = entry.timestamp;
+            bucket.last = entry;
+            if (entry.price < bucket.min.price) bucket.min = entry;
+            if (entry.price > bucket.max.price) bucket.max = entry;
+        }
+
+        const out = [];
+        const seen = new Set();
+        const keys = Array.from(buckets.keys()).sort((a, b) => a - b);
+        for (const key of keys) {
+            const bucket = buckets.get(key);
+            const picked = [bucket.first, bucket.min, bucket.max, bucket.last]
+                .sort((a, b) => a.timestamp - b.timestamp);
+            for (const entry of picked) {
+                if (seen.has(entry.timestamp)) continue;
+                seen.add(entry.timestamp);
+                out.push(entry);
             }
         }
-        
-        // Always include the last entry to show current state
-        const lastEntry = history[history.length - 1];
-        if (downsampledHistory.length > 0 && 
-            downsampledHistory[downsampledHistory.length - 1].timestamp !== lastEntry.timestamp) {
-            downsampledHistory.push(lastEntry);
-        }
-        
-        return downsampledHistory;
+
+        return out;
     }
 
-    cleanupOldData() {
-        // Clean up old price history and expired events
-        const cutoffTime = Date.now() - (this.config.historyRetentionDays * 24 * 60 * 60 * 1000);
-        
-        Object.keys(this.state.priceHistory).forEach(setId => {
-            Object.keys(this.state.priceHistory[setId]).forEach(cardName => {
-                this.state.priceHistory[setId][cardName] = 
-                    this.state.priceHistory[setId][cardName].filter(entry => entry.timestamp > cutoffTime);
-            });
-        });
-    }
 
     // Public API methods
 
@@ -646,52 +707,44 @@ class MarketEngine {
         };
     }
 
+    // Full-resolution series for the window: synthesized fill followed by the real
+    // recorded points. Statistics must be computed from THIS, not from the decimated
+    // series -- reading high/low off the downsampled array is what made a 2-day high
+    // ($1.65) come out lower than the 1-day high ($1.67) for the same card, which is
+    // impossible for nested windows.
     getPriceHistory(setId, cardName, hours = 24) {
-        if (!this.state.priceHistory[setId] || !this.state.priceHistory[setId][cardName]) {
-            return [];
-        }
-        
-        const history = this.state.priceHistory[setId][cardName];
-        
-        // Check if this is a legacy set that should have backfilled historical data
-        const allSets = window.getAllSets();
-        const setData = allSets[setId];
-        const shouldBackfill = setData && !setData.isWeekly; // Only backfill for original non-weekly sets
-        
+        const cardData = this.state.cardPrices[setId] && this.state.cardPrices[setId][cardName];
+        if (!cardData) return [];
+
+        const stored = (this.state.priceHistory[setId] && this.state.priceHistory[setId][cardName]) || [];
         const now = Date.now();
-        
-        if (shouldBackfill) {
-            // Check if we need to backfill historical data for legacy sets only
-            const fiveDaysAgo = now - (120 * 60 * 60 * 1000);
-            const hasHistoricalData = history.some(entry => entry.timestamp < fiveDaysAgo);
-            
-            if (!hasHistoricalData && history.length > 0) {
-                // This legacy set needs historical data - use the ORIGINAL base price, not current price
-                const cardData = this.state.cardPrices[setId][cardName];
-                if (cardData && cardData.basePrice) {
-                    const backfilledHistory = this.generateInitialPriceHistory(cardData.basePrice);
-                    // Merge backfilled history with existing data, avoiding duplicates
-                    const existingTimestamps = new Set(history.map(entry => entry.timestamp));
-                    const newBackfillData = backfilledHistory.filter(entry => !existingTimestamps.has(entry.timestamp));
-                    this.state.priceHistory[setId][cardName] = [...newBackfillData, ...history].sort((a, b) => a.timestamp - b.timestamp);
-                    console.log(`Backfilled historical data for legacy card ${cardName} from ${setData.name} with ${newBackfillData.length} new data points`);
-                }
-            }
-        }
-        
         const cutoffTime = now - (hours * 60 * 60 * 1000);
-        const filteredHistory = this.state.priceHistory[setId][cardName]
+
+        const real = stored
             .filter(entry => entry.timestamp > cutoffTime)
             .sort((a, b) => a.timestamp - b.timestamp);
-        
-        // Downsample data based on time range for cleaner charts
-        return this.downsamplePriceHistory(filteredHistory, hours);
+
+        // Fill the window before the oldest real point with synthesized data, anchored so
+        // it meets the real series continuously.
+        const earliestReal = real.length > 0 ? real[0].timestamp : now;
+        const anchorPrice = real.length > 0 ? real[0].price : cardData.currentPrice;
+        const synthetic = (earliestReal - cutoffTime) > (60 * 1000)
+            ? this.synthesizePriceHistory(setId, cardName, cardData.basePrice, cutoffTime, earliestReal, anchorPrice)
+            : [];
+
+        return synthetic.concat(real);
+    }
+
+    // Chart-ready series: full resolution, decimated for legible rendering.
+    getChartSeries(setId, cardName, hours = 24) {
+        return this.downsamplePriceHistory(this.getPriceHistory(setId, cardName, hours), hours);
     }
 
     getChartData(setId, cardName, hours = 24) {
-        const history = this.getPriceHistory(setId, cardName, hours);
+        const full = this.getPriceHistory(setId, cardName, hours);
+        const history = this.downsamplePriceHistory(full, hours);
         
-        if (history.length === 0) {
+        if (full.length === 0) {
             return {
                 labels: [],
                 data: [],
@@ -725,13 +778,20 @@ class MarketEngine {
             };
         }
         
-        const startPrice = chartHistory[0].price;
+        // Stats come from the FULL-resolution series so they never disagree with a
+        // wider window, and so a peak dropped by decimation is still reported.
+        const startPrice = full.length > 0 ? full[0].price : currentPrice;
         const change24h = currentPrice - startPrice;
         const changePercent = startPrice > 0 ? (change24h / startPrice) * 100 : 0;
-        
+
+        let minPrice = currentPrice;
+        let maxPrice = currentPrice;
+        for (const entry of full) {
+            if (entry.price < minPrice) minPrice = entry.price;
+            if (entry.price > maxPrice) maxPrice = entry.price;
+        }
+
         const prices = chartHistory.map(entry => entry.price);
-        const minPrice = Math.min(...prices, currentPrice);
-        const maxPrice = Math.max(...prices, currentPrice);
         
         return {
             labels: chartHistory.map(entry => new Date(entry.timestamp)),
@@ -809,6 +869,38 @@ class MarketEngine {
         return { ...this.state };
     }
 
+    // Saves written before history became lazy carry 337 seeded points per card (~17KB
+    // each). Compact them on load so an existing save converges on the same footprint as
+    // a new one instead of staying oversized forever. Idempotent.
+    compactPriceHistory() {
+        const cap = this.config.maxStoredHistoryPoints;
+        let before = 0;
+        let after = 0;
+
+        Object.keys(this.state.priceHistory || {}).forEach(setId => {
+            const cards = this.state.priceHistory[setId];
+            if (!cards || typeof cards !== 'object') return;
+
+            Object.keys(cards).forEach(cardName => {
+                const history = cards[cardName];
+                if (!Array.isArray(history)) {
+                    cards[cardName] = [];
+                    return;
+                }
+                before += history.length;
+                cards[cardName] = history.length > cap
+                    ? history.slice(history.length - cap)
+                    : history;
+                after += cards[cardName].length;
+            });
+        });
+
+        if (before !== after) {
+            console.log(`Compacted stored price history: ${before} -> ${after} points`);
+        }
+        return { before, after };
+    }
+
     setState(newState) {
         // Preserve initialized AI buyers when restoring state
         const preservedAIBuyers = this.state?.aiBuyers || [];
@@ -830,6 +922,8 @@ class MarketEngine {
             this.initializeAIBuyers();
         }
         
+        this.compactPriceHistory();
+
         // Restart market systems (startPriceUpdates clears any existing interval first)
         this.startPriceUpdates();
     }
@@ -1696,16 +1790,8 @@ class MarketEngine {
     }
     
     getCardRarity(setId, cardName) {
-        const allSets = window.getAllSets();
-        const setData = allSets[setId];
-        if (!setData || !setData.cards) return 'common';
-        
-        for (const rarity in setData.cards) {
-            if (setData.cards[rarity].includes(cardName)) {
-                return rarity;
-            }
-        }
-        return 'common';
+        // Indexed lookup (see lookupCardRarity in data.js).
+        return window.lookupCardRarity(setId, cardName) || 'common';
     }
     
     shouldBuyerPurchaseListing(buyer, listing) {
@@ -1914,6 +2000,12 @@ class MarketEngine {
         if (!this.state.sellOrders || this.state.sellOrders.length === 0) {
             return;
         }
+
+        // Drop finished orders after a day. They were previously kept forever: the array
+        // only ever grew, was re-filtered every tick, and rode along in every save.
+        const staleCutoff = Date.now() - (24 * 60 * 60 * 1000);
+        this.state.sellOrders = this.state.sellOrders.filter(order =>
+            order.isActive || (order.completedAt || order.createdAt || 0) > staleCutoff);
         
         const activeOrders = this.state.sellOrders.filter(order => order.isActive);
         
@@ -2073,6 +2165,4 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = { MarketEngine };
 } else {
     window.MarketEngine = MarketEngine;
-    // Expose for debugging
-    window.debugMarket = null; // Will be set by game engine
 }

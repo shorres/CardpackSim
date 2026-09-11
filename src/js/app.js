@@ -3,10 +3,14 @@ class TCGPackSimulator {
     constructor() {
         this.gameEngine = null;
         this.uiManager = null;
-        this.updater = null;
     }
 
-    initialize() {
+    async initialize() {
+        // Read the save document off disk first. Everything downstream (GameEngine,
+        // getAllSets, MarketEngine) reads it synchronously from memory.
+        const loadResult = await StorageManager.initialize();
+        console.log('Save loaded:', loadResult);
+
         // Initialize the game engine (which includes market engine)
         this.gameEngine = new GameEngine();
         
@@ -15,6 +19,10 @@ class TCGPackSimulator {
         if (savedMarketState) {
             this.gameEngine.marketEngine.setState(savedMarketState);
         }
+
+        // Drop old weekly sets the player holds no cards from, so the set list (and every
+        // price/listing structure keyed off it) stops growing by one set per week forever.
+        this.gameEngine.storageManager.pruneWeeklySets(this.gameEngine.state.collection);
         
         // Initialize the UI manager
         this.uiManager = new UIManager(this.gameEngine);
@@ -23,21 +31,33 @@ class TCGPackSimulator {
         window.gameEngine = this.gameEngine;
         window.uiManager = this.uiManager;
         
-        // Expose emergency reset functions globally
-        window.emergencyReset = () => this.emergencyReset();
-        window.clearAllData = () => this.clearAllData();
+        // Destructive debug helpers: dev builds only. Players get proper corrupt-save
+        // recovery via the backup file, and File > New Game for a deliberate reset.
+        if (window.electronAPI?.isDev) {
+            window.emergencyReset = () => this.emergencyReset();
+            window.clearAllData = () => this.clearAllData();
+        }
         
+        // Route save failures to the existing toast system instead of console-only.
+        StorageManager.setErrorHandler((message, type) => {
+            this.uiManager.showNotification(message, type || 'error');
+        });
+
         // Initial render
         this.uiManager.refreshUI();
+
+        if (loadResult && loadResult.warning) {
+            this.uiManager.showNotification(loadResult.warning, 'error');
+        }
+        if (loadResult && loadResult.error) {
+            this.uiManager.showNotification('Could not read your save: ' + loadResult.error, 'error');
+        }
         
         // Set up conservative cache management for glyph art optimization
         this.setupPerformanceOptimizations();
         
         // Set up Electron IPC listeners for new game functionality
         this.setupElectronListeners();
-        
-        // Initialize simple update checker
-        this.setupSimpleUpdater();
     }
 
     reset() {
@@ -47,32 +67,14 @@ class TCGPackSimulator {
     }
 
     setupPerformanceOptimizations() {
-        // Conservative cache management for collection views only
+        // The glyph-art cache holds small deterministic HTML strings keyed on card+rarity,
+        // so it is cheap to keep and is what makes collection re-renders fast. It used to be
+        // trimmed to 50 entries on every tab switch, which guaranteed thrashing for a
+        // 128-card set; just trim to its own bound periodically.
         if (window.glyphArtGenerator) {
-            // Clear cache on tab changes to prevent memory buildup
-            const originalMethod = this.uiManager.switchTab;
-            if (originalMethod) {
-                this.uiManager.switchTab = (tabName) => {
-                    if (tabName !== 'collection') {
-                        // Trim excess entries rather than wiping the cache entirely,
-                        // so screenshots remain available when the user returns to the collection tab.
-                        window.glyphArtGenerator.manageCacheSize(50);
-                    }
-                    return originalMethod.call(this.uiManager, tabName);
-                };
-            }
-            
-            // Clean up cache on page unload
-            window.addEventListener('beforeunload', () => {
-                window.glyphArtGenerator.clearPerformanceCache();
-            });
-            
-            // Conservative memory management - clean every 2 minutes
             setInterval(() => {
-                if (window.glyphArtGenerator.getCacheStats().imageCache > 50) {
-                    window.glyphArtGenerator.manageCacheSize(50);
-                }
-            }, 120000); // 2 minutes
+                window.glyphArtGenerator.manageCacheSize();
+            }, 120000);
         }
     }
 
@@ -88,24 +90,6 @@ class TCGPackSimulator {
             window.electronAPI.onResetGame(() => {
                 this.reset();
             });
-        }
-    }
-
-    setupSimpleUpdater() {
-        // Initialize simple update checker if available
-        if (window.SimpleUpdater) {
-            this.updater = new SimpleUpdater();
-            this.updater.initialize();
-            
-            // Make it globally available for debugging
-            window.simpleUpdater = this.updater;
-            
-            // Add debug commands for testing
-            if (typeof window !== 'undefined') {
-                window.checkForUpdates = () => this.updater.manualCheck();
-                window.resetDismissedUpdates = () => this.updater.resetDismissed();
-                window.getUpdaterStatus = () => this.updater.getStatus();
-            }
         }
     }
 
@@ -226,7 +210,9 @@ class TCGPackSimulator {
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     window.tcgApp = new TCGPackSimulator();
-    window.tcgApp.initialize();
+    window.tcgApp.initialize().catch((error) => {
+        console.error('Startup failed:', error);
+    });
 });
 
 // Export for use in other modules

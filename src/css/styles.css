@@ -425,9 +425,13 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:foc
     text-shadow: 0 0 2px currentColor;
 }
 
+/* Animates opacity only. It previously animated `filter` as well, which is not a
+   compositable property, so every visible glyph element repainted on every frame --
+   a continuous GPU/CPU load even with the app sitting idle. The static drop-shadow and
+   blur are still applied by the rule above; only the pulse is animated. */
 @keyframes mystical-pulse {
-    0% { opacity: 1; filter: drop-shadow(0 0 8px currentColor) blur(0.5px); }
-    100% { opacity: 0.6; filter: drop-shadow(0 0 12px currentColor) blur(1px); }
+    0% { opacity: 1; }
+    100% { opacity: 0.6; }
 }
 
 /* Hover effects for glyph art */
@@ -1430,4 +1434,31 @@ canvas {
 #modal-back-btn:hover {
     background-color: var(--bg-quaternary) !important;
     transform: translateX(-2px);
+}
+/* ---------------------------------------------------------------------------
+   Idle cost containment for the collection grid.
+
+   The grid can hold well over a hundred cards, each containing ~14 absolutely
+   positioned, transformed, blurred glyph elements, several of which run infinite
+   animations. Every one of those stayed live even while scrolled out of view.
+   content-visibility lets the browser skip rendering (and animating) off-screen
+   cards entirely; contain-intrinsic-size keeps the scrollbar honest by giving
+   skipped cards their real height (h-40 = 10rem).
+   --------------------------------------------------------------------------- */
+#collection-display {
+    contain: content;
+}
+
+#collection-display .card-face {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 10rem;
+}
+
+/* Respect the OS "reduce motion" setting: stop the continuous glyph animations. */
+@media (prefers-reduced-motion: reduce) {
+    .glyph-art-mystical .glyph-element,
+    .card-face.foil .glyph-art .glyph-element,
+    .rarity-mythic .card-face:hover .glyph-art .glyph-element {
+        animation: none;
+    }
 }

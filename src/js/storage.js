@@ -1,167 +1,354 @@
-// Local Storage Management
+// Save/load management.
+//
+// The save used to be three separate localStorage keys written on every player action.
+// Two problems: the market blob alone was ~3MB on a fresh game and silently blew past the
+// ~5MB localStorage quota after a few weeks of play (QuotaExceededError was swallowed to
+// console, so players lost progress with no indication), and three independent writes meant
+// a partial failure left the collection advanced against a stale market.
+//
+// Now: one versioned document, held in memory, flushed to a single file in the app's
+// userData directory through the main process (atomic rename + backup). The public methods
+// stay synchronous so callers -- including getAllSets(), which runs on hot paths -- are
+// unchanged; only initialize() is async.
+
+const SAVE_SCHEMA_VERSION = 1;
+const FLUSH_DEBOUNCE_MS = 2000;
+
+// Single in-memory document shared by every StorageManager instance. data.js constructs
+// throwaway instances via `window.storageManager || new StorageManager()`, so this cannot
+// live on the instance.
+const saveDoc = {
+    schemaVersion: SAVE_SCHEMA_VERSION,
+    game: null,
+    market: null,
+    weeklySets: {},
+    // Collection entries for sets whose definition is no longer available. Parked here
+    // rather than deleted -- see loadState().
+    orphanedCollections: {}
+};
+
+let docLoaded = false;
+// Bumped whenever the weekly-set store changes, so getAllSets() can memoize safely.
+let weeklySetsRevision = 0;
+let flushTimer = null;
+let lastFlushFailed = false;
+
+function fileApiAvailable() {
+    return !!(window.electronAPI && typeof window.electronAPI.saveGame === 'function');
+}
+
 class StorageManager {
     constructor() {
+        // Legacy localStorage keys: read once for migration, and still the storage backend
+        // when running outside Electron (plain browser / dev).
         this.storageKey = 'tcgSimState';
         this.marketStorageKey = 'tcgSimMarketState';
         this.weeklySetsKey = 'tcgSimWeeklySets';
     }
 
-    saveState(state) {
-        try {
-            localStorage.setItem(this.storageKey, JSON.stringify(state));
-        } catch (error) {
-            console.error('Failed to save state to localStorage:', error);
-        }
-    }
+    // Called once from app.js before the GameEngine is constructed.
+    static async initialize() {
+        if (docLoaded) return { source: 'already-loaded' };
 
-    saveWeeklySet(setId, setData) {
-        try {
-            const existingSets = this.loadWeeklySets();
-            
-            // Add lifecycle information when storing
-            const enrichedSetData = {
-                ...setData,
-                storedDate: Date.now(),
-                lifecycle: 'featured', // Start as featured
-                featuredUntil: Date.now() + (7 * 24 * 60 * 60 * 1000), // 1 week
-                standardUntil: Date.now() + (30 * 24 * 60 * 60 * 1000), // 30 days
-                rotateDate: Date.now() + (30 * 24 * 60 * 60 * 1000) // Rotate to legacy after 30 days
-            };
-            
-            existingSets[setId] = enrichedSetData;
-            localStorage.setItem(this.weeklySetsKey, JSON.stringify(existingSets));
-            console.log(`Stored weekly set: ${setId}`);
-        } catch (error) {
-            console.error('Failed to save weekly set to localStorage:', error);
+        if (!fileApiAvailable()) {
+            StorageManager.loadFromLocalStorage();
+            docLoaded = true;
+            return { source: 'localStorage' };
         }
-    }
 
-    loadWeeklySets() {
+        let result;
         try {
-            const savedSets = localStorage.getItem(this.weeklySetsKey);
-            return savedSets ? JSON.parse(savedSets) : {};
+            result = await window.electronAPI.loadGame();
         } catch (error) {
-            console.error('Failed to load weekly sets from localStorage:', error);
-            return {};
+            console.error('load-game IPC failed:', error);
+            result = { ok: false, error: String(error) };
         }
-    }
 
-    updateSetLifecycle(setId, newLifecycle) {
-        try {
-            const existingSets = this.loadWeeklySets();
-            if (existingSets[setId]) {
-                existingSets[setId].lifecycle = newLifecycle;
-                localStorage.setItem(this.weeklySetsKey, JSON.stringify(existingSets));
+        if (result && result.ok && result.data) {
+            const validated = StorageManager.validate(result.data);
+            if (validated) {
+                Object.assign(saveDoc, validated);
+                weeklySetsRevision++;
+                docLoaded = true;
+                return { source: result.source, warning: result.warning };
             }
-        } catch (error) {
-            console.error('Failed to update set lifecycle:', error);
+            console.error('Save document failed validation; falling back.');
         }
+
+        // No usable save file: migrate the legacy localStorage save if one is present.
+        const migrated = StorageManager.loadFromLocalStorage();
+        docLoaded = true;
+
+        if (migrated) {
+            weeklySetsRevision++;
+            console.log('Migrated localStorage save to file-based save.');
+            StorageManager.flushNow();
+            return { source: 'migrated-from-localStorage' };
+        }
+
+        return {
+            source: (result && result.ok) ? 'new' : 'error',
+            error: (result && result.ok) ? undefined : (result && result.error)
+        };
+    }
+
+    static loadFromLocalStorage() {
+        let found = false;
+        try {
+            const game = localStorage.getItem('tcgSimState');
+            const market = localStorage.getItem('tcgSimMarketState');
+            const weekly = localStorage.getItem('tcgSimWeeklySets');
+            if (game) { saveDoc.game = JSON.parse(game); found = true; }
+            if (market) { saveDoc.market = JSON.parse(market); found = true; }
+            if (weekly) { saveDoc.weeklySets = JSON.parse(weekly) || {}; found = true; }
+        } catch (error) {
+            console.error('Could not read legacy localStorage save:', error);
+        }
+        return found;
+    }
+
+    // Reject a structurally wrong document rather than shallow-merging garbage into
+    // live state.
+    static validate(doc) {
+        if (!doc || typeof doc !== 'object') return null;
+
+        const out = {
+            schemaVersion: typeof doc.schemaVersion === 'number' ? doc.schemaVersion : SAVE_SCHEMA_VERSION,
+            game: null,
+            market: null,
+            weeklySets: {},
+            orphanedCollections: {}
+        };
+
+        if (doc.game && typeof doc.game === 'object') {
+            if (doc.game.collection && typeof doc.game.collection !== 'object') return null;
+            if (doc.game.unopenedPacks && typeof doc.game.unopenedPacks !== 'object') return null;
+            out.game = doc.game;
+        }
+        if (doc.market && typeof doc.market === 'object') out.market = doc.market;
+        if (doc.weeklySets && typeof doc.weeklySets === 'object') out.weeklySets = doc.weeklySets;
+        if (doc.orphanedCollections && typeof doc.orphanedCollections === 'object') {
+            out.orphanedCollections = doc.orphanedCollections;
+        }
+
+        return out;
+    }
+
+    // Hook for the UI to surface write failures.
+    static setErrorHandler(fn) {
+        StorageManager.onError = fn;
+    }
+
+    static scheduleFlush() {
+        if (flushTimer) clearTimeout(flushTimer);
+        flushTimer = setTimeout(() => {
+            flushTimer = null;
+            StorageManager.flushNow();
+        }, FLUSH_DEBOUNCE_MS);
+    }
+
+    static flushNow() {
+        if (flushTimer) {
+            clearTimeout(flushTimer);
+            flushTimer = null;
+        }
+
+        saveDoc.schemaVersion = SAVE_SCHEMA_VERSION;
+
+        if (!fileApiAvailable()) {
+            try {
+                localStorage.setItem('tcgSimState', JSON.stringify(saveDoc.game));
+                localStorage.setItem('tcgSimMarketState', JSON.stringify(saveDoc.market));
+                localStorage.setItem('tcgSimWeeklySets', JSON.stringify(saveDoc.weeklySets));
+                lastFlushFailed = false;
+            } catch (error) {
+                StorageManager.reportFailure(error && error.name === 'QuotaExceededError'
+                    ? 'browser storage is full'
+                    : String(error));
+            }
+            return Promise.resolve();
+        }
+
+        return Promise.resolve(window.electronAPI.saveGame(saveDoc))
+            .then((result) => {
+                if (result && result.ok) {
+                    if (lastFlushFailed && StorageManager.onError) {
+                        StorageManager.onError('Saving is working again.', 'success');
+                    }
+                    lastFlushFailed = false;
+                } else {
+                    StorageManager.reportFailure((result && result.error) || 'unknown error');
+                }
+            })
+            .catch((error) => StorageManager.reportFailure(String(error)));
+    }
+
+    static reportFailure(message) {
+        console.error('Save failed:', message);
+        // Only nag once per failure streak.
+        if (!lastFlushFailed && StorageManager.onError) {
+            StorageManager.onError('Could not save your progress: ' + message, 'error');
+        }
+        lastFlushFailed = true;
+    }
+
+    // ---- synchronous API used by the rest of the app ----
+
+    saveState(state) {
+        saveDoc.game = state;
+        StorageManager.scheduleFlush();
     }
 
     loadState() {
-        try {
-            const savedState = localStorage.getItem(this.storageKey);
-            if (savedState) {
-                const parsedState = JSON.parse(savedState);
-                
-                // Ensure all sets are represented in the state
-                const allSets = window.getAllSets ? window.getAllSets() : (window.TCG_SETS || {});
-                Object.keys(allSets).forEach(setId => {
-                    if (!parsedState.unopenedPacks || typeof parsedState.unopenedPacks[setId] === 'undefined') {
-                        if (!parsedState.unopenedPacks) parsedState.unopenedPacks = {};
-                        parsedState.unopenedPacks[setId] = 0;
-                    }
-                    if (!parsedState.collection || !parsedState.collection[setId]) {
-                        if (!parsedState.collection) parsedState.collection = {};
-                        parsedState.collection[setId] = {};
-                    }
-                });
-                
-                // Clean up obsolete sets (e.g., old weekly sets that are no longer active)
-                if (parsedState.unopenedPacks) {
-                    Object.keys(parsedState.unopenedPacks).forEach(setId => {
-                        if (!allSets[setId]) {
-                            console.log(`Removing obsolete set ${setId} from state`);
-                            delete parsedState.unopenedPacks[setId];
-                        }
-                    });
-                }
-                
-                if (parsedState.collection) {
-                    Object.keys(parsedState.collection).forEach(setId => {
-                        if (!allSets[setId]) {
-                            console.log(`Removing obsolete set ${setId} collection from state`);
-                            delete parsedState.collection[setId];
-                        }
-                    });
-                }
-                
-                return parsedState;
-            }
-        } catch (error) {
-            console.error("Could not load state from localStorage:", error);
-        }
-        
-        return null;
-    }
+        const parsedState = saveDoc.game;
+        if (!parsedState) return null;
 
-    clearState() {
-        try {
-            localStorage.removeItem(this.storageKey);
-            localStorage.removeItem(this.marketStorageKey);
-            localStorage.removeItem(this.weeklySetsKey);
-        } catch (error) {
-            console.error('Failed to clear state from localStorage:', error);
-        }
+        // Ensure every known set is represented, and drop sets that no longer exist.
+        const allSets = window.getAllSets ? window.getAllSets() : (window.TCG_SETS || {});
+
+        if (!parsedState.unopenedPacks) parsedState.unopenedPacks = {};
+        if (!parsedState.collection) parsedState.collection = {};
+
+        Object.keys(allSets).forEach(setId => {
+            if (typeof parsedState.unopenedPacks[setId] === 'undefined') parsedState.unopenedPacks[setId] = 0;
+            if (!parsedState.collection[setId]) parsedState.collection[setId] = {};
+        });
+
+        Object.keys(parsedState.unopenedPacks).forEach(setId => {
+            if (!allSets[setId]) delete parsedState.unopenedPacks[setId];
+        });
+
+        // A set can disappear from allSets (renamed in an update, or a weekly set whose
+        // definition is no longer stored). The cards cannot be shown or priced without it,
+        // but this used to *delete* them outright -- permanent, silent loss of things the
+        // player earned. Park them instead, so a later version can restore them.
+        Object.keys(parsedState.collection).forEach(setId => {
+            if (allSets[setId]) return;
+
+            const orphaned = parsedState.collection[setId] || {};
+            const cardCount = Object.keys(orphaned).length;
+            if (cardCount > 0) {
+                saveDoc.orphanedCollections[setId] = orphaned;
+                console.warn(`Set "${setId}" has no definition; parking ${cardCount} ` +
+                    'collection entr' + (cardCount === 1 ? 'y' : 'ies') +
+                    ' in orphanedCollections instead of deleting them.');
+            }
+            delete parsedState.collection[setId];
+        });
+
+        return parsedState;
     }
 
     saveMarketState(marketState) {
-        try {
-            localStorage.setItem(this.marketStorageKey, JSON.stringify(marketState));
-        } catch (error) {
-            console.error('Failed to save market state to localStorage:', error);
-        }
+        saveDoc.market = marketState;
+        StorageManager.scheduleFlush();
     }
 
     loadMarketState() {
-        try {
-            const savedState = localStorage.getItem(this.marketStorageKey);
-            if (savedState) {
-                return JSON.parse(savedState);
-            }
-        } catch (error) {
-            console.error("Could not load market state from localStorage:", error);
-        }
-        
-        return null;
+        return saveDoc.market || null;
     }
 
-    // Emergency reset - completely clear all save data
+    saveWeeklySet(setId, setData) {
+        saveDoc.weeklySets[setId] = {
+            ...setData,
+            storedDate: Date.now(),
+            lifecycle: 'featured',
+            featuredUntil: Date.now() + (7 * 24 * 60 * 60 * 1000),
+            standardUntil: Date.now() + (30 * 24 * 60 * 60 * 1000),
+            rotateDate: Date.now() + (30 * 24 * 60 * 60 * 1000)
+        };
+        weeklySetsRevision++;
+        StorageManager.scheduleFlush();
+        console.log('Stored weekly set: ' + setId);
+    }
+
+    loadWeeklySets() {
+        return saveDoc.weeklySets || {};
+    }
+
+    getWeeklySetsRevision() {
+        return weeklySetsRevision;
+    }
+
+    updateSetLifecycle(setId, newLifecycle) {
+        if (saveDoc.weeklySets[setId]) {
+            saveDoc.weeklySets[setId].lifecycle = newLifecycle;
+            weeklySetsRevision++;
+            StorageManager.scheduleFlush();
+        }
+    }
+
+    // Remove old weekly sets the player holds no cards from. Without this the set list grows
+    // by one set per week forever, and every price / listing / history structure is keyed
+    // off it.
+    pruneWeeklySets(collection, keepDays = 60) {
+        const now = Date.now();
+        const removed = [];
+
+        Object.keys(saveDoc.weeklySets).forEach(setId => {
+            const set = saveDoc.weeklySets[setId];
+            const age = now - (set.storedDate || now);
+            if (age < keepDays * 24 * 60 * 60 * 1000) return;
+
+            const owned = collection && collection[setId];
+            const ownsCards = owned && Object.keys(owned).some(cardName => {
+                const entry = owned[cardName];
+                return entry && ((entry.count || 0) > 0 || (entry.foilCount || 0) > 0);
+            });
+            if (ownsCards) return;
+
+            delete saveDoc.weeklySets[setId];
+            removed.push(setId);
+        });
+
+        if (removed.length > 0) {
+            console.log('Pruned ' + removed.length + ' empty legacy weekly set(s): ' + removed.join(', '));
+            weeklySetsRevision++;
+            StorageManager.scheduleFlush();
+        }
+        return removed;
+    }
+
+    clearState() {
+        saveDoc.game = null;
+        saveDoc.market = null;
+        StorageManager.flushNow();
+    }
+
     clearAllData() {
+        saveDoc.game = null;
+        saveDoc.market = null;
+        saveDoc.weeklySets = {};
+        weeklySetsRevision++;
         try {
-            localStorage.removeItem(this.storageKey);
-            localStorage.removeItem(this.marketStorageKey);
-            localStorage.removeItem(this.weeklySetsKey);
-            console.log('🗑️ All save data cleared');
-            return true;
+            localStorage.removeItem('tcgSimState');
+            localStorage.removeItem('tcgSimMarketState');
+            localStorage.removeItem('tcgSimWeeklySets');
         } catch (error) {
-            console.error('Failed to clear save data:', error);
-            return false;
+            console.warn('Could not clear legacy localStorage keys:', error);
         }
+        StorageManager.flushNow();
+        console.log('All save data cleared');
+        return true;
     }
 
-    // Safe reset that preserves weekly sets but clears game state
     resetGameState() {
-        try {
-            localStorage.removeItem(this.storageKey);
-            localStorage.removeItem(this.marketStorageKey);
-            console.log('🔄 Game state reset (weekly sets preserved)');
-            return true;
-        } catch (error) {
-            console.error('Failed to reset game state:', error);
-            return false;
-        }
+        saveDoc.game = null;
+        saveDoc.market = null;
+        StorageManager.flushNow();
+        console.log('Game state reset (weekly sets preserved)');
+        return true;
     }
+}
+
+StorageManager.onError = null;
+
+// Last-gasp write on window close. The IPC message is dispatched synchronously even though
+// the handler resolves asynchronously, so the main process still receives it.
+if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', () => {
+        if (flushTimer) StorageManager.flushNow();
+    });
 }
 
 // Export for use in other modules
