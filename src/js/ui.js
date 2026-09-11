@@ -1,4 +1,17 @@
 // UI Rendering and Interaction Management
+
+// Escape a value for interpolation into HTML text or a quoted attribute.
+// Card and set names round-trip through the save file, so they are not trusted
+// input even though the generators only produce plain names today.
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 class UIManager {
     constructor(gameEngine) {
         this.gameEngine = gameEngine;
@@ -16,8 +29,50 @@ class UIManager {
         
         this.initializeElements();
         this.setupEventListeners();
+        this.setupDelegatedActions();
         this.setupPackTearing();
         this.initializeThemes();
+    }
+
+    // Coalesce rapid re-render triggers (typing) into one render. renderCollection and
+    // renderPortfolio each clear and rebuild their entire list, so running them per
+    // keystroke meant a full rebuild for every character typed.
+    debounceRender(key, fn, delay = 250) {
+        if (!this._debounceTimers) this._debounceTimers = {};
+        clearTimeout(this._debounceTimers[key]);
+        this._debounceTimers[key] = setTimeout(fn, delay);
+    }
+
+    // Single delegated click handler for buttons rendered inside innerHTML templates.
+    // These used to be inline onclick="uiManager.foo(cardName)" attributes, which
+    // built JS source out of card names and are blocked by the CSP.
+    setupDelegatedActions() {
+        document.body.addEventListener('click', (e) => {
+            const el = e.target.closest('[data-action]');
+            if (!el) return;
+
+            const { action, setId, cardName, listingId, index } = el.dataset;
+            const isFoil = el.dataset.foil === 'true';
+
+            switch (action) {
+                case 'wishlist-add-from-details':
+                    this.addToWishlistFromDetails(setId, cardName, false);
+                    break;
+                case 'show-price-chart':
+                    this.showPriceChart(setId, cardName);
+                    break;
+                case 'buy-listing':
+                    if (listingId) {
+                        this.purchaseFromPlayer(setId, cardName, isFoil, listingId);
+                    } else {
+                        this.openBuyModal(setId, cardName, isFoil, Number(index));
+                    }
+                    break;
+                case 'wishlist-remove':
+                    this.removeFromWishlist(setId, cardName, isFoil);
+                    break;
+            }
+        });
     }
 
     initializeElements() {
@@ -364,7 +419,7 @@ class UIManager {
                 }[card.rarity] || 'text-gray-300';
                 
                 item.innerHTML = `
-                    <div class="font-medium text-white">${card.name}</div>
+                    <div class="font-medium text-white">${escapeHtml(card.name)}</div>
                     <div class="text-xs text-gray-400 mt-1">
                         <span class="${rarityColor} font-medium">${card.rarity.toUpperCase()}</span>
                         <span class="mx-2">•</span>
@@ -531,7 +586,7 @@ class UIManager {
                 }[card.rarity] || 'text-gray-300';
                 
                 item.innerHTML = `
-                    <div class="font-medium text-white">${card.name}</div>
+                    <div class="font-medium text-white">${escapeHtml(card.name)}</div>
                     <div class="text-xs text-gray-400 mt-1">
                         <span class="${rarityColor} font-medium">${card.rarity.toUpperCase()}</span>
                         <span class="mx-2">•</span>
@@ -737,7 +792,7 @@ class UIManager {
         // Portfolio filter/search/sort listeners
         this.portfolioSearch.addEventListener('input', (e) => {
             this.portfolioFilters.search = e.target.value.toLowerCase();
-            this.renderPortfolio();
+            this.debounceRender('portfolio', () => this.renderPortfolio());
         });
         
         this.portfolioSort.addEventListener('change', (e) => {
@@ -760,7 +815,7 @@ class UIManager {
         // Collection filter/search/sort listeners
         this.collectionSearch.addEventListener('input', (e) => {
             this.collectionFilters.search = e.target.value.toLowerCase();
-            this.renderCollection();
+            this.debounceRender('collection', () => this.renderCollection());
         });
         
         this.collectionSort.addEventListener('change', (e) => {
@@ -1005,11 +1060,9 @@ class UIManager {
             this.renderCollection(); // Refresh collection when switching to tab
         } else if (tabName === 'market') {
             this.marketTab.classList.add('active');
-            this.marketContent.classList.remove('hidden'); // Update stats first
-            this.renderPortfolio(); // Refresh portfolio when switching to tab
-            this.renderMarketSummary();
-            this.renderHotCards();
-            this.renderPlayerListings(); // Show player's active listings and sell orders
+            this.marketContent.classList.remove('hidden');
+            // currentTab is already set above, so this renders the full market view.
+            this.renderMarketViews();
         }
     }
 
@@ -1129,7 +1182,7 @@ class UIManager {
                         <div class="absolute top-1 right-1 bg-yellow-400 text-black text-xs font-bold rounded-full px-2 py-1">
                             ${badgeText}
                         </div>
-                        <div class="font-bold text-lg text-white">${set.name}</div>
+                        <div class="font-bold text-lg text-white">${escapeHtml(set.name)}</div>
                         <div class="text-2xl text-white">${count}x</div>
                         <div class="text-sm text-yellow-200">Click to Open</div>
                         ${set.lifecycle === 'featured' ? `
@@ -1142,7 +1195,7 @@ class UIManager {
                     // Normal styling for regular sets
                     packElement.className = 'pack p-4 rounded-lg text-center shadow-md';
                     packElement.innerHTML = `
-                        <div class="font-bold text-lg">${set.name}</div>
+                        <div class="font-bold text-lg">${escapeHtml(set.name)}</div>
                         <div class="text-2xl">${count}x</div>
                         <div class="text-sm text-gray-400">Click to Open</div>
                     `;
@@ -1361,18 +1414,13 @@ class UIManager {
         this.collectionProgress.textContent = `${progress.collected} / ${progress.total} (${progress.percentage}%)`;
     }
 
-    createCardFaceHTML(name, rarity, enableSmartOptimization = false) {
-        // Generate glyph art for this card (with fallback if not loaded)
+    createCardFaceHTML(name, rarity) {
+        // Glyph art is deterministic per card+rarity, so it always comes from the cache --
+        // there is no reason for the collection view and the pack-opening view to take
+        // different paths here.
         let artHTML = '';
         if (window.glyphArtGenerator) {
-            if (enableSmartOptimization) {
-                // Use smart screenshot optimization for collection views
-                artHTML = window.glyphArtGenerator.generateScreenshotWhenNeeded(name, rarity, 300, 200);
-            } else {
-                // Use regular DOM rendering for pack opening and single cards
-                const artData = window.glyphArtGenerator.generateArt(name, rarity);
-                artHTML = window.glyphArtGenerator.renderArtHTML(artData);
-            }
+            artHTML = window.glyphArtGenerator.getCardArtHTML(name, rarity);
         } else {
             // Fallback placeholder
             artHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: rgba(255,255,255,0.3); font-size: 2em;">✨</div>';
@@ -1387,11 +1435,11 @@ class UIManager {
                 border-radius: 6px;
                 overflow: hidden;
                 background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
-            " data-card-rarity="${rarity}">
+            " data-card-rarity="${escapeHtml(rarity)}">
                 ${artHTML}
             </div>
             <div class="card-text-area">
-                <div class="font-semibold text-sm leading-tight">${name}</div>
+                <div class="font-semibold text-sm leading-tight">${escapeHtml(name)}</div>
                 <div class="text-xs self-end capitalize text-gray-400">${rarity}</div>
             </div>
         `;
@@ -1426,15 +1474,15 @@ class UIManager {
             countDisplay += `
                 <div class="absolute bottom-1 right-1 flex gap-1">
                     <button class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-2 py-1 rounded sell-card-btn" 
-                            data-set-id="${setId || this.collectionSetSelector.value}" 
-                            data-card-name="${name}">
+                            data-set-id="${escapeHtml(setId || this.collectionSetSelector.value)}" 
+                            data-card-name="${escapeHtml(name)}">
                         💰 Sell
                     </button>
                 </div>
             `;
         }
 
-        element.innerHTML = this.createCardFaceHTML(name, rarity, true) + countDisplay; // Enable optimization for collection
+        element.innerHTML = this.createCardFaceHTML(name, rarity) + countDisplay;
         
         // Add data attributes for screenshot optimization
         element.setAttribute('data-card-name', name);
@@ -1454,42 +1502,43 @@ class UIManager {
 
     // Market and Trading Methods
 
-    startMarketUpdates() {
-        // Update market data every 30 seconds
-        this.marketUpdateInterval = setInterval(() => {
-            this.updatePlayerStats();
-            this.renderPortfolio();
-            this.renderMarketSummary();
-            this.renderHotCards();
-            this.renderMarketListings();
-            this.renderWishlist();
-            this.renderMarketActivity();
-            this.renderPlayerListings();
-        }, 30000);
-        
-        // Initial render
+    // Re-render the market views. Skipped entirely when the market tab is not visible:
+    // renderMarketListings walks every card of every set and rebuilds thousands of DOM
+    // nodes, and this used to run every 30s regardless of what the player was looking at.
+    renderMarketViews() {
         this.updatePlayerStats();
+        if (this.currentTab !== 'market') return;
+
         this.renderPortfolio();
         this.renderMarketSummary();
         this.renderHotCards();
-        this.populateSetFilters();
         this.renderMarketListings();
         this.renderWishlist();
         this.renderMarketActivity();
         this.renderPlayerListings();
     }
 
+    startMarketUpdates() {
+        // Guard against a second interval, as startWeeklyCountdown() already does.
+        if (this.marketUpdateInterval) {
+            clearInterval(this.marketUpdateInterval);
+        }
+
+        // Update market data every 30 seconds
+        this.marketUpdateInterval = setInterval(() => {
+            this.renderMarketViews();
+        }, 30000);
+        
+        // Initial render. populateSetFilters fills a <select> that must exist regardless
+        // of the active tab; the rest is gated on the market tab being visible.
+        this.populateSetFilters();
+        this.renderMarketViews();
+    }
+
     onMarketUpdate() {
-        // Called by market engine when prices update
-        this.updatePlayerStats();
-        this.renderPortfolio();
-        this.renderMarketSummary();
-        this.renderHotCards();
-        this.renderMarketListings();
-        this.renderWishlist();
-        this.renderMarketActivity();
-        this.renderPlayerListings();
-        if (this.selectedCard) {
+        // Called by the market engine when prices update (every 60s).
+        this.renderMarketViews();
+        if (this.currentTab === 'market' && this.selectedCard) {
             this.renderCardDetailsPanel();
         }
     }
@@ -1568,8 +1617,8 @@ class UIManager {
             const weekDisplay = setData && setData.isWeekly && setData.weekNumber ? ` (#${setData.weekNumber})` : '';
             
             cardElement.innerHTML = `
-                <div class="flex-1 cursor-pointer chart-card-trigger" data-set-id="${card.setId}" data-card-name="${card.cardName}">
-                    <div class="font-medium text-sm">${card.cardName}${weekDisplay}</div>
+                <div class="flex-1 cursor-pointer chart-card-trigger" data-set-id="${escapeHtml(card.setId)}" data-card-name="${escapeHtml(card.cardName)}">
+                    <div class="font-medium text-sm">${escapeHtml(card.cardName)}${weekDisplay}</div>
                     <div class="text-xs text-gray-400">
                         ${card.regularCount > 0 ? `${card.regularCount}x regular ` : ''}
                         ${card.foilCount > 0 ? `${card.foilCount}x foil ` : ''}
@@ -1584,13 +1633,13 @@ class UIManager {
                 </div>
                 <div class="flex gap-1">
                     <button class="chart-btn bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-2 py-1 rounded"
-                            data-set-id="${card.setId}" 
-                            data-card-name="${card.cardName}">
+                            data-set-id="${escapeHtml(card.setId)}" 
+                            data-card-name="${escapeHtml(card.cardName)}">
                         📊
                     </button>
                     <button class="sell-portfolio-btn bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-2 py-1 rounded"
-                            data-set-id="${card.setId}" 
-                            data-card-name="${card.cardName}">
+                            data-set-id="${escapeHtml(card.setId)}" 
+                            data-card-name="${escapeHtml(card.cardName)}">
                         💰
                     </button>
                 </div>
@@ -1831,8 +1880,8 @@ class UIManager {
             const eventBadge = card.event ? `<span class="hot-card-event text-xs px-1 rounded mr-1">Event: ${card.event}</span>` : '';
             
             cardElement.innerHTML = `
-                <div class="flex-1 cursor-pointer" data-set-id="${card.setId}" data-card-name="${card.cardName}">
-                    <div class="text-sm font-medium">${card.cardName}</div>
+                <div class="flex-1 cursor-pointer" data-set-id="${escapeHtml(card.setId)}" data-card-name="${escapeHtml(card.cardName)}">
+                    <div class="text-sm font-medium">${escapeHtml(card.cardName)}</div>
                     <div class="text-xs text-gray-400">${eventBadge}</div>
                 </div>
                 <div class="text-right mx-2">
@@ -1840,8 +1889,8 @@ class UIManager {
                     <div class="text-xs text-green-400">+${card.change.toFixed(1)}%</div>
                 </div>
                 <button class="hot-card-chart-btn bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded"
-                        data-set-id="${card.setId}" 
-                        data-card-name="${card.cardName}">
+                        data-set-id="${escapeHtml(card.setId)}" 
+                        data-card-name="${escapeHtml(card.cardName)}">
                     📊
                 </button>
             `;
@@ -1890,7 +1939,7 @@ class UIManager {
         
         this.sellCardInfo.innerHTML = `
             <div class="mb-3">
-                <h4 class="font-bold text-lg">${cardName} ${isLocked ? '🔒' : ''}</h4>
+                <h4 class="font-bold text-lg">${escapeHtml(cardName)} ${isLocked ? '🔒' : ''}</h4>
                 <p class="text-sm text-gray-400 capitalize">${rarity} | ${trend.trend} ${trend.change > 0 ? '+' : ''}${trend.change.toFixed(1)}%</p>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
@@ -2167,7 +2216,7 @@ class UIManager {
                 <div class="text-sm text-gray-400 mb-2">💰 Instant Sale Preview</div>
                 <div class="flex justify-between">
                     <span>Quantity:</span>
-                    <span>${quantity}x ${isFoil ? 'Foil ' : ''}${cardName}</span>
+                    <span>${quantity}x ${isFoil ? 'Foil ' : ''}${escapeHtml(cardName)}</span>
                 </div>
                 <div class="flex justify-between">
                     <span>Price per card:</span>
@@ -2248,7 +2297,7 @@ class UIManager {
                 <div class="text-sm text-gray-400 mb-2">📦 Listing Preview</div>
                 <div class="flex justify-between">
                     <span>Quantity:</span>
-                    <span>${quantity}x ${isFoil ? 'Foil ' : ''}${cardName}</span>
+                    <span>${quantity}x ${isFoil ? 'Foil ' : ''}${escapeHtml(cardName)}</span>
                 </div>
                 <div class="flex justify-between">
                     <span>Price per card:</span>
@@ -2329,7 +2378,7 @@ class UIManager {
         autoSellPreview.innerHTML = `
             <div class="text-purple-400">
                 🎯 Auto-Sell Order Preview<br>
-                ${quantity}x ${cardName} ${isFoil ? '(Foil)' : '(Regular)'}<br>
+                ${quantity}x ${escapeHtml(cardName)} ${isFoil ? '(Foil)' : '(Regular)'}<br>
                 Trigger: ${triggerDescription}
             </div>
         `;
@@ -2564,7 +2613,7 @@ class UIManager {
         // Match the sell modal's card info structure
         this.buyCardInfo.innerHTML = `
             <div class="mb-3">
-                <h4 class="font-bold text-lg">${cardName}</h4>
+                <h4 class="font-bold text-lg">${escapeHtml(cardName)}</h4>
                 <p class="text-sm text-gray-400 capitalize">${rarity} | ${trend.trend} ${trend.change > 0 ? '+' : ''}${trend.change.toFixed(1)}%</p>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
@@ -2583,11 +2632,11 @@ class UIManager {
         this.buyQuantityDisplay.innerHTML = `
             <div class="flex justify-between items-center">
                 <span>Purchasing:</span>
-                <span class="font-medium">1x ${isFoil ? 'Foil ' : ''}${cardName}</span>
+                <span class="font-medium">1x ${isFoil ? 'Foil ' : ''}${escapeHtml(cardName)}</span>
             </div>
             <div class="flex justify-between items-center mt-1 text-xs text-gray-400">
                 <span>From seller:</span>
-                <span>${listing.sellerId}</span>
+                <span>${escapeHtml(listing.sellerId)}</span>
             </div>
         `;
         
@@ -2706,7 +2755,7 @@ class UIManager {
         
         this.listingCardInfo.innerHTML = `
             <div class="mb-3">
-                <h4 class="font-bold text-lg">${cardName} ${isLocked ? '🔒' : ''}</h4>
+                <h4 class="font-bold text-lg">${escapeHtml(cardName)} ${isLocked ? '🔒' : ''}</h4>
                 <p class="text-sm text-gray-400 capitalize">${rarity} | ${trend.trend} ${trend.change > 0 ? '+' : ''}${trend.change.toFixed(1)}%</p>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
@@ -2802,7 +2851,7 @@ class UIManager {
         this.listingPreview.innerHTML = `
             <div class="space-y-2">
                 <div class="flex justify-between">
-                    <span>Listing ${quantity}x ${cardName}${isFoil ? ' (Foil)' : ''}</span>
+                    <span>Listing ${quantity}x ${escapeHtml(cardName)}${isFoil ? ' (Foil)' : ''}</span>
                 </div>
                 <div class="flex justify-between">
                     <span>Price per card:</span>
@@ -3520,7 +3569,7 @@ class UIManager {
             <div class="flex justify-between items-start">
                 <div class="flex-1">
                     <div class="flex items-center gap-2">
-                        <span class="font-medium">${card.cardName}</span>
+                        <span class="font-medium">${escapeHtml(card.cardName)}</span>
                         ${isOnWishlist ? '<span class="text-yellow-400">⭐</span>' : ''}
                         <span class="text-xs px-2 py-1 rounded rarity-${card.rarity} bg-opacity-20">${card.rarity}</span>
                     </div>
@@ -3557,7 +3606,7 @@ class UIManager {
             <div class="flex flex-col h-full">
                 <!-- Card header info (fixed) -->
                 <div class="border-b border-gray-600 pb-4 mb-4">
-                    <h4 class="text-lg font-bold">${cardName}</h4>
+                    <h4 class="text-lg font-bold">${escapeHtml(cardName)}</h4>
                     <p class="text-sm text-gray-400">${window.getAllSets()[setId].name}</p>
                     <p class="text-sm">Market Price: $${currentPrice.toFixed(2)}</p>
                 </div>
@@ -3570,11 +3619,13 @@ class UIManager {
                 
                 <!-- Sticky buttons at bottom -->
                 <div class="flex gap-2 pt-4 border-t border-gray-600 mt-4">
-                    <button onclick="uiManager.addToWishlistFromDetails('${setId}', '${cardName}', false)" 
+                    <button data-action="wishlist-add-from-details"
+                            data-set-id="${escapeHtml(setId)}" data-card-name="${escapeHtml(cardName)}"
                             class="bg-yellow-600 hover:bg-yellow-700 px-3 py-2 rounded text-sm flex-1">
                         ⭐ Add to Wishlist
                     </button>
-                    <button onclick="uiManager.showPriceChart('${setId}', '${cardName}')" 
+                    <button data-action="show-price-chart"
+                            data-set-id="${escapeHtml(setId)}" data-card-name="${escapeHtml(cardName)}"
                             class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded text-sm">
                         📈 Price Chart
                     </button>
@@ -3589,8 +3640,8 @@ class UIManager {
         const listingItems = listings.slice(0, 10).map((listing, index) => {
             const isPlayerListing = listing.isPlayerListing;
             const sellerDisplay = isPlayerListing ? 
-                `<span class="text-blue-400">👤 ${listing.sellerId}</span>` : 
-                `<span class="text-gray-500">${listing.sellerId}</span>`;
+                `<span class="text-blue-400">👤 ${escapeHtml(listing.sellerId)}</span>` : 
+                `<span class="text-gray-500">${escapeHtml(listing.sellerId)}</span>`;
             const bgClass = isPlayerListing ? 'bg-blue-900/30' : 'bg-gray-700';
             
             return `
@@ -3600,7 +3651,11 @@ class UIManager {
                     <span class="text-sm text-gray-400 ml-2">${listing.quantity}x available</span>
                     <div class="text-xs">${sellerDisplay}</div>
                 </div>
-                <button onclick="uiManager.${isPlayerListing ? 'purchaseFromPlayer' : 'openBuyModal'}('${this.selectedCard.setId}', '${this.selectedCard.cardName}', ${isFoil}, ${isPlayerListing ? `'${listing.id}'` : index})" 
+                <button data-action="buy-listing"
+                        data-set-id="${escapeHtml(this.selectedCard.setId)}"
+                        data-card-name="${escapeHtml(this.selectedCard.cardName)}"
+                        data-foil="${isFoil}"
+                        ${isPlayerListing ? `data-listing-id="${escapeHtml(listing.id)}"` : `data-index="${index}"`}
                         class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm">
                     Buy 1 for $${listing.price.toFixed(2)}
                 </button>
@@ -3647,7 +3702,7 @@ class UIManager {
             
             element.innerHTML = `
                 <div class="flex-1">
-                    <div class="font-medium">${item.cardName} ${item.isFoil ? '★' : ''}</div>
+                    <div class="font-medium">${escapeHtml(item.cardName)} ${item.isFoil ? '★' : ''}</div>
                     <div class="text-sm text-gray-400">
                         ${window.getAllSets()[item.setId].name} • 
                         Max: ${item.maxPrice ? `$${item.maxPrice.toFixed(2)}` : 'Any price'}
@@ -3657,7 +3712,9 @@ class UIManager {
                     <div class="${priceClass}">${priceDisplay}</div>
                     ${item.isAvailable ? '<div class="text-xs text-green-400">Available!</div>' : ''}
                 </div>
-                <button onclick="uiManager.removeFromWishlist('${item.setId}', '${item.cardName}', ${item.isFoil})" 
+                <button data-action="wishlist-remove"
+                        data-set-id="${escapeHtml(item.setId)}" data-card-name="${escapeHtml(item.cardName)}"
+                        data-foil="${item.isFoil}"
                         class="ml-2 text-red-400 hover:text-red-300">×</button>
             `;
             
@@ -3721,7 +3778,7 @@ class UIManager {
             
             element.innerHTML = `
                 <span class="text-xs ${textClass}">
-                    ${actionIcon} ${actorText} ${actionText} ${event.quantity}x ${event.cardName} 
+                    ${actionIcon} ${actorText} ${actionText} ${event.quantity}x ${escapeHtml(event.cardName)} 
                     ${event.isFoil ? '★' : ''} for $${event.price.toFixed(2)}
                 </span>
                 <span class="text-xs text-gray-500">${timeAgo}</span>
@@ -3896,7 +3953,7 @@ class UIManager {
                     </div>
                     <div class="ml-3">
                         <button class="cancel-listing-btn bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
-                                data-listing-id="${listing.id}">
+                                data-listing-id="${escapeHtml(listing.id)}">
                             Cancel
                         </button>
                     </div>
@@ -3932,7 +3989,7 @@ class UIManager {
                     </div>
                     <div class="ml-3">
                         <button class="cancel-sell-order-btn bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
-                                data-order-id="${order.id}">
+                                data-order-id="${escapeHtml(order.id)}">
                             Cancel
                         </button>
                     </div>
@@ -4140,7 +4197,7 @@ class UIManager {
         
         this.sellOrderCardInfo.innerHTML = `
             <div class="mb-3">
-                <h4 class="font-bold text-lg">${cardName}</h4>
+                <h4 class="font-bold text-lg">${escapeHtml(cardName)}</h4>
                 <p class="text-sm text-gray-400 capitalize">${rarity} | ${window.getAllSets()[setId].name}</p>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
