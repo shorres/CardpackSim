@@ -1,60 +1,34 @@
 // Preload script for security
-// This script runs in the renderer process before the web content begins loading
-// It has access to both DOM APIs and Node.js APIs
+// Runs in the renderer before web content loads, with access to both DOM and Node APIs.
+// Keep this surface as small as possible: everything exposed here is reachable by any
+// script running in the renderer.
 
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Platform info
+  // Platform info (read at preload time; no IPC, no input)
   platform: process.platform,
   version: process.versions.electron,
-  
+  isDev: process.argv.includes('--dev-mode'),
+
   // New Game functionality
   onNewGameRequest: (callback) => {
     ipcRenderer.on('request-new-game', callback);
   },
-  
+
   onResetGame: (callback) => {
     ipcRenderer.on('reset-game', callback);
   },
-  
+
   newGameConfirmed: () => {
     ipcRenderer.send('new-game-confirmed');
   },
-  
+
   newGameCancelled: () => {
     ipcRenderer.send('new-game-cancelled');
   },
 
-  // Simple version checking
-  getAppVersion: () => {
-    return ipcRenderer.invoke('get-app-version');
-  },
-
-  // Platform info for updates
-  getPlatform: () => {
-    return ipcRenderer.invoke('get-platform');
-  },
-
-  // Update functionality
-  downloadUpdate: (downloadUrl) => {
-    return ipcRenderer.invoke('download-update', downloadUrl);
-  },
-
-  installAndRestart: (downloadPath) => {
-    return ipcRenderer.invoke('install-and-restart', downloadPath);
-  },
-
-  restartApp: () => {
-    return ipcRenderer.invoke('restart-app');
-  },
-
-  // Listen for download progress
-  onDownloadProgress: (callback) => {
-    ipcRenderer.on('download-progress', (event, progress) => {
-      callback(progress);
-    });
-  }
+  // Save file I/O. The main process owns the path; callers pass only the document.
+  saveGame: (payload) => ipcRenderer.invoke('save-game', payload),
+  loadGame: () => ipcRenderer.invoke('load-game')
 });
