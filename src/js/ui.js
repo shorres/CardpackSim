@@ -2120,7 +2120,7 @@ class UIManager {
             return;
         }
         
-        const result = this.gameEngine.createListing(
+        const result = this.gameEngine.createPlayerListing(
             this.currentSellCard.setId,
             this.currentSellCard.cardName,
             quantity,
@@ -2156,13 +2156,19 @@ class UIManager {
             return;
         }
         
+        // Convert percentage to decimal for the order
+        let triggerValueForOrder = triggerValue;
+        if (triggerType === 'percent_gain' || triggerType === 'percent_loss') {
+            triggerValueForOrder = triggerValue / 100;
+        }
+        
         const result = this.gameEngine.createSellOrder(
             this.currentSellCard.setId,
             this.currentSellCard.cardName,
             quantity,
-            foilOnly,
             triggerType,
-            triggerValue
+            triggerValueForOrder,
+            foilOnly
         );
         
         if (result.success) {
@@ -2868,34 +2874,6 @@ class UIManager {
         `;
         
         this.confirmListingBtn.disabled = false;
-    }
-
-    executeCreateListing() {
-        if (!this.currentListingCard) return;
-        
-        const quantity = parseInt(this.listingQuantity.value);
-        const price = parseFloat(this.listingPrice.value);
-        const isFoil = this.listingFoilOnly.checked;
-        const { setId, cardName } = this.currentListingCard;
-        
-        const result = this.gameEngine.createPlayerListing(setId, cardName, quantity, price, isFoil);
-        
-        if (result.success) {
-            this.showNotification(result.message, 'success');
-            this.closeListingModal();
-            
-            // Update displays
-            this.updatePlayerStats();
-            this.renderPortfolio();
-            this.renderPlayerListings();
-            
-            // Update collection if on that tab
-            if (this.currentTab === 'collection') {
-                this.renderCollection();
-            }
-        } else {
-            this.showNotification(result.message, 'error');
-        }
     }
 
     showAchievementNotification(achievement) {
