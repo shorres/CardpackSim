@@ -44,7 +44,9 @@ class GameEngine {
         };
         
         // Expose for debugging
-        window.debugMarket = this.marketEngine;
+        if (window.electronAPI?.isDev) {
+            window.debugMarket = this.marketEngine;
+        }
         
         this.initializeState();
     }
@@ -233,20 +235,8 @@ class GameEngine {
     }
 
     getCardRarity(setId, cardName) {
-        const allSets = window.getAllSets();
-        const set = allSets[setId];
-        
-        if (!set) {
-            console.warn(`Cannot get card rarity for undefined set: ${setId}`);
-            return 'common';
-        }
-        
-        for (const rarity in set.cards) {
-            if (set.cards[rarity].includes(cardName)) {
-                return rarity;
-            }
-        }
-        return 'common';
+        // Indexed lookup (see lookupCardRarity in data.js).
+        return window.lookupCardRarity(setId, cardName) || 'common';
     }
 
     getCollectionProgress(setId) {
@@ -303,7 +293,9 @@ class GameEngine {
                 const regularPrice = this.marketEngine.getCardPrice(setId, cardName, false);
                 const foilPrice = this.marketEngine.getCardPrice(setId, cardName, true);
                 
-                portfolioValue += (cardData.count - cardData.foilCount) * regularPrice;
+                // count and foilCount are independent counters (see addCardsToCollection);
+                // subtracting foilCount double-counted foils and could push net worth negative.
+                portfolioValue += cardData.count * regularPrice;
                 portfolioValue += cardData.foilCount * foilPrice;
             });
         });
@@ -816,11 +808,6 @@ class GameEngine {
         const marketState = this.marketEngine.getState();
         this.storageManager.saveState(this.state);
         this.storageManager.saveMarketState(marketState);
-        
-        // Track analytics on session save
-        if (window.analytics && typeof analytics.trackUser === 'function') {
-            analytics.trackUser(this.state.netWorth, this.state.currentTitle);
-        }
     }
 
     resetGame() {
@@ -843,7 +830,11 @@ class GameEngine {
             selectedPortrait: "👤"
         };
         
-        // Reset the market engine to initial state
+        // Reset the market engine to initial state.
+        // destroy() first: the old engine owns a 60s price interval and a 20s buyer
+        // interval that otherwise keep running against orphaned state and keep
+        // repainting the UI, once per reset.
+        this.marketEngine.destroy();
         this.marketEngine = new MarketEngine();
         
         this.initializeState();
@@ -1070,16 +1061,6 @@ class GameEngine {
         };
     }
 }
-
-// Periodic analytics tracking (every 30 minutes)
-setInterval(() => {
-    if (window.analytics && window.gameEngine && typeof analytics.trackUser === 'function') {
-        analytics.trackUser(
-            window.gameEngine.state.netWorth, 
-            window.gameEngine.state.currentTitle
-        );
-    }
-}, 30 * 60 * 1000);
 
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
