@@ -31,6 +31,9 @@ class UIManager {
         this.setupEventListeners();
         this.setupDelegatedActions();
         this.setupPackTearing();
+        // Loaded after ui.js, so the class exists by the time app.js constructs the UIManager.
+        // Guarded anyway: the creator is not load-bearing for the rest of the game.
+        this.creatorUI = window.CreatorUI ? new window.CreatorUI(this) : null;
         this.initializeThemes();
     }
 
@@ -71,6 +74,15 @@ class UIManager {
                 case 'wishlist-remove':
                     this.removeFromWishlist(setId, cardName, isFoil);
                     break;
+                case 'creator-new':
+                    if (this.creatorUI) this.creatorUI.newSet();
+                    break;
+                case 'creator-edit':
+                    if (this.creatorUI) this.creatorUI.edit(setId);
+                    break;
+                case 'creator-focus-field':
+                    if (this.creatorUI) this.creatorUI.focusField(el.dataset.field);
+                    break;
             }
         });
     }
@@ -80,9 +92,11 @@ class UIManager {
         this.packsTab = document.getElementById('packs-tab');
         this.collectionTab = document.getElementById('collection-tab');
         this.marketTab = document.getElementById('market-tab');
+        this.creatorTab = document.getElementById('creator-tab');
         this.packsContent = document.getElementById('packs-content');
         this.collectionContent = document.getElementById('collection-content');
         this.marketContent = document.getElementById('market-content');
+        this.creatorContent = document.getElementById('creator-content');
         
         // DOM elements
         this.setSelector = document.getElementById('set-selector');
@@ -710,6 +724,7 @@ class UIManager {
         this.packsTab.addEventListener('click', () => this.switchTab('packs'));
         this.collectionTab.addEventListener('click', () => this.switchTab('collection'));
         this.marketTab.addEventListener('click', () => this.switchTab('market'));
+        this.creatorTab.addEventListener('click', () => this.switchTab('creator'));
         
         this.setSelector.addEventListener('change', (e) => {
             this.gameEngine.setSelectedSet(e.target.value);
@@ -1087,6 +1102,10 @@ class UIManager {
             this.marketContent.classList.remove('hidden');
             // currentTab is already set above, so this renders the full market view.
             this.renderMarketViews();
+        } else if (tabName === 'creator') {
+            this.creatorTab.classList.add('active');
+            this.creatorContent.classList.remove('hidden');
+            if (this.creatorUI) this.creatorUI.render();
         }
     }
 

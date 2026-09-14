@@ -523,8 +523,24 @@ const CustomSetStore = {
         };
     },
 
+    // Drafts store WITHOUT validation, on purpose. A draft is work in progress and completely
+    // inert -- the merge in getAllSets() skips anything not published before it ever reaches the
+    // validator -- so refusing to save a half-finished set would just mean an author cannot put
+    // one down and come back to it. Publishing is where the rules bite.
+    storeDraft(setId, def) {
+        if (!CUSTOM_ID_PATTERN.test(setId)) return null;
+        return this.storage().saveCustomSet(setId, Object.assign({}, def, {
+            id: setId,
+            isWeekly: false,
+            isCustom: true,
+            customSchema: CUSTOM_SCHEMA_VERSION,
+            status: 'draft'
+        }));
+    },
+
     // Validates, then stores only if valid. Returns the validation result either way, so a caller
-    // never has to work out separately whether what it just saved was legal.
+    // never has to work out separately whether what it just saved was legal. This is the publish
+    // path; see storeDraft for the other one.
     save(setId, def) {
         const result = CustomSetValidator.validate(def, this.validationContext(setId));
         if (!result.ok) return result;

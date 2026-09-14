@@ -312,10 +312,16 @@ class StorageManager {
         return customSetsRevision;
     }
 
+    // Copies in and copies out. A shallow spread would leave the nested cards object shared with
+    // the caller, which means the creator's in-progress working copy silently mutates the stored
+    // set -- edits appear saved without a save, and the published-name lock can be walked straight
+    // past. Sets are a few KB and this runs on explicit saves, not a hot path.
     saveCustomSet(setId, definition) {
-        saveDoc.customSets[setId] = { ...definition, updatedAt: Date.now() };
+        const stored = JSON.parse(JSON.stringify(
+            Object.assign({}, definition, { updatedAt: Date.now() })));
+        saveDoc.customSets[setId] = stored;
         bumpCustomSets();
-        return saveDoc.customSets[setId];
+        return JSON.parse(JSON.stringify(stored));
     }
 
     deleteCustomSet(setId) {
@@ -375,6 +381,17 @@ class StorageManager {
         StorageManager.scheduleFlush();
 
         return { restored, stillParked };
+    }
+
+    // Parked entries survive almost everything, because a set can come back. Permanently
+    // deleting the set is the one case where they must not: the player asked for the set and
+    // everything in it to be gone, and leaving the entries behind would silently resurrect them
+    // if a later set ever minted the same id.
+    discardOrphanedCollection(setId) {
+        if (!saveDoc.orphanedCollections[setId]) return false;
+        delete saveDoc.orphanedCollections[setId];
+        StorageManager.scheduleFlush();
+        return true;
     }
 
     // Remove old weekly sets the player holds no cards from. Without this the set list grows

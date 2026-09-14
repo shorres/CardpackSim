@@ -84,6 +84,9 @@
                         <button id="market-tab" class="tab-btn bg-transparent px-6 py-3 rounded-md font-medium transition-colors">
                             📈 Trading Market
                         </button>
+                        <button id="creator-tab" class="tab-btn bg-transparent px-6 py-3 rounded-md font-medium transition-colors">
+                            🛠️ Set Creator
+                        </button>
                     </nav>
                 </div>
             </div>
@@ -322,7 +325,165 @@
                     </div>
                 </section>
             </div>
+            <!-- Set Creator Tab -->
+            <div id="creator-content" class="tab-content hidden">
+                <div class="creator-layout">
+
+                    <!-- Left rail: the author's sets -->
+                    <aside class="creator-rail rounded-2xl p-4" style="background-color: var(--bg-secondary);">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-semibold">My Sets</h3>
+                            <button id="creator-new-btn" data-action="creator-new"
+                                    class="px-3 py-1 rounded-md bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium transition-colors">
+                                + New Set
+                            </button>
+                        </div>
+                        <div id="creator-set-rows" class="space-y-2"></div>
+                        <p id="creator-rail-empty" class="text-sm mt-3" style="color: var(--text-secondary);">
+                            You haven't made any sets yet. A set needs at least 10 commons, 8 uncommons,
+                            6 rares and 3 mythics before it can be published.
+                        </p>
+                    </aside>
+
+                    <!-- Right pane: the editor -->
+                    <section id="creator-placeholder" class="creator-editor rounded-2xl p-8 text-center"
+                             style="background-color: var(--bg-secondary); color: var(--text-secondary);">
+                        <p class="text-lg mb-2">Nothing open</p>
+                        <p class="text-sm">Pick one of your sets, or create a new one, to start editing.</p>
+                    </section>
+
+                    <section id="creator-editor" class="creator-editor rounded-2xl p-6 hidden"
+                             style="background-color: var(--bg-secondary);">
+
+                        <div id="creator-quarantine-banner" class="creator-banner hidden"></div>
+
+                        <!-- Identity -->
+                        <div class="flex flex-wrap items-end gap-4 mb-5">
+                            <div class="flex-1" style="min-width: 220px;">
+                                <label for="creator-name" class="block text-sm font-medium mb-1">Set name</label>
+                                <input type="text" id="creator-name" maxlength="48" autocomplete="off"
+                                       class="w-full px-3 py-2 rounded-lg creator-input">
+                            </div>
+                            <div class="text-right">
+                                <span id="creator-status-pill" class="creator-pill">draft</span>
+                                <div id="creator-card-count" class="text-xs mt-1" style="color: var(--text-secondary);"></div>
+                            </div>
+                        </div>
+
+                        <!-- Pack rules -->
+                        <h4 class="text-sm font-semibold uppercase tracking-wide mb-2" style="color: var(--text-secondary);">
+                            What's in a pack
+                        </h4>
+                        <div class="creator-rules mb-3">
+                            <label class="creator-field">
+                                <span>Commons</span>
+                                <input type="number" id="cc-common" min="3" max="10" step="1" class="creator-input">
+                            </label>
+                            <label class="creator-field">
+                                <span>Uncommons</span>
+                                <input type="number" id="cc-uncommon" min="1" max="5" step="1" class="creator-input">
+                            </label>
+                            <label class="creator-field">
+                                <span>Rare slots</span>
+                                <input type="number" id="cc-rare" min="1" max="2" step="1" class="creator-input">
+                            </label>
+                            <label class="creator-field">
+                                <span>Mythic: 1 in</span>
+                                <input type="number" id="cc-mythic-one-in" min="4" max="50" step="1" class="creator-input">
+                            </label>
+                            <label class="creator-field">
+                                <span>Foil: 1 in</span>
+                                <input type="number" id="cc-foil-one-in" min="3" max="50" step="1" class="creator-input">
+                            </label>
+                            <label class="creator-field">
+                                <span>Packs per box</span>
+                                <input type="number" id="cc-box-size" min="12" max="36" step="1" class="creator-input">
+                            </label>
+                        </div>
+                        <div id="creator-economy" class="creator-economy mb-5"></div>
+
+                        <!-- Card lists -->
+                        <h4 class="text-sm font-semibold uppercase tracking-wide mb-2" style="color: var(--text-secondary);">
+                            Cards &mdash; one name per line
+                        </h4>
+                        <div id="creator-cards" class="creator-columns mb-5">
+                            <div class="creator-rarity-col" data-rarity="common">
+                                <div class="creator-col-head"><span class="rarity-dot rarity-common"></span> Common
+                                    <span class="creator-col-count" id="creator-count-common">0</span></div>
+                                <textarea id="creator-list-common" class="creator-card-list" spellcheck="false"
+                                          data-rarity="common" placeholder="Goblin Grunt&#10;Forest Sprite&#10;..."></textarea>
+                            </div>
+                            <div class="creator-rarity-col" data-rarity="uncommon">
+                                <div class="creator-col-head"><span class="rarity-dot rarity-uncommon"></span> Uncommon
+                                    <span class="creator-col-count" id="creator-count-uncommon">0</span></div>
+                                <textarea id="creator-list-uncommon" class="creator-card-list" spellcheck="false"
+                                          data-rarity="uncommon" placeholder="One name per line"></textarea>
+                            </div>
+                            <div class="creator-rarity-col" data-rarity="rare">
+                                <div class="creator-col-head"><span class="rarity-dot rarity-rare"></span> Rare
+                                    <span class="creator-col-count" id="creator-count-rare">0</span></div>
+                                <textarea id="creator-list-rare" class="creator-card-list" spellcheck="false"
+                                          data-rarity="rare" placeholder="One name per line"></textarea>
+                            </div>
+                            <div class="creator-rarity-col" data-rarity="mythic">
+                                <div class="creator-col-head"><span class="rarity-dot rarity-mythic"></span> Mythic
+                                    <span class="creator-col-count" id="creator-count-mythic">0</span></div>
+                                <textarea id="creator-list-mythic" class="creator-card-list" spellcheck="false"
+                                          data-rarity="mythic" placeholder="One name per line"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Live preview -->
+                        <h4 class="text-sm font-semibold uppercase tracking-wide mb-2" style="color: var(--text-secondary);">
+                            Preview
+                        </h4>
+                        <div id="creator-preview" class="creator-preview mb-5"></div>
+
+                        <!-- Problems -->
+                        <div id="creator-errors" class="mb-5"></div>
+
+                        <!-- Actions -->
+                        <div class="flex flex-wrap gap-3">
+                            <button id="creator-save-btn" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors">
+                                Save Draft
+                            </button>
+                            <button id="creator-publish-btn" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium transition-colors">
+                                Publish
+                            </button>
+                            <button id="creator-unpublish-btn" class="px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-700 text-white font-medium transition-colors hidden">
+                                Unpublish
+                            </button>
+                            <button id="creator-delete-btn" class="px-4 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white font-medium transition-colors ml-auto">
+                                Delete Set
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            </div>
         </main>
+    </div>
+
+    <!-- Set Creator: destructive-action confirmation -->
+    <div id="creator-confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="rounded-lg p-6 w-full max-w-lg mx-4" style="background-color: var(--bg-secondary); color: var(--text-primary);">
+            <h3 id="creator-confirm-title" class="text-lg font-semibold mb-3"></h3>
+            <div id="creator-confirm-body" class="text-sm space-y-2 mb-4"></div>
+            <div id="creator-confirm-typed" class="mb-4 hidden">
+                <label for="creator-confirm-input" class="block text-sm font-medium mb-1">
+                    Type the set's name to confirm:
+                </label>
+                <input type="text" id="creator-confirm-input" autocomplete="off"
+                       class="w-full px-3 py-2 rounded-lg creator-input">
+            </div>
+            <div class="flex gap-3">
+                <button id="creator-confirm-cancel" class="flex-1 px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 transition-colors" style="color: var(--text-primary);">
+                    Cancel
+                </button>
+                <button id="creator-confirm-ok" class="flex-1 px-4 py-2 rounded-lg bg-red-700 hover:bg-red-800 text-white font-medium transition-colors">
+                    Confirm
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Add to Wishlist Modal -->
@@ -970,6 +1131,7 @@
     <script src="src/js/market.js"></script>
     <script src="src/js/game.js"></script>
     <script src="src/js/ui.js"></script>
+    <script src="src/js/creator-ui.js"></script>
     <script src="src/js/app.js"></script>
     
     <script src="src/js/wishlist-modal.js"></script>

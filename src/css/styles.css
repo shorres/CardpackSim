@@ -1462,3 +1462,181 @@ canvas {
         animation: none;
     }
 }
+
+/* ---------------------------------------------------------------------------
+   Set Creator
+   --------------------------------------------------------------------------- */
+
+.creator-layout {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+/* The rail stacks above the editor on narrow windows rather than squeezing both. */
+@media (max-width: 900px) {
+    .creator-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.creator-rail { position: sticky; top: 1rem; }
+
+.creator-set-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name pill" "meta pill";
+    gap: 0.15rem 0.5rem;
+    width: 100%;
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+
+.creator-set-row:hover { border-color: var(--accent-primary); }
+.creator-set-row.is-active {
+    border-color: var(--accent-primary);
+    background-color: var(--bg-tertiary, var(--bg-secondary));
+}
+
+.creator-set-name {
+    grid-area: name;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.creator-set-meta { grid-area: meta; font-size: 0.75rem; color: var(--text-secondary); }
+
+.creator-pill {
+    grid-area: pill;
+    align-self: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.creator-pill-draft { background-color: rgba(148, 163, 184, 0.25); color: #cbd5e1; }
+.creator-pill-published { background-color: rgba(34, 197, 94, 0.25); color: #86efac; }
+.creator-pill-broken { background-color: rgba(239, 68, 68, 0.25); color: #fca5a5; }
+
+.creator-editor { min-width: 0; }
+
+.creator-input {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+}
+.creator-input:focus {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: -1px;
+}
+
+.creator-rules {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.75rem;
+}
+.creator-field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; }
+.creator-field > span { color: var(--text-secondary); }
+.creator-field > input { padding: 0.4rem 0.6rem; border-radius: 0.4rem; }
+
+.creator-economy { font-size: 0.85rem; }
+.creator-ev {
+    display: inline-block;
+    padding: 0.4rem 0.7rem;
+    border-radius: 0.5rem;
+    border-left: 3px solid transparent;
+}
+.creator-ev-good { background-color: rgba(34, 197, 94, 0.12); border-left-color: #22c55e; }
+.creator-ev-warn { background-color: rgba(234, 179, 8, 0.12); border-left-color: #eab308; }
+.creator-ev-bad { background-color: rgba(239, 68, 68, 0.12); border-left-color: #ef4444; }
+.creator-ev-unknown { background-color: rgba(148, 163, 184, 0.12); border-left-color: #94a3b8; }
+
+/* Four card lists side by side; they wrap to two columns, then one, as the window narrows. */
+.creator-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0.75rem;
+}
+.creator-rarity-col { display: flex; flex-direction: column; min-width: 0; }
+.creator-col-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+}
+.creator-col-count {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+.creator-col-count.is-short { color: #fca5a5; }
+
+.rarity-dot { width: 0.6rem; height: 0.6rem; border-radius: 999px; display: inline-block; }
+.rarity-dot.rarity-common { background-color: #9ca3af; }
+.rarity-dot.rarity-uncommon { background-color: #34d399; }
+.rarity-dot.rarity-rare { background-color: #60a5fa; }
+.rarity-dot.rarity-mythic { background-color: #f59e0b; }
+
+.creator-card-list {
+    width: 100%;
+    min-height: 190px;
+    resize: vertical;
+    padding: 0.5rem 0.6rem;
+    border-radius: 0.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
+}
+.creator-card-list:focus { outline: 2px solid var(--accent-primary); outline-offset: -1px; }
+/* Published sets lock their names: they key the collection, prices and art. */
+.creator-card-list.is-locked { opacity: 0.65; cursor: not-allowed; }
+
+.creator-preview {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.6rem;
+}
+
+.creator-problem {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-size: 0.8rem;
+    padding: 0.45rem 0.7rem;
+    margin-bottom: 0.35rem;
+    border-radius: 0.4rem;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    color: var(--text-primary);
+}
+.creator-problem-error { background-color: rgba(239, 68, 68, 0.12); border-left-color: #ef4444; }
+.creator-problem-warning { background-color: rgba(234, 179, 8, 0.12); border-left-color: #eab308; }
+.creator-problem:hover { filter: brightness(1.25); }
+
+.creator-ok { font-size: 0.8rem; color: #86efac; }
+.creator-warn { color: #fca5a5; }
+
+.creator-banner {
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0.5rem;
+    background-color: rgba(239, 68, 68, 0.12);
+    border-left: 3px solid #ef4444;
+}
+
+.is-disabled { opacity: 0.45; cursor: not-allowed; }
