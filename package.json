@@ -12,6 +12,7 @@
     "test:prune": "electron test/prune.js",
     "test:chart": "electron test/chart.js",
     "test:sell": "electron test/sell.js",
+    "test:packs": "electron test/packs.js",
     "build:css": "tailwindcss -c tailwind.config.js -i src/vendor/tailwind.src.css -o src/vendor/tailwind.css --minify",
     "force-clean": "rimraf dist && timeout 2",
     "prebuild": "npm run clean && npm run build:css",

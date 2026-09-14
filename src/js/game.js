@@ -171,23 +171,31 @@ class GameEngine {
         }
         
         const openedCards = [];
+        const composition = set.packComposition || {};
         
         // Generate common and uncommon cards
-        for (const rarity in set.packComposition) {
+        for (const rarity in composition) {
             if (rarity === 'rare') continue;
-            for (let i = 0; i < set.packComposition[rarity]; i++) {
+            for (let i = 0; i < composition[rarity]; i++) {
                 const cardPool = set.cards[rarity];
                 const cardName = cardPool[Math.floor(Math.random() * cardPool.length)];
                 openedCards.push({ name: cardName, rarity: rarity, isFoil: false });
             }
         }
 
-        // Generate rare/mythic slot
-        const isMythic = Math.random() < set.mythicChance;
-        const rareSlotRarity = isMythic ? 'mythic' : 'rare';
-        const rareSlotPool = set.cards[rareSlotRarity];
-        const rareSlotCardName = rareSlotPool[Math.floor(Math.random() * rareSlotPool.length)];
-        openedCards.push({ name: rareSlotCardName, rarity: rareSlotRarity, isFoil: false });
+        // Rare slots. packComposition.rare used to be ignored entirely -- exactly one rare was
+        // rolled no matter what the set declared, so the field was decorative and the two weekly
+        // generators quietly disagreed about it (3 vs 2) without anyone noticing. It is honoured
+        // now because the set creator exposes it as the most economically significant knob in the
+        // editor. Each slot rolls its mythic upgrade independently, so mythicChance keeps meaning
+        // "per rare slot" rather than "per pack".
+        const rareSlots = Math.max(1, Math.floor(composition.rare) || 1);
+        for (let i = 0; i < rareSlots; i++) {
+            const rareSlotRarity = Math.random() < set.mythicChance ? 'mythic' : 'rare';
+            const rareSlotPool = set.cards[rareSlotRarity];
+            const rareSlotCardName = rareSlotPool[Math.floor(Math.random() * rareSlotPool.length)];
+            openedCards.push({ name: rareSlotCardName, rarity: rareSlotRarity, isFoil: false });
+        }
 
         // Apply foil effect randomly
         if (Math.random() < set.foilChance) {
@@ -251,11 +259,15 @@ class GameEngine {
         const collectionSet = this.state.collection[setId];
         let collectedCount = 0;
         
+        // A set definition reaching here without all four rarity arrays used to throw. The
+        // validator rejects such a set before it can be published, but a hand-edited save is
+        // untrusted input and a missing key should degrade the progress readout, not the app.
+        const cards = set.cards || {};
         const allCardsInSet = [
-            ...set.cards.common.map(name => ({name, rarity: 'common'})),
-            ...set.cards.uncommon.map(name => ({name, rarity: 'uncommon'})),
-            ...set.cards.rare.map(name => ({name, rarity: 'rare'})),
-            ...set.cards.mythic.map(name => ({name, rarity: 'mythic'})),
+            ...(cards.common || []).map(name => ({name, rarity: 'common'})),
+            ...(cards.uncommon || []).map(name => ({name, rarity: 'uncommon'})),
+            ...(cards.rare || []).map(name => ({name, rarity: 'rare'})),
+            ...(cards.mythic || []).map(name => ({name, rarity: 'mythic'})),
         ];
 
         allCardsInSet.forEach(cardInfo => {

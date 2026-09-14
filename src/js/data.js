@@ -412,7 +412,7 @@ class WeeklySetGenerator {
             totalCards: Object.values(cardCounts).reduce((a, b) => a + b, 0),
             packSize: 12,
             boosterBoxSize: 26, // Slightly smaller for weekly sets
-            packComposition: { common: 6, uncommon: 5, rare: 3 },
+            packComposition: { common: 6, uncommon: 5, rare: 1 },
             mythicChance: 1 / 6, // Better mythic rate for weekly sets
             foilChance: 1 / 4, // Better foil rate for weekly sets
             isWeekly: true,
@@ -588,7 +588,7 @@ class WeeklySetGenerator {
             totalCards: Object.values(cardCounts).reduce((a, b) => a + b, 0),
             packSize: 12,
             boosterBoxSize: 26,
-            packComposition: { common: 7, uncommon: 3, rare: 2 },
+            packComposition: { common: 7, uncommon: 3, rare: 1 },
             mythicChance: 1 / 6,
             foilChance: 1 / 4,
             isWeekly: true,
@@ -762,6 +762,12 @@ function updateSetLifecycle(setData, storageManager, setId) {
     return {
         ...setData,
         lifecycle: currentLifecycle,
+        // Weekly sets already in a player's save declare rare: 3 (or rare: 2), which
+        // generatePackContents used to ignore -- every weekly pack has only ever produced one
+        // rare. Now that the field is honoured, pin stored definitions to that actual behaviour:
+        // a data.js edit alone would not reach them, and inheriting the declared value would
+        // silently triple the rares in every weekly pack on update day.
+        packComposition: { ...setData.packComposition, rare: 1 },
         // Adjust pricing based on lifecycle
         packPriceMultiplier: getLifecyclePriceMultiplier(currentLifecycle),
         // Adjust pack composition for legacy sets
