@@ -393,9 +393,18 @@ class GameEngine {
             return { success: false, message: `Not enough ${cardType} cards available for sale. You have ${availableQuantity} available${lockReason}.` };
         }
         
+        // Quote through the market engine so this sale is priced against the sell
+        // pressure it creates. Portfolio value comes from the cached net worth rather
+        // than a fresh getPortfolioSummary() sweep, because auto-sell can call this
+        // many times inside a single price tick.
+        const portfolioBefore = Math.max(0, (this.state.netWorth || 0) - (this.state.wallet || 0));
         const salePrice = this.marketEngine.getCardPrice(setId, cardName, isFoil);
-        const totalValue = Math.round(salePrice * quantity * 100) / 100;
-        
+        const quote = this.marketEngine.quoteSale(setId, cardName, isFoil, quantity, {
+            bulkMultiplier: this.marketEngine.computeBulkMultiplier(
+                salePrice * quantity, portfolioBefore)
+        });
+        const totalValue = quote.gross;
+
         // Apply trading fee (5% for instant sales)
         const fee = Math.round(totalValue * 0.05 * 100) / 100;
         const netValue = Math.round((totalValue - fee) * 100) / 100;
@@ -410,7 +419,11 @@ class GameEngine {
             // Remove regular cards, keeping foils
             cardData.count -= quantity;
         }
-        
+
+        // Feed the sale back into the market before net worth is recalculated, so the
+        // new value reflects the price impact the player just caused.
+        this.marketEngine.recordCardSold(setId, cardName, quantity, isFoil);
+
         // Update wallet and earnings
         this.state.wallet = Math.round((this.state.wallet + netValue) * 100) / 100;
         this.state.totalEarnings = Math.round((this.state.totalEarnings + netValue) * 100) / 100;
@@ -431,7 +444,11 @@ class GameEngine {
             message: `Sold ${quantity}x ${cardName} for $${totalValue.toFixed(2)} (net: $${netValue.toFixed(2)})`,
             grossValue: totalValue,
             netValue: netValue,
+            proceeds: netValue, // alias: auto-sell and its UI read `proceeds`
             fee: fee,
+            spotPrice: salePrice,
+            avgFill: quote.avgFill,
+            impactPct: quote.slippagePct,
             newWallet: this.state.wallet
         };
     }
@@ -841,88 +858,122 @@ class GameEngine {
         this.storageManager.clearState();
     }
 
-    // Sell all cards in the current collection set respecting lock settings
-    sellAllCards(setId) {
-        const collectionSet = this.state.collection[setId];
-        if (!collectionSet) {
-            return { success: false, message: "No cards found in collection for this set" };
-        }
+    // Collects every card the lock settings allow us to sell, as batch entries.
+    // Pure: mutates nothing, so it is safe to call for a preview.
+    collectSellableEntries(setId = null) {
+        const entries = [];
+        const setIds = setId ? [setId] : Object.keys(this.state.collection);
 
-        let totalGrossValue = 0;
-        let totalFee = 0;
-        let totalNetValue = 0;
-        let cardsSold = 0;
-        let foilsSold = 0;
-        const soldCards = [];
+        setIds.forEach(sid => {
+            const collectionSet = this.state.collection[sid];
+            if (!collectionSet) return;
 
-        // Iterate through all cards in the set
-        for (const [cardName, cardData] of Object.entries(collectionSet)) {
-            // Sell regular cards
-            if (cardData.count > 0) {
-                const availableRegular = this.getAvailableQuantityForSale(setId, cardName, false);
-                if (availableRegular > 0) {
-                    const regularPrice = this.marketEngine.getCardPrice(setId, cardName, false);
-                    const grossValue = Math.round(regularPrice * availableRegular * 100) / 100;
-                    const fee = Math.round(grossValue * 0.05 * 100) / 100;
-                    const netValue = Math.round((grossValue - fee) * 100) / 100;
-                    
-                    // Update collection
-                    cardData.count -= availableRegular;
-                    
-                    totalGrossValue += grossValue;
-                    totalFee += fee;
-                    totalNetValue += netValue;
-                    cardsSold += availableRegular;
-                    
-                    soldCards.push({
-                        name: cardName,
-                        quantity: availableRegular,
-                        isFoil: false,
-                        price: regularPrice,
-                        grossValue: grossValue,
-                        netValue: netValue
-                    });
+            Object.keys(collectionSet).forEach(cardName => {
+                const regular = this.getAvailableQuantityForSale(sid, cardName, false);
+                if (regular > 0) {
+                    entries.push({ setId: sid, cardName, isFoil: false, quantity: regular });
                 }
-            }
-
-            // Sell foil cards
-            if (cardData.foilCount > 0) {
-                const availableFoils = this.getAvailableQuantityForSale(setId, cardName, true);
-                if (availableFoils > 0) {
-                    const foilPrice = this.marketEngine.getCardPrice(setId, cardName, true);
-                    const grossValue = Math.round(foilPrice * availableFoils * 100) / 100;
-                    const fee = Math.round(grossValue * 0.05 * 100) / 100;
-                    const netValue = Math.round((grossValue - fee) * 100) / 100;
-                    
-                    // Update collection
-                    cardData.foilCount -= availableFoils;
-                    
-                    totalGrossValue += grossValue;
-                    totalFee += fee;
-                    totalNetValue += netValue;
-                    foilsSold += availableFoils;
-                    
-                    soldCards.push({
-                        name: cardName,
-                        quantity: availableFoils,
-                        isFoil: true,
-                        price: foilPrice,
-                        grossValue: grossValue,
-                        netValue: netValue
-                    });
+                const foils = this.getAvailableQuantityForSale(sid, cardName, true);
+                if (foils > 0) {
+                    entries.push({ setId: sid, cardName, isFoil: true, quantity: foils });
                 }
-            }
-        }
+            });
+        });
 
-        if (soldCards.length === 0) {
+        return entries;
+    }
+
+    // Pure: turns a quoted batch into proceeds. Both the preview and the real sale go
+    // through this, which is what guarantees the confirmation screen matches the payout.
+    summarizeBatchProceeds(batch) {
+        let gross = 0, fee = 0, net = 0, cardsSold = 0, foilsSold = 0;
+
+        batch.lines.forEach(line => {
+            const lineFee = Math.round(line.gross * 0.05 * 100) / 100;
+            gross += line.gross;
+            fee += lineFee;
+            net += Math.round((line.gross - lineFee) * 100) / 100;
+            if (line.isFoil) foilsSold += line.quantity;
+            else cardsSold += line.quantity;
+        });
+
+        return {
+            grossValue: Math.round(gross * 100) / 100,
+            fee: Math.round(fee * 100) / 100,
+            netValue: Math.round(net * 100) / 100,
+            cardsSold,
+            foilsSold
+        };
+    }
+
+    // Quotes a lot without selling it, for the sell-all confirmation screen.
+    previewSellBatch(setId = null) {
+        const entries = this.collectSellableEntries(setId);
+        if (entries.length === 0) {
             return { success: false, message: "No cards available for sale due to lock settings" };
         }
 
-        // Update wallet and earnings
-        this.state.wallet = Math.round((this.state.wallet + totalNetValue) * 100) / 100;
-        this.state.totalEarnings = Math.round((this.state.totalEarnings + totalNetValue) * 100) / 100;
-        
-        // Track sales statistics
+        const batch = this.marketEngine.quoteBatch(entries, this.getPortfolioSummary().totalValue);
+        const proceeds = this.summarizeBatchProceeds(batch);
+
+        return {
+            success: true,
+            ...proceeds,
+            preShockValue: batch.preShockGross,
+            slippageLost: batch.slippageLost,
+            impactPct: batch.impactPct,
+            setsProcessed: new Set(entries.map(e => e.setId)).size
+        };
+    }
+
+    previewSellAllPortfolio() {
+        return this.previewSellBatch(null);
+    }
+
+    // Shared execution path for every multi-card sale. The lot is quoted in full BEFORE
+    // anything is mutated, so every line gets the same bulk discount and the payout does
+    // not depend on the order Object.keys happens to walk the collection in.
+    executeSellBatch(entries) {
+        if (!entries || entries.length === 0) {
+            return { success: false, message: "No cards available for sale due to lock settings" };
+        }
+
+        // Pass 1 (pure): quote the whole lot against the pre-sale portfolio.
+        const portfolioBefore = this.getPortfolioSummary().totalValue;
+        const batch = this.marketEngine.quoteBatch(entries, portfolioBefore);
+        const proceeds = this.summarizeBatchProceeds(batch);
+
+        // Pass 2 (commit): hand over the cards.
+        const soldCards = [];
+        const setsSeen = {};
+        batch.lines.forEach(line => {
+            const collectionSet = this.state.collection[line.setId];
+            const cardData = collectionSet && collectionSet[line.cardName];
+            if (!cardData) return;
+
+            if (line.isFoil) cardData.foilCount -= line.quantity;
+            else cardData.count -= line.quantity;
+
+            setsSeen[line.setId] = true;
+            const lineFee = Math.round(line.gross * 0.05 * 100) / 100;
+            soldCards.push({
+                name: line.cardName,
+                setId: line.setId,
+                quantity: line.quantity,
+                isFoil: line.isFoil,
+                price: line.avgFill,
+                spotPrice: line.spot,
+                grossValue: line.gross,
+                netValue: Math.round((line.gross - lineFee) * 100) / 100
+            });
+        });
+
+        // Apply the market impact once, for the whole lot.
+        this.marketEngine.commitBatchImpact(batch);
+
+        this.state.wallet = Math.round((this.state.wallet + proceeds.netValue) * 100) / 100;
+        this.state.totalEarnings = Math.round((this.state.totalEarnings + proceeds.netValue) * 100) / 100;
+
         this.state.salesCount += soldCards.length;
         for (const card of soldCards) {
             if (card.netValue > this.state.highestSale) {
@@ -937,129 +988,46 @@ class GameEngine {
 
         return {
             success: true,
-            message: `Sold ${cardsSold} regular cards and ${foilsSold} foil cards for $${totalGrossValue.toFixed(2)} (net: $${totalNetValue.toFixed(2)})`,
-            grossValue: totalGrossValue,
-            netValue: totalNetValue,
-            fee: totalFee,
-            cardsSold: cardsSold,
-            foilsSold: foilsSold,
+            grossValue: proceeds.grossValue,
+            netValue: proceeds.netValue,
+            fee: proceeds.fee,
+            cardsSold: proceeds.cardsSold,
+            foilsSold: proceeds.foilsSold,
+            setsProcessed: Object.keys(setsSeen).length,
             soldCards: soldCards,
+            preShockValue: batch.preShockGross,
+            slippageLost: batch.slippageLost,
+            impactPct: batch.impactPct,
             newWallet: this.state.wallet
         };
+    }
+
+    // Sell all cards in the current collection set respecting lock settings
+    sellAllCards(setId) {
+        if (!this.state.collection[setId]) {
+            return { success: false, message: "No cards found in collection for this set" };
+        }
+
+        const result = this.executeSellBatch(this.collectSellableEntries(setId));
+        if (!result.success) return result;
+
+        result.message = `Sold ${result.cardsSold} regular cards and ${result.foilsSold} foil cards ` +
+            `for $${result.grossValue.toFixed(2)} (net: $${result.netValue.toFixed(2)})`;
+        return result;
     }
 
     // Sell all cards in the entire portfolio respecting lock settings
     sellAllPortfolioCards() {
-        let totalGrossValue = 0;
-        let totalFee = 0;
-        let totalNetValue = 0;
-        let cardsSold = 0;
-        let foilsSold = 0;
-        const soldCards = [];
-        let setsProcessed = 0;
+        const result = this.executeSellBatch(this.collectSellableEntries());
+        if (!result.success) return result;
 
-        // Iterate through all sets in the collection
-        for (const [setId, collectionSet] of Object.entries(this.state.collection)) {
-            if (!collectionSet || Object.keys(collectionSet).length === 0) continue;
-            
-            setsProcessed++;
-
-            // Iterate through all cards in this set
-            for (const [cardName, cardData] of Object.entries(collectionSet)) {
-                // Sell regular cards
-                if (cardData.count > 0) {
-                    const availableRegular = this.getAvailableQuantityForSale(setId, cardName, false);
-                    if (availableRegular > 0) {
-                        const regularPrice = this.marketEngine.getCardPrice(setId, cardName, false);
-                        const grossValue = Math.round(regularPrice * availableRegular * 100) / 100;
-                        const fee = Math.round(grossValue * 0.05 * 100) / 100;
-                        const netValue = Math.round((grossValue - fee) * 100) / 100;
-                        
-                        // Update collection
-                        cardData.count -= availableRegular;
-                        
-                        totalGrossValue += grossValue;
-                        totalFee += fee;
-                        totalNetValue += netValue;
-                        cardsSold += availableRegular;
-                        
-                        soldCards.push({
-                            name: cardName,
-                            setId: setId,
-                            quantity: availableRegular,
-                            isFoil: false,
-                            price: regularPrice,
-                            grossValue: grossValue,
-                            netValue: netValue
-                        });
-                    }
-                }
-
-                // Sell foil cards
-                if (cardData.foilCount > 0) {
-                    const availableFoils = this.getAvailableQuantityForSale(setId, cardName, true);
-                    if (availableFoils > 0) {
-                        const foilPrice = this.marketEngine.getCardPrice(setId, cardName, true);
-                        const grossValue = Math.round(foilPrice * availableFoils * 100) / 100;
-                        const fee = Math.round(grossValue * 0.05 * 100) / 100;
-                        const netValue = Math.round((grossValue - fee) * 100) / 100;
-                        
-                        // Update collection
-                        cardData.foilCount -= availableFoils;
-                        
-                        totalGrossValue += grossValue;
-                        totalFee += fee;
-                        totalNetValue += netValue;
-                        foilsSold += availableFoils;
-                        
-                        soldCards.push({
-                            name: cardName,
-                            setId: setId,
-                            quantity: availableFoils,
-                            isFoil: true,
-                            price: foilPrice,
-                            grossValue: grossValue,
-                            netValue: netValue
-                        });
-                    }
-                }
-            }
-        }
-
-        if (soldCards.length === 0) {
-            return { success: false, message: "No cards available for sale due to lock settings" };
-        }
-
-        // Update wallet and earnings
-        this.state.wallet = Math.round((this.state.wallet + totalNetValue) * 100) / 100;
-        this.state.totalEarnings = Math.round((this.state.totalEarnings + totalNetValue) * 100) / 100;
-        
-        // Track sales statistics
-        this.state.salesCount += soldCards.length;
-        for (const card of soldCards) {
-            if (card.netValue > this.state.highestSale) {
-                this.state.highestSale = card.netValue;
-            }
-        }
-
-        this.updateNetWorth();
-        this.recordNetWorthHistory();
-        this.checkAchievements();
-        this.saveState();
-
-        return {
-            success: true,
-            message: `Liquidated entire portfolio: ${cardsSold} regular cards and ${foilsSold} foil cards from ${setsProcessed} sets for $${totalGrossValue.toFixed(2)} (net: $${totalNetValue.toFixed(2)})`,
-            grossValue: totalGrossValue,
-            netValue: totalNetValue,
-            fee: totalFee,
-            cardsSold: cardsSold,
-            foilsSold: foilsSold,
-            setsProcessed: setsProcessed,
-            soldCards: soldCards,
-            newWallet: this.state.wallet
-        };
+        const setLabel = result.setsProcessed === 1 ? 'set' : 'sets';
+        result.message = `Liquidated entire portfolio: ${result.cardsSold} regular cards and ` +
+            `${result.foilsSold} foil cards from ${result.setsProcessed} ${setLabel} for ` +
+            `$${result.grossValue.toFixed(2)} (net: $${result.netValue.toFixed(2)})`;
+        return result;
     }
+
 }
 
 // Export for use in other modules
