@@ -686,7 +686,9 @@ function getAllSetsCacheKey(storageManager) {
     const sm = storageManager
         || (typeof window !== 'undefined' && window.storageManager)
         || new StorageManager();
-    return weeklySetGenerator.getWeeklySetId() + '|' + sm.getWeeklySetsRevision();
+    return weeklySetGenerator.getWeeklySetId() +
+        '|' + sm.getWeeklySetsRevision() +
+        '|' + sm.getCustomSetsRevision();
 }
 
 function getAllSets() {
@@ -726,6 +728,44 @@ function getAllSets() {
             allSets[setId] = updatedSetData;
         });
     }
+
+    // Custom sets, merged last.
+    //
+    // Fails closed: if customSets.js has not loaded there is no validator, and an unvalidated
+    // authored set must never reach the game.
+    const validator = (typeof window !== 'undefined') && window.CustomSetValidator;
+    const customSets = validator ? storageManager.loadCustomSets() : {};
+
+    Object.keys(customSets).forEach(setId => {
+        const def = customSets[setId];
+
+        // Drafts are invisible to the game: no prices, no packs, no collection entries, no entry
+        // in the set menus. That invisibility is exactly what makes a draft's card names safe to
+        // rename, and it is the whole basis of the publish-time name lock.
+        if (!def || def.status !== 'published') return;
+
+        // The validator pins custom ids to /^Custom_/, so colliding with a shipped or weekly set
+        // is unreachable through the creator -- but a hand-edited save is untrusted input, and
+        // shadowing a real set would strand the player's collection for it.
+        if (allSets[setId]) {
+            console.warn('Custom set "' + setId + '" collides with an existing set; skipped.');
+            return;
+        }
+
+        const verdict = validator.validate(def, { id: setId, mode: 'load' });
+        if (!verdict.ok) {
+            // Quarantine, never delete. The set cannot be priced or opened so it must stay out of
+            // the game, but the player's collection for it is real: leaving the set out of
+            // allSets makes loadState() park those entries rather than drop them, and the creator
+            // reads .quarantine to show what needs fixing.
+            console.warn('Custom set "' + setId + '" failed validation; not loaded.', verdict.errors);
+            def.quarantine = { at: Date.now(), errors: verdict.errors };
+            return;
+        }
+
+        def.quarantine = null;
+        allSets[setId] = def;
+    });
 
     // Key computed *after* the lifecycle transitions above, since those bump the revision.
     // They are idempotent, so the revision stabilises on the first call.

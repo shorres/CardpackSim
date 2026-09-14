@@ -22,7 +22,10 @@ class TCGPackSimulator {
 
         // Drop old weekly sets the player holds no cards from, so the set list (and every
         // price/listing structure keyed off it) stops growing by one set per week forever.
-        this.gameEngine.storageManager.pruneWeeklySets(this.gameEngine.state.collection);
+        // Pruning the definition alone used to leave the set's prices, history, supply and
+        // listings in the save permanently -- and those are the bulk of it.
+        const prunedSets = this.gameEngine.storageManager.pruneWeeklySets(this.gameEngine.state.collection);
+        prunedSets.forEach(setId => this.gameEngine.marketEngine.purgeSet(setId));
         
         // Initialize the UI manager
         this.uiManager = new UIManager(this.gameEngine);

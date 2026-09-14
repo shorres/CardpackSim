@@ -16,6 +16,7 @@
     "test:registry": "electron test/registry.js",
     "test:customstore": "electron test/customstore.js",
     "test:customsets": "electron test/customsets.js",
+    "test:custommerge": "electron test/custommerge.js",
     "build:css": "tailwindcss -c tailwind.config.js -i src/vendor/tailwind.src.css -o src/vendor/tailwind.css --minify",
     "force-clean": "rimraf dist && timeout 2",
     "prebuild": "npm run clean && npm run build:css",

@@ -45,7 +45,11 @@ class MarketEngine {
             setMultipliers: {
                 standard: 1.0,
                 weekly: 1.3,
-                legacy: 0.8
+                legacy: 0.8,
+                // Authored sets are sold at the standard pack price, so they price at standard
+                // too. Kept as its own knob rather than falling through, so tuning custom-set
+                // economics later does not mean touching the shipped sets.
+                custom: 1.0
             },
             
             foilMultiplier: { min: 2.0, max: 4.0 },
@@ -204,7 +208,9 @@ class MarketEngine {
             this.state.supplyData[setId] = {};
         }
 
-        let setMultiplier = setData.isWeekly ? this.config.setMultipliers.weekly : this.config.setMultipliers.standard;
+        let setMultiplier = setData.isCustom ? this.config.setMultipliers.custom
+            : setData.isWeekly ? this.config.setMultipliers.weekly
+            : this.config.setMultipliers.standard;
         
         // Apply lifecycle pricing for weekly sets
         if (setData.isWeekly && setData.lifecycle) {
@@ -1081,6 +1087,28 @@ class MarketEngine {
         return hotCards
             .sort((a, b) => b.change - a.change)
             .slice(0, limit);
+    }
+
+    // Forget everything the market knows about a set.
+    //
+    // Nothing has ever done this: pruneWeeklySets drops a set definition but leaves its prices,
+    // history, supply and listings behind forever, and those are the bulk of the save. Deleting
+    // a custom set needs the same cleanup, so it lives here and both callers use it.
+    //
+    // The wishlist, sell orders and activity feed hold their own setId references, so a surviving
+    // entry would point at a set that no longer exists.
+    purgeSet(setId) {
+        ['cardPrices', 'priceHistory', 'supplyData', 'marketListings', 'playerListings']
+            .forEach(key => {
+                if (this.state[key]) delete this.state[key][setId];
+            });
+
+        const notThisSet = (entry) => !entry || entry.setId !== setId;
+        if (Array.isArray(this.state.wishlist)) this.state.wishlist = this.state.wishlist.filter(notThisSet);
+        if (Array.isArray(this.state.sellOrders)) this.state.sellOrders = this.state.sellOrders.filter(notThisSet);
+        if (Array.isArray(this.state.marketActivity)) {
+            this.state.marketActivity = this.state.marketActivity.filter(notThisSet);
+        }
     }
 
     // Save/load state for persistence

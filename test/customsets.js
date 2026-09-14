@@ -153,7 +153,9 @@ app.whenReady().then(async () => {
       ['empty mythic pool', (d) => { d.cards.mythic = []; }, 'cards.mythic', {}],
       ['tiny rare pool', (d) => { d.cards.rare = pool('R', 2); }, 'cards.rare', {}],
       ['rare slot larger than its pool',
-        (d) => { d.cards.rare = pool('R', 2); d.packComposition.rare = 3; }, 'packComposition.rare', {}],
+        (d) => { d.cards.rare = pool('R', 1); d.packComposition.rare = 2; }, 'packComposition.rare', {}],
+      ['rare slot count above the limit',
+        (d) => { d.packComposition.rare = 3; }, 'packComposition.rare', {}],
       ['mythic chance far too high', (d) => { d.mythicChance = 0.9; }, 'mythicChance', {}],
       ['mythic chance far too low', (d) => { d.mythicChance = 0.001; }, 'mythicChance', {}],
       ['foil chance out of range', (d) => { d.foilChance = 0.95; }, 'foilChance', {}],
@@ -177,8 +179,9 @@ app.whenReady().then(async () => {
       ['duplicate set name', (d) => {}, 'name',
         { takenNames: new Map([['probe set', 'Custom_Someone_Else']]) }],
       ['too many sets', (d) => {}, 'set', { setCount: 20 }],
+      // The richest pack the structural rules still allow: every slot and both odds maxed.
       ['money printer',
-        (d) => { d.packComposition = { common: 10, uncommon: 5, rare: 3 }; d.mythicChance = 0.25; d.foilChance = 0.40; },
+        (d) => { d.packComposition = { common: 10, uncommon: 5, rare: 2 }; d.mythicChance = 0.25; d.foilChance = 0.40; },
         'economy', {}],
       ['worthless packs',
         (d) => { d.packComposition = { common: 3, uncommon: 1, rare: 1 }; d.mythicChance = 0.02; d.foilChance = 0.02; },
@@ -198,6 +201,26 @@ app.whenReady().then(async () => {
             JSON.stringify(fields));
       check('rejected: ' + label + ' returns no normalized set', result.normalized === null);
     });
+
+    // ---------- 5b. every allowed value is actually reachable ----------
+    // A limit the economy band makes impossible is a trap: the editor would offer a slot count
+    // that can never validate no matter what else the author changes. This is what caps the rare
+    // slot at 2 -- three rare slots scores 2.62 at its cheapest, above the top of the band.
+    const L = V.LIMITS;
+    const reachability = {};
+    for (let rare = L.composition.rare.min; rare <= L.composition.rare.max; rare++) {
+      const cheapest = V.expectedPackValue({
+        packComposition: { common: L.composition.common.min, uncommon: L.composition.uncommon.min, rare },
+        mythicChance: L.mythicChance.min, foilChance: L.foilChance.min
+      }) / V.PACK_PRICE_STANDARD;
+      const richest = V.expectedPackValue({
+        packComposition: { common: L.composition.common.max, uncommon: L.composition.uncommon.max, rare },
+        mythicChance: L.mythicChance.max, foilChance: L.foilChance.max
+      }) / V.PACK_PRICE_STANDARD;
+      reachability[rare] = { cheapest: +cheapest.toFixed(3), richest: +richest.toFixed(3) };
+      check('rare slot count ' + rare + ' has a valid configuration',
+            cheapest <= V.EV_BAND.max && richest >= V.EV_BAND.min, JSON.stringify(reachability[rare]));
+    }
 
     // ---------- 6. load mode skips the cross-set checks a stored set already passed ----------
     const stored = base();
@@ -247,7 +270,7 @@ app.whenReady().then(async () => {
           filledResult.evRatio && filledResult.evRatio.toFixed(3));
 
     return {
-      FAILURES, shipped, rejections,
+      FAILURES, shipped, rejections, reachability,
       evBand: V.EV_BAND,
       closedVsEmpirical: { closed: +closed.toFixed(2), empirical: +empirical.toFixed(2),
                            bias: +(bias * 100).toFixed(1) + '%' },

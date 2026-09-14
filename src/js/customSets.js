@@ -41,7 +41,12 @@ const LIMITS = {
     composition: {
         common: { min: 3, max: 10 },
         uncommon: { min: 1, max: 5 },
-        rare: { min: 1, max: 3 }
+        // Capped at 2 because 3 is unreachable, not because 3 is undesirable: the cheapest pack
+        // the other limits allow alongside three rare slots still scores 2.62, above the top of
+        // EV_BAND. Offering a value in the editor that can never validate, whatever else the
+        // author changes, is worse than not offering it. test/customsets.js pins every allowed
+        // slot count as reachable, so this stays honest if the band is ever retuned.
+        rare: { min: 1, max: 2 }
     },
     mythicChance: { min: 0.02, max: 0.25 },   // 1 in 50 .. 1 in 4
     foilChance: { min: 0.02, max: 0.40 },     // 1 in 50 .. 1 in 2.5
@@ -117,7 +122,7 @@ function expectedPackValue(def, setMultiplier) {
 // market pushes prices back down again. The band says "about as generous as the game's own sets".
 //
 // It does real work at both ends -- the stingiest set the structural rules allow scores about
-// 1.08, the most generous about 5.01, and both are rejected.
+// 1.08, the most generous about 3.80, and both are rejected.
 //
 // Scoring each set against its own price is the point. Weekly packs cost $10, and pricing weekly
 // content at the standard $6 reads as 2.26 -- an artefact of the comparison, not a property of
