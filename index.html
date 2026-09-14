@@ -792,6 +792,25 @@
                     <p class="font-semibold">Are you absolutely sure you want to SELL ALL cards in your entire portfolio?</p>
                     <p class="text-red-300">This will permanently remove ALL cards that are not locked from ALL sets in your collection!</p>
                     <p class="font-bold text-red-400">You cannot undo this action!</p>
+                    <div class="bg-gray-900/50 rounded-lg p-4 mt-4 text-left space-y-1 text-sm" style="background-color: var(--bg-tertiary);">
+                        <div class="text-gray-400 text-xs mb-2">Offer for the whole lot</div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Spot value:</span>
+                            <span id="sell-all-spot" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Market impact:</span>
+                            <span id="sell-all-impact" class="font-medium text-orange-400"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Trading fee (5%):</span>
+                            <span id="sell-all-projected-fee" class="font-medium text-red-400"></span>
+                        </div>
+                        <div class="flex justify-between border-t border-gray-600 pt-1">
+                            <span class="text-green-400 font-semibold">You receive:</span>
+                            <span id="sell-all-projected-net" class="font-semibold text-green-400"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="flex gap-3 justify-center">
@@ -840,6 +859,10 @@
                         <div class="flex justify-between">
                             <span class="text-gray-400">Gross Value:</span>
                             <span id="success-gross" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Market Impact:</span>
+                            <span id="success-impact" class="font-medium text-orange-400"></span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-400">Trading Fee:</span>

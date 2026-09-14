@@ -1835,8 +1835,19 @@ class UIManager {
         
         const sentimentText = summary.sentiment > 1.1 ? 'Bullish 🐂' : 
                              summary.sentiment < 0.9 ? 'Bearish 🐻' : 'Neutral ⚖️';
-        const sentimentColor = summary.sentiment > 1.1 ? 'text-green-400' : 
+        const sentimentColor = summary.sentiment > 1.1 ? 'text-green-400' :
                               summary.sentiment < 0.9 ? 'text-red-400' : 'text-gray-400';
+
+        const shock = this.gameEngine.marketEngine.getSellPressureSummary();
+        // Average, not worst: the percentage sits next to the affected-card count, so a
+        // worst-case figure would read as "all N cards are down this much".
+        const shockPct = (1 - shock.averageMultiplier) * 100;
+        const shockText = shock.affectedCards === 0
+            ? 'None'
+            : `-${shockPct.toFixed(0)}% avg on ${shock.affectedCards} card${shock.affectedCards === 1 ? '' : 's'}`;
+        const shockColor = shockPct > 15 ? 'text-red-400'
+                         : shockPct > 3 ? 'text-orange-400'
+                         : 'text-gray-400';
         
         this.marketSummary.innerHTML = `
             <div class="grid grid-cols-2 gap-4 text-sm">
@@ -1858,6 +1869,14 @@ class UIManager {
                 <div>
                     <div class="text-gray-400">Total Cards</div>
                     <div class="font-medium">${summary.totalCards}</div>
+                </div>
+                <div>
+                    <div class="text-gray-400">Sell Pressure</div>
+                    <div class="${shockColor} font-medium">${shockText}</div>
+                </div>
+                <div>
+                    <div class="text-gray-400">Recovery</div>
+                    <div class="font-medium">${this.formatRecoveryEta(shock.recoveryEtaMs)}</div>
                 </div>
             </div>
         `;
@@ -2213,10 +2232,32 @@ class UIManager {
             return;
         }
         
-        const grossValue = quantity * price;
+        // Price through the same quote the sale itself uses, against a freshly read
+        // spot price rather than the cached sellModalData, so the preview cannot drift
+        // from what the player actually receives.
+        const marketEngine = this.gameEngine.marketEngine;
+        const spot = marketEngine.getCardPrice(setId, cardName, isFoil);
+        const portfolioBefore = Math.max(0,
+            (this.gameEngine.state.netWorth || 0) - (this.gameEngine.state.wallet || 0));
+        const quote = marketEngine.quoteSale(setId, cardName, isFoil, quantity, {
+            bulkMultiplier: marketEngine.computeBulkMultiplier(spot * quantity, portfolioBefore)
+        });
+        const grossValue = quote.gross;
         const fee = Math.round(grossValue * 0.05 * 100) / 100;
-        const netValue = grossValue - fee;
-        
+        const netValue = Math.round((grossValue - fee) * 100) / 100;
+
+        // Only surface impact once it is big enough to matter; a 0.1% haircut on a
+        // single common is noise the player does not need explained.
+        const impactRow = quote.slippagePct >= 0.5 ? `
+                <div class="flex justify-between">
+                    <span>Avg fill price:</span>
+                    <span class="text-orange-400">$${quote.avgFill.toFixed(2)}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Market impact:</span>
+                    <span class="text-orange-400">-${quote.slippagePct.toFixed(1)}%</span>
+                </div>` : '';
+
         salePreview.innerHTML = `
             <div class="space-y-2">
                 <div class="text-sm text-gray-400 mb-2">💰 Instant Sale Preview</div>
@@ -2225,9 +2266,10 @@ class UIManager {
                     <span>${quantity}x ${isFoil ? 'Foil ' : ''}${escapeHtml(cardName)}</span>
                 </div>
                 <div class="flex justify-between">
-                    <span>Price per card:</span>
-                    <span>$${price.toFixed(2)}</span>
+                    <span>Market price:</span>
+                    <span>$${spot.toFixed(2)}</span>
                 </div>
+                ${impactRow}
                 <div class="flex justify-between">
                     <span>Gross value:</span>
                     <span>$${grossValue.toFixed(2)}</span>
@@ -2400,8 +2442,43 @@ class UIManager {
             return;
         }
         
+        // Quote the lot BEFORE showing the modal. Dumping a portfolio moves the market
+        // against the seller, so the haircut has to be visible while they can still back
+        // out -- otherwise the payout just looks like a bug.
+        this.renderSellAllProjection();
+
         // Show first confirmation modal
         this.sellAllConfirmModal.classList.remove('hidden');
+    }
+
+    renderSellAllProjection() {
+        const preview = this.gameEngine.previewSellAllPortfolio();
+        const setText = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value;
+        };
+
+        if (!preview || !preview.success) {
+            ['sell-all-spot', 'sell-all-impact', 'sell-all-projected-fee', 'sell-all-projected-net']
+                .forEach(id => setText(id, '--'));
+            return;
+        }
+
+        setText('sell-all-spot', `$${preview.preShockValue.toFixed(2)}`);
+        setText('sell-all-impact',
+            `-$${preview.slippageLost.toFixed(2)} (${preview.impactPct.toFixed(1)}%)`);
+        setText('sell-all-projected-fee', `-$${preview.fee.toFixed(2)}`);
+        setText('sell-all-projected-net', `$${preview.netValue.toFixed(2)}`);
+    }
+
+    // Rough "time until the market has absorbed this" readout.
+    formatRecoveryEta(ms) {
+        if (!ms || ms <= 0) return 'Recovered';
+        const minutes = Math.round(ms / 60000);
+        if (minutes < 60) return `~${minutes}m`;
+        const hours = Math.floor(minutes / 60);
+        const rem = minutes % 60;
+        return rem === 0 ? `~${hours}h` : `~${hours}h ${rem}m`;
     }
 
     closeSellAllConfirmModal() {
@@ -2437,6 +2514,11 @@ class UIManager {
             // Populate and show custom success modal
             this.successMessage.textContent = result.message;
             this.successGross.textContent = `$${result.grossValue.toFixed(2)}`;
+            const impactEl = document.getElementById('success-impact');
+            if (impactEl) {
+                impactEl.textContent =
+                    `-$${(result.slippageLost || 0).toFixed(2)} (${(result.impactPct || 0).toFixed(1)}%)`;
+            }
             this.successFee.textContent = `$${result.fee.toFixed(2)}`;
             this.successNet.textContent = `$${result.netValue.toFixed(2)}`;
             this.successWallet.textContent = `$${result.newWallet.toFixed(2)}`;
