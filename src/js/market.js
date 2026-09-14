@@ -17,7 +17,8 @@ class MarketEngine {
             marketActivity: [], // Recent trading activity
             aiTraders: [], // AI trader instances
             aiBuyers: [], // AI buyer instances
-            sellOrders: [] // [{ id, setId, cardName, isFoil, quantity, triggerType, triggerValue, originalPrice, createdAt, isActive }]
+            sellOrders: [], // [{ id, setId, cardName, isFoil, quantity, triggerType, triggerValue, originalPrice, createdAt, isActive }]
+            sellPressureMigrated: true // fresh state needs no marketSupply migration
         };
         
         this.initializeConfig();
@@ -55,6 +56,26 @@ class MarketEngine {
             volatilityRange: 0.05, // ±5% random volatility
             demandEventChance: 0.02, // 2% chance per card per update
             sentimentChangeRate: 0.01, // How fast sentiment changes
+            sentimentReversion: 0.008, // Pull back toward 1.0 each tick so shocks heal
+
+            // --- Sell-side market shock (all tuning knobs live here) ---
+            // Selling feeds supplyData.marketSupply, which depresses price and then
+            // decays away. totalOpened (pack saturation) is a separate, slower term.
+            sellImpact: 0.004, // Price reduction per unit of sell supply
+            sellSupplyFloor: 0.35, // Sell pressure alone can't cut more than 65%
+            // Thin markets absorb less: dumping 3 mythics should sting like 36 commons.
+            sellSupplyWeight: { common: 1, uncommon: 2, rare: 5, mythic: 12 },
+            sellFoilWeight: 3, // Foils trade in a thinner market than their base card
+            sellSupplyDecay: 0.02, // Proportional per tick => ~35 min half-life
+            sellSupplyEpsilon: 0.01, // Below this, snap to 0 so entries settle clean
+            sentimentDumpImpact: 0.15, // Sentiment hit for liquidating a full portfolio
+            // Bulk-lot discount: the transient haircut on the sale itself, scaled by how
+            // much of the portfolio goes out the door at once. Per-card supply alone
+            // barely touches a DIVERSIFIED dump (you only hold ~7-20 copies of any one
+            // card), so without this a nuclear sell would go nearly unpunished. This is
+            // the "shop quotes one lump sum for the whole binder" term.
+            bulkDiscountMax: 0.27, // Haircut when liquidating 100% of the portfolio
+            bulkDiscountCurve: 0.8, // <1 so small sales stay near-free, big ones bite
             
             // Update frequency
             priceUpdateInterval: 60000, // 1 minute (increased frequency)
@@ -407,9 +428,12 @@ class MarketEngine {
     }
 
     updateMarketSentiment() {
-        // Slow random walk for overall market sentiment
+        // Slow random walk for overall market sentiment, with a gentle pull back toward
+        // 1.0. Without the reversion term a sell-off that knocks sentiment down leaves it
+        // to wander back by luck alone, which can take arbitrarily long.
         const change = (Math.random() - 0.5) * this.config.sentimentChangeRate * 2;
-        this.state.marketSentiment = Math.max(0.8, Math.min(1.2, this.state.marketSentiment + change));
+        const reversion = (1.0 - this.state.marketSentiment) * this.config.sentimentReversion;
+        this.state.marketSentiment = Math.max(0.8, Math.min(1.2, this.state.marketSentiment + change + reversion));
     }
 
     processSupplyChanges() {
@@ -426,8 +450,16 @@ class MarketEngine {
                     if (data.totalOpened > 0) {
                         data.totalOpened = Math.max(0, data.totalOpened - supplyDecayRate);
                     }
+                    // Sell pressure decays PROPORTIONALLY, unlike totalOpened above.
+                    // A flat subtraction would make a big dump effectively permanent:
+                    // shedding the ~160 units a full liquidation adds would take weeks
+                    // of runtime. Proportional decay gives a fixed ~35 min half-life
+                    // regardless of how much was dumped.
                     if (data.marketSupply > 0) {
-                        data.marketSupply = Math.max(0, data.marketSupply - supplyDecayRate);
+                        data.marketSupply *= (1 - this.config.sellSupplyDecay);
+                        if (data.marketSupply < this.config.sellSupplyEpsilon) {
+                            data.marketSupply = 0;
+                        }
                     }
                 });
             }
@@ -486,9 +518,9 @@ class MarketEngine {
         });
     }
 
-    updateCardPrice(setId, cardName) {
-        const cardData = this.state.cardPrices[setId][cardName];
-        const supplyData = this.state.supplyData[setId][cardName];
+    updateCardPrice(setId, cardName, opts = null) {
+        const cardData = this.state.cardPrices[setId] && this.state.cardPrices[setId][cardName];
+        const supplyData = this.state.supplyData[setId] && this.state.supplyData[setId][cardName];
         
         if (!cardData || !supplyData) return;
         
@@ -497,6 +529,9 @@ class MarketEngine {
         // Apply supply pressure (floor at 0.1 so price can't drop more than 90% from supply alone)
         const supplyReduction = Math.max(0.1, 1 - (supplyData.totalOpened * this.config.supplyImpact));
         newPrice *= supplyReduction;
+        
+        // Apply sell-side pressure from players dumping inventory
+        newPrice *= this.getSellReduction(supplyData.marketSupply);
         
         // Apply demand events
         const demandEvent = this.state.demandEvents.find(event => 
@@ -513,11 +548,16 @@ class MarketEngine {
         const volatility = 1 + (Math.random() - 0.5) * this.config.volatilityRange * 2;
         newPrice *= volatility;
         
-        // Limit maximum price change per update
-        const maxChange = cardData.currentPrice * this.config.maxPriceChange;
-        const change = newPrice - cardData.currentPrice;
-        if (Math.abs(change) > maxChange) {
-            newPrice = cardData.currentPrice + (change > 0 ? maxChange : -maxChange);
+        // Limit maximum price change per update. A sale-driven update passes
+        // immediate:true to bypass this: the player was quoted a price that already
+        // reflects their own sell pressure, so the visible price has to land there at
+        // once rather than sliding down over the next few ticks.
+        if (!opts || !opts.immediate) {
+            const maxChange = cardData.currentPrice * this.config.maxPriceChange;
+            const change = newPrice - cardData.currentPrice;
+            if (Math.abs(change) > maxChange) {
+                newPrice = cardData.currentPrice + (change > 0 ? maxChange : -maxChange);
+            }
         }
         
         // Ensure minimum price
@@ -640,8 +680,187 @@ class MarketEngine {
             return;
         }
         
+        // Only totalOpened: marketSupply now tracks sell-side pressure exclusively.
         this.state.supplyData[setId][cardName].totalOpened++;
-        this.state.supplyData[setId][cardName].marketSupply++;
+    }
+
+    // --- Sell-side market shock -------------------------------------------------
+    // Selling feeds supplyData.marketSupply, which depresses the card price and then
+    // decays away in processSupplyChanges. Two separate effects are at work:
+    //   * per-card supply   -> lingering; punishes dumping many copies of ONE card
+    //   * bulk-lot discount -> transient; punishes liquidating a large SLICE at once
+    // plus a market-wide sentiment nudge that makes the next dump worse than this one.
+
+    getSellReduction(marketSupply) {
+        const supply = marketSupply > 0 ? marketSupply : 0;
+        return Math.max(this.config.sellSupplyFloor, 1 - (supply * this.config.sellImpact));
+    }
+
+    // How many units of sell pressure a sale represents. Thin markets absorb less, so
+    // rarity and foil-ness both scale the pressure a single card contributes.
+    getSupplyUnitsForSale(setId, cardName, quantity, isFoil = false) {
+        const rarity = this.getCardRarity(setId, cardName);
+        const weight = this.config.sellSupplyWeight[rarity] || this.config.sellSupplyWeight.common;
+        return quantity * weight * (isFoil ? this.config.sellFoilWeight : 1);
+    }
+
+    // Transient discount for offloading a large fraction of the portfolio in one go.
+    computeBulkMultiplier(saleValue, portfolioBefore) {
+        if (!portfolioBefore || portfolioBefore <= 0 || saleValue <= 0) return 1;
+        const fraction = Math.min(1, saleValue / portfolioBefore);
+        return 1 - (this.config.bulkDiscountMax * Math.pow(fraction, this.config.bulkDiscountCurve));
+    }
+
+    getSellPressure(setId, cardName) {
+        const data = this.state.supplyData[setId] && this.state.supplyData[setId][cardName];
+        return (data && data.marketSupply > 0) ? data.marketSupply : 0;
+    }
+
+    // PURE: quotes a sale without mutating anything. The sell preview, the sell-all
+    // confirmation and the actual payout all price through here, so what the player is
+    // shown is by construction what they get.
+    // ctx: { pendingSupply, bulkMultiplier } for pricing inside a larger batch.
+    quoteSale(setId, cardName, isFoil = false, quantity = 1, ctx = null) {
+        const qty = Math.max(0, quantity);
+        const spot = this.getCardPrice(setId, cardName, isFoil);
+        const pendingSupply = (ctx && ctx.pendingSupply) || 0;
+        const bulkMultiplier = (ctx && typeof ctx.bulkMultiplier === 'number') ? ctx.bulkMultiplier : 1;
+
+        const supplyDelta = this.getSupplyUnitsForSale(setId, cardName, qty, isFoil);
+        const startSupply = this.getSellPressure(setId, cardName) + pendingSupply;
+
+        // getSellReduction is LINEAR in supply, so the average multiplier across a fill
+        // is just its value at the MIDPOINT of the supply that fill adds. That is the
+        // entire volume-discount calculation -- no integration needed.
+        // spot already embeds the reduction at startSupply, so scale by the ratio.
+        const before = this.getSellReduction(startSupply);
+        const after = this.getSellReduction(startSupply + (supplyDelta / 2));
+        const fillRatio = (before > 0 ? after / before : 1) * bulkMultiplier;
+
+        return {
+            setId, cardName, isFoil,
+            quantity: qty,
+            spot,
+            avgFill: Math.round(spot * fillRatio * 100) / 100,
+            gross: Math.round(spot * fillRatio * qty * 100) / 100,
+            preShockGross: Math.round(spot * qty * 100) / 100,
+            supplyDelta,
+            fillRatio,
+            slippagePct: (1 - fillRatio) * 100
+        };
+    }
+
+    // PURE: quotes a whole batch as one lot. Every line gets the SAME bulk multiplier,
+    // so the payout does not depend on collection iteration order.
+    // entries: [{ setId, cardName, isFoil, quantity }]
+    quoteBatch(entries, portfolioBefore = 0) {
+        const list = entries || [];
+
+        // Pass 1: spot value of the lot, which sets the bulk discount.
+        let preShockGross = 0;
+        list.forEach(e => {
+            preShockGross += this.getCardPrice(e.setId, e.cardName, e.isFoil) * Math.max(0, e.quantity);
+        });
+        preShockGross = Math.round(preShockGross * 100) / 100;
+        const bulkMultiplier = this.computeBulkMultiplier(preShockGross, portfolioBefore);
+
+        // Pass 2: price each line, accumulating per-card pressure so that a card
+        // regular and foil lines price coherently against each other.
+        const pending = {};
+        const lines = [];
+        let gross = 0;
+        list.forEach(e => {
+            const key = e.setId + '|' + e.cardName;
+            const line = this.quoteSale(e.setId, e.cardName, e.isFoil, e.quantity, {
+                pendingSupply: pending[key] || 0,
+                bulkMultiplier
+            });
+            pending[key] = (pending[key] || 0) + line.supplyDelta;
+            lines.push(line);
+            gross += line.gross;
+        });
+        gross = Math.round(gross * 100) / 100;
+
+        const fraction = portfolioBefore > 0 ? Math.min(1, preShockGross / portfolioBefore) : 0;
+
+        return {
+            lines,
+            gross,
+            preShockGross,
+            bulkMultiplier,
+            fraction,
+            sentimentDelta: -(fraction * this.config.sentimentDumpImpact),
+            slippageLost: Math.round((preShockGross - gross) * 100) / 100,
+            impactPct: preShockGross > 0 ? ((1 - (gross / preShockGross)) * 100) : 0
+        };
+    }
+
+    // Records a single sale pressure contribution and refreshes the visible price now.
+    recordCardSold(setId, cardName, quantity, isFoil = false) {
+        const data = this.state.supplyData[setId] && this.state.supplyData[setId][cardName];
+        if (!data) return;
+
+        data.marketSupply += this.getSupplyUnitsForSale(setId, cardName, quantity, isFoil);
+        this.updateCardPrice(setId, cardName, { immediate: true });
+    }
+
+    // The ONLY mutator for a batch: applies every line pressure plus the single
+    // market-wide sentiment hit, then refreshes each affected price once.
+    commitBatchImpact(batch) {
+        if (!batch || !batch.lines) return;
+
+        const touched = {};
+        batch.lines.forEach(line => {
+            const data = this.state.supplyData[line.setId] && this.state.supplyData[line.setId][line.cardName];
+            if (!data) return;
+            data.marketSupply += line.supplyDelta;
+            touched[line.setId + '|' + line.cardName] = { setId: line.setId, cardName: line.cardName };
+        });
+
+        if (batch.sentimentDelta) {
+            this.state.marketSentiment = Math.max(0.8, Math.min(1.2,
+                this.state.marketSentiment + batch.sentimentDelta));
+        }
+
+        Object.keys(touched).forEach(key => {
+            this.updateCardPrice(touched[key].setId, touched[key].cardName, { immediate: true });
+        });
+    }
+
+    // Aggregate view for the Market tab indicator.
+    getSellPressureSummary() {
+        let affectedCards = 0;
+        let worstSupply = 0;
+        let reductionSum = 0;
+
+        Object.keys(this.state.supplyData || {}).forEach(setId => {
+            Object.keys(this.state.supplyData[setId] || {}).forEach(cardName => {
+                const supply = this.getSellPressure(setId, cardName);
+                if (supply <= 0) return;
+                affectedCards++;
+                reductionSum += this.getSellReduction(supply);
+                if (supply > worstSupply) worstSupply = supply;
+            });
+        });
+
+        // Time until the worst-hit card is back within 1% of its fundamental price.
+        // Deliberately NOT the decay-to-zero time: sell pressure decays proportionally,
+        // so the last sliver takes hours while being economically invisible.
+        const negligibleSupply = 0.01 / this.config.sellImpact;
+        let recoveryEtaMs = 0;
+        if (worstSupply > negligibleSupply) {
+            const ticks = Math.log(worstSupply / negligibleSupply) /
+                          -Math.log(1 - this.config.sellSupplyDecay);
+            recoveryEtaMs = ticks * this.config.priceUpdateInterval;
+        }
+
+        return {
+            affectedCards,
+            worstMultiplier: this.getSellReduction(worstSupply),
+            averageMultiplier: affectedCards > 0 ? (reductionSum / affectedCards) : 1,
+            sentiment: this.state.marketSentiment,
+            recoveryEtaMs
+        };
     }
 
     getCardPrice(setId, cardName, isFoil = false) {
@@ -901,6 +1120,24 @@ class MarketEngine {
         return { before, after };
     }
 
+    // One-time repair for saves written before sell pressure existed. Back then
+    // recordCardOpened incremented marketSupply alongside totalOpened, so every card a
+    // returning player ever opened carries a stale count. Reading those as sell pressure
+    // would crater their whole collection the instant they loaded the game. Clear them
+    // once; from here on marketSupply only ever comes from selling.
+    migrateSellPressure() {
+        if (this.state.sellPressureMigrated) return;
+
+        Object.keys(this.state.supplyData || {}).forEach(setId => {
+            Object.keys(this.state.supplyData[setId] || {}).forEach(cardName => {
+                const data = this.state.supplyData[setId][cardName];
+                if (data) data.marketSupply = 0;
+            });
+        });
+
+        this.state.sellPressureMigrated = true;
+    }
+
     setState(newState) {
         // Preserve initialized AI buyers when restoring state
         const preservedAIBuyers = this.state?.aiBuyers || [];
@@ -923,6 +1160,7 @@ class MarketEngine {
         }
         
         this.compactPriceHistory();
+        this.migrateSellPressure();
 
         // Restart market systems (startPriceUpdates clears any existing interval first)
         this.startPriceUpdates();
@@ -1245,7 +1483,9 @@ class MarketEngine {
                 playerListings: {},
                 marketActivity: [],
                 aiTraders: [],
-                aiBuyers: []
+                aiBuyers: [],
+                sellOrders: [],
+                sellPressureMigrated: true
             };
         }
         
@@ -1263,7 +1503,9 @@ class MarketEngine {
         if (!this.state.supplyData) this.state.supplyData = {};
         if (!this.state.demandEvents) this.state.demandEvents = [];
         if (!this.state.aiTraders) this.state.aiTraders = [];
-        
+        if (!this.state.sellOrders) this.state.sellOrders = [];
+        this.migrateSellPressure();
+
         return true;
     }
 
@@ -2008,9 +2250,22 @@ class MarketEngine {
             order.isActive || (order.completedAt || order.createdAt || 0) > staleCutoff);
         
         const activeOrders = this.state.sellOrders.filter(order => order.isActive);
-        
+
+        // Snapshot prices BEFORE evaluating anything. Selling now moves the market, so
+        // re-reading the price per order would let one triggered stop-loss depress the
+        // price enough to trip the next one, cascading the whole book within a single
+        // tick. One tick = one decision point, priced off the same instant.
+        const priceSnapshot = new Map();
         for (const order of activeOrders) {
-            const currentPrice = this.getCardPrice(order.setId, order.cardName, order.isFoil);
+            const key = order.setId + '|' + order.cardName + '|' + (order.isFoil ? 'f' : 'r');
+            if (!priceSnapshot.has(key)) {
+                priceSnapshot.set(key, this.getCardPrice(order.setId, order.cardName, order.isFoil));
+            }
+        }
+
+        for (const order of activeOrders) {
+            const key = order.setId + '|' + order.cardName + '|' + (order.isFoil ? 'f' : 'r');
+            const currentPrice = priceSnapshot.get(key);
             let shouldExecute = false;
             
             switch (order.triggerType) {
@@ -2072,11 +2327,10 @@ class MarketEngine {
             
             // Execute the sale using instant sell
             const saleResult = gameEngine.sellCard(
-                order.setId, 
-                order.cardName, 
-                order.quantity, 
-                order.isFoil, 
-                true // isInstantSell flag
+                order.setId,
+                order.cardName,
+                order.quantity,
+                order.isFoil
             );
             
             if (saleResult.success) {
