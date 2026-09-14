@@ -679,8 +679,14 @@ function lookupCardRarity(setId, cardName) {
     return (bySet && bySet.get(cardName)) || null;
 }
 
+// Exported, because it is the invalidation signal for every cache derived from getAllSets() --
+// including UIManager.cardDatabase, which lives outside this module. The argument is optional so
+// callers that do not hold a manager can still ask.
 function getAllSetsCacheKey(storageManager) {
-    return weeklySetGenerator.getWeeklySetId() + '|' + storageManager.getWeeklySetsRevision();
+    const sm = storageManager
+        || (typeof window !== 'undefined' && window.storageManager)
+        || new StorageManager();
+    return weeklySetGenerator.getWeeklySetId() + '|' + sm.getWeeklySetsRevision();
 }
 
 function getAllSets() {
@@ -1151,6 +1157,7 @@ if (typeof module !== 'undefined' && module.exports) {
         WeeklySetGenerator, 
         weeklySetGenerator, 
         getAllSets,
+        getAllSetsCacheKey,
         testWeeklySet,
         regenerateSet,
         listWeeklySets,
@@ -1172,6 +1179,7 @@ if (typeof module !== 'undefined' && module.exports) {
     window.WeeklySetGenerator = WeeklySetGenerator;
     window.weeklySetGenerator = weeklySetGenerator;
     window.getAllSets = getAllSets;
+    window.getAllSetsCacheKey = getAllSetsCacheKey;
     window.lookupCardRarity = lookupCardRarity;
     
     // Testing helper functions

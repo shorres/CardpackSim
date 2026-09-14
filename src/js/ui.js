@@ -261,6 +261,17 @@ class UIManager {
 
     populateSetSelectors() {
         const allSets = window.getAllSets();
+
+        // Rebuild rather than append. This only ever added options, which stayed invisible while
+        // sets could not appear after load -- but regenerateSet() already calls it a second time,
+        // and publishing a custom set will too, duplicating every existing entry in both menus.
+        const previous = {
+            pack: this.setSelector.value,
+            collection: this.collectionSetSelector.value
+        };
+        this.setSelector.replaceChildren();
+        this.collectionSetSelector.replaceChildren();
+
         Object.keys(allSets).forEach(setId => {
             const set = allSets[setId];
             
@@ -301,13 +312,26 @@ class UIManager {
             this.setSelector.add(option);
             this.collectionSetSelector.add(collectionOption);
         });
+
+        // Restore the player's selection where the set still exists. A cleared <select> defaults
+        // to its first option, which would silently switch which set they were looking at.
+        if (previous.pack && allSets[previous.pack]) this.setSelector.value = previous.pack;
+        if (previous.collection && allSets[previous.collection]) {
+            this.collectionSetSelector.value = previous.collection;
+        }
     }
 
     // Card Auto-Suggestion System
     createCardDatabase() {
-        if (this.cardDatabase) return this.cardDatabase;
-        
+        // Memoized on the same key as getAllSets(), so a set appearing or disappearing at runtime
+        // invalidates it too. This had no invalidation at all, which was latent only because sets
+        // could not change after load -- the autocomplete and wishlist pickers would otherwise go
+        // stale the moment a custom set is published.
+        const key = window.getAllSetsCacheKey ? window.getAllSetsCacheKey() : null;
+        if (this.cardDatabase && this.cardDatabaseKey === key) return this.cardDatabase;
+
         const allSets = window.getAllSets();
+        this.cardDatabaseKey = key;
         this.cardDatabase = [];
         
         Object.keys(allSets).forEach(setId => {
