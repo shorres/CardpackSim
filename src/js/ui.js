@@ -31,6 +31,9 @@ class UIManager {
         this.setupEventListeners();
         this.setupDelegatedActions();
         this.setupPackTearing();
+        // Loaded after ui.js, so the class exists by the time app.js constructs the UIManager.
+        // Guarded anyway: the creator is not load-bearing for the rest of the game.
+        this.creatorUI = window.CreatorUI ? new window.CreatorUI(this) : null;
         this.initializeThemes();
     }
 
@@ -71,6 +74,15 @@ class UIManager {
                 case 'wishlist-remove':
                     this.removeFromWishlist(setId, cardName, isFoil);
                     break;
+                case 'creator-new':
+                    if (this.creatorUI) this.creatorUI.newSet();
+                    break;
+                case 'creator-edit':
+                    if (this.creatorUI) this.creatorUI.edit(setId);
+                    break;
+                case 'creator-focus-field':
+                    if (this.creatorUI) this.creatorUI.focusField(el.dataset.field);
+                    break;
             }
         });
     }
@@ -80,9 +92,11 @@ class UIManager {
         this.packsTab = document.getElementById('packs-tab');
         this.collectionTab = document.getElementById('collection-tab');
         this.marketTab = document.getElementById('market-tab');
+        this.creatorTab = document.getElementById('creator-tab');
         this.packsContent = document.getElementById('packs-content');
         this.collectionContent = document.getElementById('collection-content');
         this.marketContent = document.getElementById('market-content');
+        this.creatorContent = document.getElementById('creator-content');
         
         // DOM elements
         this.setSelector = document.getElementById('set-selector');
@@ -261,6 +275,17 @@ class UIManager {
 
     populateSetSelectors() {
         const allSets = window.getAllSets();
+
+        // Rebuild rather than append. This only ever added options, which stayed invisible while
+        // sets could not appear after load -- but regenerateSet() already calls it a second time,
+        // and publishing a custom set will too, duplicating every existing entry in both menus.
+        const previous = {
+            pack: this.setSelector.value,
+            collection: this.collectionSetSelector.value
+        };
+        this.setSelector.replaceChildren();
+        this.collectionSetSelector.replaceChildren();
+
         Object.keys(allSets).forEach(setId => {
             const set = allSets[setId];
             
@@ -301,13 +326,26 @@ class UIManager {
             this.setSelector.add(option);
             this.collectionSetSelector.add(collectionOption);
         });
+
+        // Restore the player's selection where the set still exists. A cleared <select> defaults
+        // to its first option, which would silently switch which set they were looking at.
+        if (previous.pack && allSets[previous.pack]) this.setSelector.value = previous.pack;
+        if (previous.collection && allSets[previous.collection]) {
+            this.collectionSetSelector.value = previous.collection;
+        }
     }
 
     // Card Auto-Suggestion System
     createCardDatabase() {
-        if (this.cardDatabase) return this.cardDatabase;
-        
+        // Memoized on the same key as getAllSets(), so a set appearing or disappearing at runtime
+        // invalidates it too. This had no invalidation at all, which was latent only because sets
+        // could not change after load -- the autocomplete and wishlist pickers would otherwise go
+        // stale the moment a custom set is published.
+        const key = window.getAllSetsCacheKey ? window.getAllSetsCacheKey() : null;
+        if (this.cardDatabase && this.cardDatabaseKey === key) return this.cardDatabase;
+
         const allSets = window.getAllSets();
+        this.cardDatabaseKey = key;
         this.cardDatabase = [];
         
         Object.keys(allSets).forEach(setId => {
@@ -686,6 +724,7 @@ class UIManager {
         this.packsTab.addEventListener('click', () => this.switchTab('packs'));
         this.collectionTab.addEventListener('click', () => this.switchTab('collection'));
         this.marketTab.addEventListener('click', () => this.switchTab('market'));
+        this.creatorTab.addEventListener('click', () => this.switchTab('creator'));
         
         this.setSelector.addEventListener('change', (e) => {
             this.gameEngine.setSelectedSet(e.target.value);
@@ -1063,6 +1102,10 @@ class UIManager {
             this.marketContent.classList.remove('hidden');
             // currentTab is already set above, so this renders the full market view.
             this.renderMarketViews();
+        } else if (tabName === 'creator') {
+            this.creatorTab.classList.add('active');
+            this.creatorContent.classList.remove('hidden');
+            if (this.creatorUI) this.creatorUI.render();
         }
     }
 

@@ -22,6 +22,12 @@ const saveDoc = {
     game: null,
     market: null,
     weeklySets: {},
+    // Player-authored sets. Deliberately a separate bucket from weeklySets rather than a flag
+    // inside it: pruneWeeklySets() deletes by age and updateSetLifecycle() stamps
+    // featured/standard/legacy on whatever it finds, and neither should ever touch authored
+    // content. Keeping the stores apart makes that structural instead of dependent on every
+    // future reader remembering to check a flag.
+    customSets: {},
     // Collection entries for sets whose definition is no longer available. Parked here
     // rather than deleted -- see loadState().
     orphanedCollections: {}
@@ -30,8 +36,19 @@ const saveDoc = {
 let docLoaded = false;
 // Bumped whenever the weekly-set store changes, so getAllSets() can memoize safely.
 let weeklySetsRevision = 0;
+// Same, for the custom-set store. Both feed getAllSetsCacheKey().
+let customSetsRevision = 0;
 let flushTimer = null;
 let lastFlushFailed = false;
+
+// Every custom-set mutation goes through here. Missing a bump means getAllSets() and
+// lookupCardRarity() keep serving a stale view: at best a published set that does not appear, at
+// worst a card whose rarity lookup falls back to 'common' and is then priced at common tier
+// permanently, because basePrice is written exactly once.
+function bumpCustomSets() {
+    customSetsRevision++;
+    StorageManager.scheduleFlush();
+}
 
 function fileApiAvailable() {
     return !!(window.electronAPI && typeof window.electronAPI.saveGame === 'function');
@@ -69,6 +86,7 @@ class StorageManager {
             if (validated) {
                 Object.assign(saveDoc, validated);
                 weeklySetsRevision++;
+                customSetsRevision++;
                 docLoaded = true;
                 return { source: result.source, warning: result.warning };
             }
@@ -81,6 +99,7 @@ class StorageManager {
 
         if (migrated) {
             weeklySetsRevision++;
+            customSetsRevision++;
             console.log('Migrated localStorage save to file-based save.');
             StorageManager.flushNow();
             return { source: 'migrated-from-localStorage' };
@@ -117,6 +136,7 @@ class StorageManager {
             game: null,
             market: null,
             weeklySets: {},
+            customSets: {},
             orphanedCollections: {}
         };
 
@@ -127,6 +147,10 @@ class StorageManager {
         }
         if (doc.market && typeof doc.market === 'object') out.market = doc.market;
         if (doc.weeklySets && typeof doc.weeklySets === 'object') out.weeklySets = doc.weeklySets;
+        // Shape only. Whether a stored custom set is *playable* is CustomSetValidator's job, run
+        // at merge time in getAllSets(), so that a single bad set is quarantined instead of
+        // rejecting the entire save document.
+        if (doc.customSets && typeof doc.customSets === 'object') out.customSets = doc.customSets;
         if (doc.orphanedCollections && typeof doc.orphanedCollections === 'object') {
             out.orphanedCollections = doc.orphanedCollections;
         }
@@ -225,15 +249,12 @@ class StorageManager {
         Object.keys(parsedState.collection).forEach(setId => {
             if (allSets[setId]) return;
 
-            const orphaned = parsedState.collection[setId] || {};
-            const cardCount = Object.keys(orphaned).length;
+            const cardCount = this.parkCollection(setId, parsedState.collection);
             if (cardCount > 0) {
-                saveDoc.orphanedCollections[setId] = orphaned;
                 console.warn(`Set "${setId}" has no definition; parking ${cardCount} ` +
                     'collection entr' + (cardCount === 1 ? 'y' : 'ies') +
                     ' in orphanedCollections instead of deleting them.');
             }
-            delete parsedState.collection[setId];
         });
 
         return parsedState;
@@ -278,6 +299,101 @@ class StorageManager {
         }
     }
 
+    // ---- custom sets ----
+    //
+    // Authored content, not progress: preserved by clearState() and resetGameState(), wiped only
+    // by the dev-only clearAllData().
+
+    loadCustomSets() {
+        return saveDoc.customSets || {};
+    }
+
+    getCustomSetsRevision() {
+        return customSetsRevision;
+    }
+
+    // Copies in and copies out. A shallow spread would leave the nested cards object shared with
+    // the caller, which means the creator's in-progress working copy silently mutates the stored
+    // set -- edits appear saved without a save, and the published-name lock can be walked straight
+    // past. Sets are a few KB and this runs on explicit saves, not a hot path.
+    saveCustomSet(setId, definition) {
+        const stored = JSON.parse(JSON.stringify(
+            Object.assign({}, definition, { updatedAt: Date.now() })));
+        saveDoc.customSets[setId] = stored;
+        bumpCustomSets();
+        return JSON.parse(JSON.stringify(stored));
+    }
+
+    deleteCustomSet(setId) {
+        if (!saveDoc.customSets[setId]) return false;
+        delete saveDoc.customSets[setId];
+        bumpCustomSets();
+        return true;
+    }
+
+    // ---- collection parking ----
+
+    // Move a set's collection entries into orphanedCollections and remove them from the live
+    // collection. Two callers: loadState(), for a set whose definition has vanished, and
+    // unpublishing a custom set mid-session. They are the same operation, so there is one
+    // implementation -- a second copy is where the divergence bug would live.
+    //
+    // Returns the number of entries parked.
+    parkCollection(setId, collection) {
+        const owned = (collection && collection[setId]) || {};
+        const cardCount = Object.keys(owned).length;
+
+        if (cardCount > 0) {
+            // Merge rather than replace. A set can be parked more than once (unpublish, edit,
+            // unpublish again) and anything parked earlier is still the player's property.
+            saveDoc.orphanedCollections[setId] = {
+                ...(saveDoc.orphanedCollections[setId] || {}),
+                ...owned
+            };
+        }
+        if (collection) delete collection[setId];
+        if (cardCount > 0) StorageManager.scheduleFlush();
+
+        return cardCount;
+    }
+
+    // The inverse, which has never existed -- orphanedCollections has been write-only. Restores
+    // entries whose card still exists in the set; anything else stays parked rather than being
+    // dropped, because a draft edit may have renamed or removed that card and the player may yet
+    // add it back.
+    restoreOrphanedCollection(setId, collection, validNames) {
+        const parked = saveDoc.orphanedCollections[setId];
+        if (!parked || !collection) return { restored: 0, stillParked: 0 };
+
+        if (!collection[setId]) collection[setId] = {};
+        let restored = 0;
+        let stillParked = 0;
+
+        // Object.keys snapshots, so deleting entries while iterating it is safe.
+        Object.keys(parked).forEach(cardName => {
+            if (validNames && !validNames.has(cardName)) { stillParked++; return; }
+            collection[setId][cardName] = parked[cardName];
+            delete parked[cardName];
+            restored++;
+        });
+
+        if (stillParked === 0) delete saveDoc.orphanedCollections[setId];
+        StorageManager.scheduleFlush();
+
+        return { restored, stillParked };
+    }
+
+    // Parked entries survive almost everything, because a set can come back. Permanently
+    // deleting the set is the one case where they must not: the player asked for the set and
+    // everything in it to be gone, and leaving the entries behind would silently resurrect them
+    // if a later set ever minted the same id.
+    discardOrphanedCollection(setId) {
+        if (!saveDoc.orphanedCollections[setId]) return false;
+        delete saveDoc.orphanedCollections[setId];
+        StorageManager.scheduleFlush();
+        return true;
+    }
+
     // Remove old weekly sets the player holds no cards from. Without this the set list grows
     // by one set per week forever, and every price / listing / history structure is keyed
     // off it.
@@ -315,11 +431,17 @@ class StorageManager {
         StorageManager.flushNow();
     }
 
+    // Dev-only (app.js gates it on electronAPI.isDev). Its contract is "everything", which
+    // includes authored content -- unlike resetGameState(), which a player reaches from the File
+    // menu and which must never destroy sets they made.
     clearAllData() {
         saveDoc.game = null;
         saveDoc.market = null;
         saveDoc.weeklySets = {};
+        saveDoc.customSets = {};
+        saveDoc.orphanedCollections = {};
         weeklySetsRevision++;
+        customSetsRevision++;
         try {
             localStorage.removeItem('tcgSimState');
             localStorage.removeItem('tcgSimMarketState');
@@ -336,7 +458,7 @@ class StorageManager {
         saveDoc.game = null;
         saveDoc.market = null;
         StorageManager.flushNow();
-        console.log('Game state reset (weekly sets preserved)');
+        console.log('Game state reset (weekly and custom sets preserved)');
         return true;
     }
 }
